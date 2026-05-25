@@ -1,41 +1,78 @@
 import { useEffect } from 'react';
+import { CreditsModal } from './components/CreditsModal';
+import { DialoguePanel } from './components/DialoguePanel';
 import { GameCanvas } from './components/GameCanvas';
-import { StatusBar } from './components/StatusBar';
+import { GalleryPanel } from './components/GalleryPanel';
+import { MusePanel } from './components/MusePanel';
+import { ResourceBar } from './components/ResourceBar';
+import { SettingsModal } from './components/SettingsModal';
+import { StagePanel } from './components/StagePanel';
+import { TitleScreen } from './components/TitleScreen';
 import { UpgradePanel } from './components/UpgradePanel';
-import { BALANCE } from './data/balance';
+import { useAppStore } from './store/useAppStore';
+import { startAutoSave } from './systems/saveSystem';
 import { useGameStore } from './store/useGameStore';
-import './styles.css';
 
 export default function App() {
+  const currentScreen = useAppStore((state) => state.currentScreen);
+  const setScreen = useAppStore((state) => state.setScreen);
+  const openSettings = useAppStore((state) => state.openSettings);
+  const closeSettings = useAppStore((state) => state.closeSettings);
+  const autoSaveEnabled = useAppStore((state) => state.settings.autoSaveEnabled);
+  const startNewGame = useGameStore((state) => state.startNewGame);
+  const continueGame = useGameStore((state) => state.continueGame);
+
   useEffect(() => {
-    const store = useGameStore.getState();
-    store.loadGame();
+    if (currentScreen !== 'game' || !autoSaveEnabled) {
+      return undefined;
+    }
 
-    const incomeTimer = window.setInterval(() => {
-      useGameStore.getState().refreshIncomeRate();
-    }, 1_000);
-    const saveTimer = window.setInterval(() => {
-      useGameStore.getState().saveGame();
-    }, BALANCE.autoSaveMs);
-    const saveBeforeExit = () => useGameStore.getState().saveGame();
+    return startAutoSave(() => useGameStore.getState());
+  }, [autoSaveEnabled, currentScreen]);
 
-    window.addEventListener('beforeunload', saveBeforeExit);
-    return () => {
-      window.clearInterval(incomeTimer);
-      window.clearInterval(saveTimer);
-      window.removeEventListener('beforeunload', saveBeforeExit);
-      saveBeforeExit();
-    };
-  }, []);
+  if (currentScreen === 'title') {
+    return (
+      <TitleScreen
+        onContinue={() => {
+          continueGame();
+          setScreen('game');
+        }}
+        onCredits={() => setScreen('credits')}
+        onGallery={() => setScreen('gallery')}
+        onSettings={() => openSettings('title')}
+        onStart={() => {
+          startNewGame();
+          setScreen('game');
+        }}
+      />
+    );
+  }
+
+  if (currentScreen === 'settings') {
+    return <SettingsModal onBack={closeSettings} />;
+  }
+
+  if (currentScreen === 'gallery') {
+    return <GalleryPanel mode="screen" onBack={() => setScreen('title')} />;
+  }
+
+  if (currentScreen === 'credits') {
+    return <CreditsModal onBack={() => setScreen('title')} />;
+  }
 
   return (
     <div className="app-shell">
-      <StatusBar />
+      <ResourceBar onSettings={() => openSettings('game')} />
       <main className="workspace">
         <UpgradePanel />
         <GameCanvas />
+        <div className="side-panel-stack">
+          <StagePanel />
+          <GalleryPanel />
+          <MusePanel />
+        </div>
       </main>
-      <footer className="save-note">Auto-save active / every 10 seconds</footer>
+      <DialoguePanel />
     </div>
   );
 }

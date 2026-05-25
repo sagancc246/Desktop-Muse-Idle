@@ -1,0 +1,142 @@
+import { useEffect, useState } from 'react';
+import { backgrounds } from '../data/backgrounds';
+import { getStageById } from '../data/stages';
+import { useGameStore } from '../store/useGameStore';
+import type { Background } from '../types/game';
+import { BackgroundPreviewModal } from './BackgroundPreviewModal';
+
+interface GalleryPanelProps {
+  mode?: 'panel' | 'screen';
+  onBack?: () => void;
+}
+
+export function GalleryPanel({ mode = 'panel', onBack }: GalleryPanelProps) {
+  const unlockedBackgrounds = useGameStore((state) => state.unlockedBackgrounds);
+  const currentBackgroundId = useGameStore((state) => state.currentBackgroundId);
+  const selectBackground = useGameStore((state) => state.selectBackground);
+  const [isOpen, setIsOpen] = useState(false);
+  const [previewBackground, setPreviewBackground] = useState<Background | null>(null);
+  const currentBackground = backgrounds.find((background) => background.id === currentBackgroundId);
+  const isScreen = mode === 'screen';
+  const isGalleryVisible = isScreen || isOpen;
+  const closeGallery = () => {
+    if (isScreen) {
+      onBack?.();
+    } else {
+      setIsOpen(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isGalleryVisible) {
+      setPreviewBackground(null);
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (previewBackground) {
+          setPreviewBackground(null);
+        } else {
+          closeGallery();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isGalleryVisible, previewBackground]);
+
+  return (
+    <>
+      {!isScreen && (
+        <section className="background-panel panel">
+          <div className="panel-heading background-panel-heading">
+            <p className="eyebrow">COLLECTION</p>
+            <h2>Still Gallery</h2>
+          </div>
+          <p className="gallery-summary">
+            {unlockedBackgrounds.length} / {backgrounds.length} backgrounds unlocked
+          </p>
+          <p className="gallery-current">
+            Now showing <strong>{currentBackground?.name ?? 'No backdrop'}</strong>
+          </p>
+          <button className="gallery-open" onClick={() => setIsOpen(true)} type="button">
+            Gallery を開く
+          </button>
+        </section>
+      )}
+      {isGalleryVisible && (
+        <div
+          className={isScreen ? 'gallery-screen title-screen' : 'gallery-backdrop'}
+          onClick={isScreen ? undefined : closeGallery}
+        >
+          <section
+            aria-label="Still Gallery"
+            aria-modal={!isScreen}
+            className={`gallery-modal panel${isScreen ? ' gallery-page' : ''}`}
+            onClick={(event) => event.stopPropagation()}
+            role={isScreen ? undefined : 'dialog'}
+          >
+            <header className="gallery-header">
+              <div>
+                <p className="eyebrow">BACKGROUND COLLECTION</p>
+                <h2>Still Gallery</h2>
+              </div>
+              <button
+                aria-label={isScreen ? 'Title に戻る' : 'ギャラリーを閉じる'}
+                className="modal-close"
+                onClick={closeGallery}
+                type="button"
+              >
+                {isScreen ? 'Title に戻る' : 'Close'}
+              </button>
+            </header>
+            <div className="gallery-grid">
+              {backgrounds.map((background) => {
+                const isUnlocked = unlockedBackgrounds.includes(background.id);
+                const unlockStage = getStageById(background.unlockStageId);
+
+                if (!isUnlocked) {
+                  return (
+                    <article className="gallery-card locked" key={background.id}>
+                      <div className="gallery-locked-image">
+                        <span>LOCKED</span>
+                      </div>
+                      <h3>???</h3>
+                      <p>{unlockStage?.name ?? background.unlockStageId} をクリアで解放</p>
+                    </article>
+                  );
+                }
+
+                return (
+                  <button
+                    className={`gallery-card unlocked${
+                      background.id === currentBackgroundId ? ' selected' : ''
+                    }`}
+                    key={background.id}
+                    onClick={() => setPreviewBackground(background)}
+                    type="button"
+                  >
+                    <img alt={`${background.name} thumbnail`} src={background.imagePath} />
+                    <h3>{background.name}</h3>
+                    <p>{background.description}</p>
+                    <b>{background.id === currentBackgroundId ? 'IN USE' : 'PREVIEW'}</b>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+      )}
+      {previewBackground && (
+        <BackgroundPreviewModal
+          background={previewBackground}
+          isCurrent={previewBackground.id === currentBackgroundId}
+          onClose={() => setPreviewBackground(null)}
+          onSelect={selectBackground}
+        />
+      )}
+    </>
+  );
+}

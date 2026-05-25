@@ -1,0 +1,29 @@
+import type { Background } from '../types/game';
+
+export const backgrounds: Background[] = [
+  {
+    id: 'bg_default_room',
+    name: 'Default Room',
+    description: 'A calm desk lit by the night sky.',
+    imagePath: './assets/backgrounds/bg_default_room.svg',
+    unlockStageId: 'stage-1',
+  },
+  {
+    id: 'bg_cozy_room',
+    name: 'Cozy Room',
+    description: 'A warm hideaway for long idle sessions.',
+    imagePath: './assets/backgrounds/bg_cozy_room.svg',
+    unlockStageId: 'stage-2',
+  },
+  {
+    id: 'bg_neon_room',
+    name: 'Neon Room',
+    description: 'A vivid terminal glow for the final loop.',
+    imagePath: './assets/backgrounds/bg_neon_room.svg',
+    unlockStageId: 'stage-3',
+  },
+];
+
+export function getBackgroundById(backgroundId: string | null): Background | undefined {
+  return backgrounds.find((background) => background.id === backgroundId);
+}

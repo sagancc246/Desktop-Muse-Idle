@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720">
+  <defs>
+    <linearGradient id="void" x2="0" y2="1">
+      <stop stop-color="#090e28"/>
+      <stop offset="1" stop-color="#080616"/>
+    </linearGradient>
+    <linearGradient id="neon" x2="1">
+      <stop stop-color="#18d9ef"/>
+      <stop offset="1" stop-color="#f05dff"/>
+    </linearGradient>
+    <radialGradient id="pulse">
+      <stop stop-color="#e24dff" stop-opacity=".24"/>
+      <stop offset="1" stop-color="#e24dff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="720" fill="url(#void)"/>
+  <circle cx="925" cy="224" r="298" fill="url(#pulse)"/>
+  <path d="M0 548h1200M0 593h1200M0 646h1200M186 720l334-172M480 720l147-172M720 720 677 548M1037 720 785 548" stroke="#11bed2" stroke-opacity=".2" stroke-width="4"/>
+  <rect x="92" y="92" width="356" height="255" rx="15" fill="#071329" stroke="url(#neon)" stroke-width="7"/>
+  <path d="M123 169h178M123 210h260M123 251h153" stroke="#17cde1" stroke-width="8" opacity=".7"/>
+  <path d="M486 178h137l49 48-49 48H486" fill="none" stroke="#f05dff" stroke-width="10"/>
+  <rect x="706" y="390" width="342" height="163" rx="14" fill="#090c24" stroke="#332859" stroke-width="6"/>
+  <rect x="738" y="420" width="280" height="102" fill="#100d32"/>
+  <path d="M754 491 799 458l39 27 48-49 41 39 66-40" fill="none" stroke="url(#neon)" stroke-width="7"/>
+</svg>

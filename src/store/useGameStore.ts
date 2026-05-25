@@ -1,145 +1,157 @@
 import { create } from 'zustand';
-import {
-  BALANCE,
-  type UpgradeKey,
-  getCornerReward,
-  getSpeed,
-  getUpgradeCost,
-  getWallReward,
-} from '../data/balance';
+import { getBackgroundById } from '../data/backgrounds';
+import { getMuseById } from '../data/muses';
+import { getNextStage, getStageById, initialStageId } from '../data/stages';
+import { calculateUpgradeCost } from '../data/upgrades';
+import { activateSkillState, tickSkillStates } from '../game/skillEffects';
+import { clearSaveData, createNewGameState, loadGameState } from '../systems/saveSystem';
+import type { GameStore } from '../types/game';
 
-const SAVE_KEY = 'desktop-muse-idle-save-v1';
+const initialState = loadGameState();
 
-export type UpgradeLevels = Record<UpgradeKey, number>;
+export const useGameStore = create<GameStore>((set, get) => ({
+  ...initialState,
 
-interface IncomeEvent {
-  amount: number;
-  time: number;
-}
-
-interface SavedGame {
-  memory: number;
-  cornerHits: number;
-  upgrades: UpgradeLevels;
-}
-
-interface GameState extends SavedGame {
-  memoryPerSecond: number;
-  incomeEvents: IncomeEvent[];
-  recordBounce: (isCornerHit: boolean) => void;
-  buyUpgrade: (key: UpgradeKey) => void;
-  refreshIncomeRate: () => void;
-  getCurrentSpeed: () => number;
-  getWallReward: () => number;
-  getCornerReward: () => number;
-  loadGame: () => void;
-  saveGame: () => void;
-}
-
-const initialUpgrades: UpgradeLevels = {
-  bounceBoost: 0,
-  speedTune: 0,
-  cornerSensor: 0,
-};
-
-function cleanIncomeEvents(events: IncomeEvent[], now: number): IncomeEvent[] {
-  return events.filter((event) => now - event.time <= BALANCE.incomeWindowMs);
-}
-
-function calculateIncomeRate(events: IncomeEvent[]): number {
-  const total = events.reduce((sum, event) => sum + event.amount, 0);
-  return total / (BALANCE.incomeWindowMs / 1_000);
-}
-
-function safeInteger(value: unknown): number {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0
-    ? Math.floor(value)
-    : 0;
-}
-
-export const useGameStore = create<GameState>((set, get) => ({
-  memory: BALANCE.startingMemory,
-  memoryPerSecond: 0,
-  cornerHits: 0,
-  upgrades: { ...initialUpgrades },
-  incomeEvents: [],
-
-  recordBounce: (isCornerHit) => {
-    const state = get();
-    const amount = isCornerHit ? state.getCornerReward() : state.getWallReward();
-    const now = Date.now();
-    const events = cleanIncomeEvents([...state.incomeEvents, { amount, time: now }], now);
-
-    set({
-      memory: state.memory + amount,
-      cornerHits: state.cornerHits + (isCornerHit ? 1 : 0),
-      incomeEvents: events,
-      memoryPerSecond: calculateIncomeRate(events),
-    });
-  },
-
-  buyUpgrade: (key) => {
-    const state = get();
-    const currentLevel = state.upgrades[key];
-    const cost = getUpgradeCost(key, currentLevel);
-    if (state.memory < cost) {
+  addMemory: (amount) => {
+    if (!Number.isFinite(amount) || amount <= 0) {
       return;
     }
 
-    set({
-      memory: state.memory - cost,
-      upgrades: {
-        ...state.upgrades,
-        [key]: currentLevel + 1,
-      },
-    });
+    set((state) => ({ memory: state.memory + amount }));
   },
 
-  refreshIncomeRate: () => {
-    const events = cleanIncomeEvents(get().incomeEvents, Date.now());
-    set({
-      incomeEvents: events,
-      memoryPerSecond: calculateIncomeRate(events),
-    });
+  incrementBounce: () => {
+    set((state) => ({ totalBounces: state.totalBounces + 1 }));
   },
 
-  getCurrentSpeed: () => getSpeed(get().upgrades.speedTune),
-  getWallReward: () => getWallReward(get().upgrades.bounceBoost),
-  getCornerReward: () =>
-    getCornerReward(get().upgrades.bounceBoost, get().upgrades.cornerSensor),
+  incrementCornerHit: () => {
+    set((state) => {
+      const currentStage = getStageById(state.currentStageId) ?? getStageById(initialStageId);
 
-  loadGame: () => {
-    try {
-      const rawSave = window.localStorage.getItem(SAVE_KEY);
-      if (!rawSave) {
-        return;
+      if (!currentStage) {
+        return { totalCornerHits: state.totalCornerHits + 1 };
       }
 
-      const parsed = JSON.parse(rawSave) as Partial<SavedGame>;
-      const upgrades = parsed.upgrades ?? initialUpgrades;
-      set({
-        memory: safeInteger(parsed.memory),
-        cornerHits: safeInteger(parsed.cornerHits),
-        upgrades: {
-          bounceBoost: safeInteger(upgrades.bounceBoost),
-          speedTune: safeInteger(upgrades.speedTune),
-          cornerSensor: safeInteger(upgrades.cornerSensor),
+      const stageHits = Math.min(
+        (state.stageCornerHits[currentStage.id] ?? 0) + 1,
+        currentStage.cornerHitGoal,
+      );
+      const isNewClear =
+        stageHits >= currentStage.cornerHitGoal && !state.clearedStages.includes(currentStage.id);
+      const nextStage = isNewClear ? getNextStage(currentStage.id) : undefined;
+      const rewardBackground = getBackgroundById(currentStage.rewardBackgroundId);
+      const shouldUnlockBackground =
+        isNewClear &&
+        rewardBackground !== undefined &&
+        !state.unlockedBackgrounds.includes(rewardBackground.id);
+      const unlockedBackgrounds = shouldUnlockBackground
+        ? [...state.unlockedBackgrounds, currentStage.rewardBackgroundId]
+        : state.unlockedBackgrounds;
+
+      return {
+        totalCornerHits: state.totalCornerHits + 1,
+        currentStageId: nextStage?.id ?? state.currentStageId,
+        stageCornerHits: {
+          ...state.stageCornerHits,
+          [currentStage.id]: stageHits,
         },
-        memoryPerSecond: 0,
-        incomeEvents: [],
-      });
-    } catch {
-      window.localStorage.removeItem(SAVE_KEY);
-    }
+        clearedStages: isNewClear
+          ? [...state.clearedStages, currentStage.id]
+          : state.clearedStages,
+        unlockedBackgrounds,
+        currentBackgroundId:
+          shouldUnlockBackground && state.currentBackgroundId === null
+            ? currentStage.rewardBackgroundId
+            : state.currentBackgroundId,
+      };
+    });
   },
 
-  saveGame: () => {
-    const state = get();
-    const save: SavedGame = {
-      memory: Math.floor(state.memory),
-      cornerHits: state.cornerHits,
-      upgrades: state.upgrades,
-    };
-    window.localStorage.setItem(SAVE_KEY, JSON.stringify(save));
+  purchaseUpgrade: (upgradeId) => {
+    set((state) => {
+      const upgrade = state.upgrades[upgradeId];
+      const cost = calculateUpgradeCost(upgrade, upgrade.level);
+
+      if (state.memory < cost) {
+        return state;
+      }
+
+      return {
+        memory: state.memory - cost,
+        upgrades: {
+          ...state.upgrades,
+          [upgradeId]: {
+            ...upgrade,
+            level: upgrade.level + 1,
+          },
+        },
+      };
+    });
+  },
+
+  selectBackground: (backgroundId) => {
+    set((state) => {
+      if (!state.unlockedBackgrounds.includes(backgroundId) || !getBackgroundById(backgroundId)) {
+        return state;
+      }
+
+      return { currentBackgroundId: backgroundId };
+    });
+  },
+
+  startNewGame: () => {
+    clearSaveData();
+    set(createNewGameState());
+  },
+
+  continueGame: () => {
+    set(loadGameState());
+  },
+
+  resetSaveData: () => {
+    clearSaveData();
+    set(createNewGameState());
+  },
+
+  toggleActiveMuse: (museId) => {
+    set((state) => {
+      const muse = getMuseById(museId);
+
+      if (!muse?.unlocked) {
+        return state;
+      }
+
+      if (state.activeMuseIds.includes(museId)) {
+        return state.activeMuseIds.length === 1
+          ? state
+          : { activeMuseIds: state.activeMuseIds.filter((activeId) => activeId !== museId) };
+      }
+
+      if (state.activeMuseIds.length >= 3) {
+        return state;
+      }
+
+      return { activeMuseIds: [...state.activeMuseIds, museId] };
+    });
+  },
+
+  activateMuseSkill: (museId) => {
+    const muse = getMuseById(museId);
+    const skillState = get().skillStates[museId];
+
+    if (!muse || !skillState || skillState.cooldownRemainingMs > 0) {
+      return false;
+    }
+
+    set((state) => ({ skillStates: activateSkillState(state.skillStates, muse) }));
+    return true;
+  },
+
+  tickSkillStates: (deltaMs) => {
+    if (!Number.isFinite(deltaMs) || deltaMs <= 0) {
+      return;
+    }
+
+    set((state) => ({ skillStates: tickSkillStates(state.skillStates, deltaMs) }));
   },
 }));
