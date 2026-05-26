@@ -425,3 +425,60 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 5. タイトルから Settings を開いた場合の `Back` はタイトルへ戻り、ゲーム上部の `Settings` から開いた場合の `Back` はゲームへ戻ることを確認します。
 6. `Reset Save Data` を選択して確認ダイアログをキャンセルできること、確認後はゲーム進行が初期状態になり、設定値は保持されることを確認します。
 7. `npm run build` を実行し、TypeScript と Vite のビルドが成功することを確認します。
+
+## Reboot とスキルツリー
+
+- ゲーム画面下部に `RebootPanel` を追加し、`100,000 Memory` 以上で Reboot して Fragment を獲得できるようにしました。
+- Reboot 時は Memory と通常アップグレードをリセットし、Fragment、スキルツリー、ステージ進捗、背景解放、累計値は保持します。
+- `SkillTreePanel` では Bounce / Corner / Muse の3系統、合計9個の恒久強化を一覧表示し、Fragment と前提ノード条件を満たしたスキルだけ解放できます。
+- Bounce / Corner 報酬倍率、Corner Hit 判定距離、キャラスキルの継続時間とクールダウンをゲーム処理へ反映しました。
+- `Stable Motion` は画面酔いを避けるため、見た目の Muse 速度をさらに上げず、内部収益倍率として作用します。
+- `Passive Cache` のオフライン報酬倍率は `rewardCalculator` に計算口を追加しています。オフライン収益の付与自体は、既存プロトタイプに復帰収益システムがないため今後の実装対象です。
+- 旧セーブデータは Fragment `0`、未解放ツリー、Reboot 回数 `0` として読み込み、既存の進行を維持します。Reboot とスキル解放は操作直後にも保存します。
+
+### Reboot とスキルツリーの確認方法
+
+1. ゲーム画面下部の `Skill Tree` を選択し、Bounce / Corner / Muse の3カテゴリと各スキルカードが表示されることを確認します。
+2. Fragment がない状態では購入ボタンが無効で、`Bounce Memory II` などの前提付きノードが `Locked` と表示されることを確認します。
+3. `100,000 Memory` 以上で `Reboot` を選択し、確認後に Memory と通常アップグレードが初期化され、Fragment が増えることを確認します。
+4. Fragment を使用して `Bounce Memory I` や `Corner Bonus I` を解放し、残 Fragment とスキル Lv が更新されることを確認します。
+5. 前提ノードを解放すると、その先のノードの Unlock が選択可能になることを確認します。
+6. Corner 報酬ノード解放後の Corner Hit 報酬、Corner Sensor I 解放後の判定距離、Muse ノード解放後のスキル ACTIVE / CD 時間に効果が反映されることを確認します。
+7. ページを再読み込みして Continue を選択し、Fragment、Reboot 回数、解放済みノードが保持されることを確認します。
+8. `npm run build` を実行し、TypeScript と Vite のビルドが成功することを確認します。
+
+## Fixed Stage Layout
+
+- The application is rendered inside a fixed `1920 x 1080` `.gameStage` centered in `.appViewport`.
+- `src/hooks/useStageScale.ts` calculates `min(windowWidth / 1920, windowHeight / 1080)` and applies one uniform transform to the complete stage.
+- The title, settings, gallery, resource bar, gameplay panels, and modals are all stage contents, so they remain aligned while the outer viewport scales.
+- `GameCanvas` now initializes PixiJS from its fixed layout region and no longer changes its logical bounds when the browser is resized. Bounce and Corner Hit coordinates therefore remain stage-based.
+- Unused surrounding space is filled by the viewport background rather than changing the internal UI layout.
+
+### Fixed Stage Layout Verification
+
+1. Run `npm run dev` and open the application.
+2. Check the title and game screens at `1920 x 1080`, `1280 x 720`, `1366 x 768`, `2560 x 1440`, and a portrait window size.
+3. Confirm that the entire `16:9` stage remains centered, panels retain their relative placement, and surplus space displays the outer background.
+4. Continue the game and confirm that the PixiJS arena, moving muses, bounce bounds, and Corner Hit behavior do not shift when resizing the browser.
+5. Open Settings and Gallery from their available entry points and confirm their panels scale with the stage rather than reflowing separately.
+6. Run `npm run build` and confirm the TypeScript and Vite build completes.
+
+## Muse Tap
+
+- ゲームエリア内の本体 Muse アイコンをクリックまたはタップすると、対象 Muse が3秒間 Boost 状態になります。Clone はタップ対象になりません。
+- Boost 中は移動速度が一時的に上がり、発動時に進行方向を軽く変化させ、Corner Hit ボーナスが `x1.5` になります。
+- 連打による稼ぎを避けるため、各 Muse は8秒のクールタイムを持ち、Boost 中やクールタイム中の再タップは無効です。
+- `MusePanel` に Muse Tap の `Ready`、`Active`、`Cooldown` と残り時間を表示します。
+- タップ時はアイコン周辺に光るリングと小さな星、`BOOST!` とキャラ字幕を短時間表示します。仮ボイス音源がまだ存在しない場合も字幕表示で動作し、エラーで停止しません。
+- Motion Intensity 設定は現時点では未導入のため、Muse Tap は medium 相当の速度倍率 `x1.25` と方向変化 `±15度` を利用します。
+- 見た目の速度倍率には上限を設け、既存の Speed Tune や一時スキルと組み合わせても過剰な視覚速度にならないようにしました。
+
+### Muse Tap の確認方法
+
+1. ゲーム画面で本体 Muse アイコンをクリックし、周囲にリングと星、`BOOST!` と字幕が表示されることを確認します。
+2. 右側の `MusePanel` で対象キャラの Muse Tap が `Active` になり、3秒後に `Cooldown`、約8秒後に `Ready` に戻ることを確認します。
+3. `Active` または `Cooldown` 中に同じアイコンを再タップしても、Boost が重ねがけされず残り時間が再開始しないことを確認します。
+4. Lumi の分身が表示されている間、半透明の Clone をタップしても Muse Tap が発動しないことを確認します。
+5. Boost 中の対象キャラによる Corner Hit で、通常より大きな Corner 報酬が表示されることを確認します。
+6. `npm run build` を実行し、TypeScript と Vite のビルドが成功することを確認します。

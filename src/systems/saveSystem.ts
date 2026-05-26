@@ -1,5 +1,5 @@
 import { getBackgroundById } from '../data/backgrounds';
-import { getMuseById, initialActiveMuseIds } from '../data/muses';
+import { createInitialMuseTapStates, getMuseById, initialActiveMuseIds } from '../data/muses';
 import {
   createInitialStageCornerHits,
   getStageById,
@@ -7,6 +7,7 @@ import {
   stages,
 } from '../data/stages';
 import { createInitialUpgrades, upgradeIds } from '../data/upgrades';
+import { createInitialSkillNodes, skillNodes } from '../data/skillTree';
 import { createInitialSkillStates } from '../game/skillEffects';
 import type { GameState, SaveData, UpgradeCollection, UpgradeId } from '../types/game';
 
@@ -28,6 +29,9 @@ type CompatibleSaveData = Pick<
       | 'unlockedBackgrounds'
       | 'currentBackgroundId'
       | 'activeMuseIds'
+      | 'fragments'
+      | 'unlockedSkillNodes'
+      | 'rebootCount'
     >
   >;
 
@@ -152,6 +156,29 @@ function restoreMuseState(data: CompatibleSaveData): Pick<GameState, 'activeMuse
   };
 }
 
+function restoreSkillTreeState(
+  data: CompatibleSaveData,
+): Pick<GameState, 'fragments' | 'unlockedSkillNodes' | 'rebootCount'> {
+  const storedNodes =
+    data.unlockedSkillNodes && typeof data.unlockedSkillNodes === 'object'
+      ? data.unlockedSkillNodes
+      : {};
+  const unlockedSkillNodes = createInitialSkillNodes();
+
+  for (const skillNode of skillNodes) {
+    const level = storedNodes[skillNode.id];
+    if (Number.isInteger(level) && isNonNegativeNumber(level)) {
+      unlockedSkillNodes[skillNode.id] = Math.min(Math.floor(level), skillNode.maxLevel);
+    }
+  }
+
+  return {
+    fragments: isNonNegativeNumber(data.fragments) ? Math.floor(data.fragments) : 0,
+    unlockedSkillNodes,
+    rebootCount: isNonNegativeNumber(data.rebootCount) ? Math.floor(data.rebootCount) : 0,
+  };
+}
+
 export function createNewGameState(): GameState {
   return {
     memory: 0,
@@ -166,6 +193,10 @@ export function createNewGameState(): GameState {
     currentBackgroundId: null,
     activeMuseIds: initialActiveMuseIds,
     skillStates: createInitialSkillStates(),
+    museTapStates: createInitialMuseTapStates(),
+    fragments: 0,
+    unlockedSkillNodes: createInitialSkillNodes(),
+    rebootCount: 0,
   };
 }
 
@@ -221,6 +252,8 @@ export function loadGameState(): GameState {
       ...restoreBackgroundState(parsedData, stageState.clearedStages),
       ...restoreMuseState(parsedData),
       skillStates: createInitialSkillStates(),
+      museTapStates: createInitialMuseTapStates(),
+      ...restoreSkillTreeState(parsedData),
     };
   } catch {
     window.localStorage.removeItem(storageKey);
@@ -250,6 +283,9 @@ export function saveGameState(state: GameState): void {
     unlockedBackgrounds: state.unlockedBackgrounds,
     currentBackgroundId: state.currentBackgroundId,
     activeMuseIds: state.activeMuseIds,
+    fragments: state.fragments,
+    unlockedSkillNodes: state.unlockedSkillNodes,
+    rebootCount: state.rebootCount,
   };
 
   try {

@@ -17,10 +17,16 @@
   box-sizing: border-box;
 }
 
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+  width: 100%;
+}
+
 body {
   margin: 0;
-  min-width: 1120px;
-  min-height: 100vh;
   background:
     radial-gradient(circle at 52% 16%, rgba(115, 57, 189, 0.2), transparent 34%),
     radial-gradient(circle at 14% 74%, rgba(39, 104, 167, 0.12), transparent 30%),
@@ -31,17 +37,41 @@ button {
   font: inherit;
 }
 
-#root {
-  min-height: 100vh;
+.appViewport {
+  align-items: center;
+  background:
+    radial-gradient(circle at 50% 38%, rgba(255, 151, 214, 0.12), transparent 34%),
+    linear-gradient(140deg, #080a18, #120d20 46%, #080a17);
+  display: flex;
+  height: 100%;
+  justify-content: center;
+  overflow: hidden;
+  width: 100%;
+}
+
+.gameStage {
+  flex: 0 0 auto;
+  height: 1080px;
+  overflow: hidden;
+  position: relative;
+  transform-origin: center center;
+  width: 1920px;
 }
 
 .app-shell {
   display: flex;
   flex-direction: column;
   gap: 18px;
-  height: 100vh;
-  min-height: 720px;
+  height: 100%;
+  min-height: 0;
   padding: 22px 26px;
+  width: 100%;
+}
+
+.app-shell.focus-mode {
+  gap: 0;
+  padding: 0;
+  position: relative;
 }
 
 .panel {
@@ -334,6 +364,95 @@ button {
   width: 100%;
 }
 
+.focus-mode > .resource-bar,
+.focus-mode > .reboot-panel,
+.focus-mode .upgrade-panel,
+.focus-mode .side-panel-stack {
+  display: none;
+}
+
+.focus-mode .workspace {
+  display: block;
+  height: 100%;
+}
+
+.focus-mode .game-panel {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  height: 100%;
+  justify-content: center;
+  padding: 30px 24px;
+}
+
+.focus-mode .game-panel .panel-heading {
+  display: none;
+}
+
+.focus-mode .pixi-host {
+  aspect-ratio: 1242 / 659;
+  flex: 0 1 auto;
+  height: auto;
+  max-height: 100%;
+  width: 100%;
+}
+
+.focus-mode .pixi-host canvas {
+  height: 100% !important;
+  width: 100% !important;
+}
+
+.focus-hud {
+  align-items: center;
+  background: rgba(8, 10, 25, 0.52);
+  border: 1px solid rgba(145, 132, 221, 0.22);
+  border-radius: 18px;
+  display: flex;
+  gap: 14px;
+  left: 36px;
+  padding: 11px 12px 11px 16px;
+  position: absolute;
+  right: 36px;
+  top: 30px;
+  z-index: 4;
+}
+
+.focus-hud-metric {
+  border-right: 1px solid rgba(145, 132, 221, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 164px;
+  padding-right: 18px;
+}
+
+.focus-hud-metric span {
+  color: var(--text-soft);
+  font-size: 11px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.focus-hud-metric strong {
+  color: var(--cyan);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.focus-exit {
+  background: rgba(42, 43, 76, 0.68);
+  border: 1px solid rgba(188, 137, 255, 0.38);
+  border-radius: 10px;
+  color: #f1dcff;
+  cursor: pointer;
+  margin-left: auto;
+  padding: 12px 18px;
+}
+
+.focus-exit:hover {
+  background: rgba(111, 67, 163, 0.44);
+}
+
 .portrait-placeholder {
   align-items: center;
   background: linear-gradient(145deg, rgba(87, 55, 144, 0.38), rgba(22, 32, 67, 0.8));
@@ -528,14 +647,4 @@ button {
 
 .dialogue-copy {
   margin: 0;
-}
-
-@media (max-width: 1200px) {
-  .app-shell {
-    padding: 14px;
-  }
-
-  .workspace {
-    grid-template-columns: 250px minmax(430px, 1fr) 240px;
-  }
 }

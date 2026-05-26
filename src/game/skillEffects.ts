@@ -1,4 +1,5 @@
 import { muses } from '../data/muses';
+import { calculateSkillTreeMultiplier } from '../data/skillTree';
 import type { Muse, MuseSkillState } from '../types/game';
 
 export function createInitialSkillStates(): Record<string, MuseSkillState> {
@@ -16,12 +17,16 @@ export function createInitialSkillStates(): Record<string, MuseSkillState> {
 export function activateSkillState(
   skillStates: Record<string, MuseSkillState>,
   muse: Muse,
+  unlockedSkillNodes: Record<string, number>,
 ): Record<string, MuseSkillState> {
+  const durationMultiplier = calculateSkillTreeMultiplier(unlockedSkillNodes, 'skill_duration');
+  const cooldownMultiplier = calculateSkillTreeMultiplier(unlockedSkillNodes, 'skill_cooldown');
+
   return {
     ...skillStates,
     [muse.id]: {
-      activeRemainingMs: muse.skill.durationMs,
-      cooldownRemainingMs: muse.skill.cooldownMs,
+      activeRemainingMs: muse.skill.durationMs * durationMultiplier,
+      cooldownRemainingMs: muse.skill.cooldownMs * cooldownMultiplier,
     },
   };
 }

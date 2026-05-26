@@ -2,6 +2,29 @@ export type UpgradeId = 'bounce_boost' | 'speed_tune' | 'corner_sensor';
 
 export type UpgradeEffectType = 'bounce_reward' | 'speed' | 'corner_reward';
 
+export type SkillTreeCategory = 'bounce' | 'corner' | 'muse';
+
+export type SkillTreeEffectType =
+  | 'bounce_reward'
+  | 'corner_reward'
+  | 'corner_threshold'
+  | 'offline_reward'
+  | 'skill_duration'
+  | 'skill_cooldown'
+  | 'internal_speed_bonus';
+
+export interface SkillNode {
+  id: string;
+  category: SkillTreeCategory;
+  name: string;
+  description: string;
+  cost: number;
+  maxLevel: number;
+  requiredNodeIds: string[];
+  effectType: SkillTreeEffectType;
+  effectValue: number;
+}
+
 export interface UpgradeDefinition {
   id: UpgradeId;
   name: string;
@@ -51,6 +74,20 @@ export interface MuseSkillState {
   cooldownRemainingMs: number;
 }
 
+export interface TapVoice {
+  id: string;
+  audioPath: string;
+  subtitleJa: string;
+  subtitleEn: string;
+}
+
+export interface MuseTapState {
+  isTapBoostActive: boolean;
+  tapBoostEndsAt: number;
+  tapCooldownEndsAt: number;
+  lastTapVoiceId: string | null;
+}
+
 export interface Muse {
   id: string;
   name: string;
@@ -60,6 +97,7 @@ export interface Muse {
   memoryMultiplier: number;
   cornerMultiplier: number;
   skill: MuseSkill;
+  tapVoices: TapVoice[];
 }
 
 export type Language = 'ja' | 'en';
@@ -87,6 +125,10 @@ export interface GameState {
   currentBackgroundId: string | null;
   activeMuseIds: string[];
   skillStates: Record<string, MuseSkillState>;
+  museTapStates: Record<string, MuseTapState>;
+  fragments: number;
+  unlockedSkillNodes: Record<string, number>;
+  rebootCount: number;
 }
 
 export interface SaveData {
@@ -102,6 +144,9 @@ export interface SaveData {
   unlockedBackgrounds: string[];
   currentBackgroundId: string | null;
   activeMuseIds: string[];
+  fragments: number;
+  unlockedSkillNodes: Record<string, number>;
+  rebootCount: number;
 }
 
 export interface GameActions {
@@ -116,6 +161,10 @@ export interface GameActions {
   toggleActiveMuse: (museId: string) => void;
   activateMuseSkill: (museId: string) => boolean;
   tickSkillStates: (deltaMs: number) => void;
+  activateMuseTap: (museId: string, voiceId: string, now: number) => boolean;
+  tickMuseTapStates: (now: number) => void;
+  unlockSkillNode: (skillNodeId: string) => void;
+  reboot: () => boolean;
 }
 
 export type GameStore = GameState & GameActions;

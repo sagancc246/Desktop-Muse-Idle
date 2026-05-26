@@ -6,24 +6,31 @@ export type AppScreen = 'title' | 'game' | 'settings' | 'gallery' | 'credits';
 
 interface AppStore {
   currentScreen: AppScreen;
+  isFocusMode: boolean;
   settingsReturnScreen: 'title' | 'game';
   settings: AppSettings;
   setScreen: (screen: AppScreen) => void;
   openSettings: (from: 'title' | 'game') => void;
   closeSettings: () => void;
+  toggleFocusMode: () => void;
+  exitFocusMode: () => void;
   updateSettings: (settings: Partial<AppSettings>) => void;
 }
 
 export const useAppStore = create<AppStore>((set) => ({
   currentScreen: 'title',
+  isFocusMode: false,
   settingsReturnScreen: 'title',
   settings: loadSettings(),
-  setScreen: (screen) => set({ currentScreen: screen }),
-  openSettings: (from) => set({ currentScreen: 'settings', settingsReturnScreen: from }),
+  setScreen: (screen) => set({ currentScreen: screen, isFocusMode: false }),
+  openSettings: (from) =>
+    set({ currentScreen: 'settings', isFocusMode: false, settingsReturnScreen: from }),
   closeSettings: () =>
     set((state) => ({
       currentScreen: state.settingsReturnScreen,
     })),
+  toggleFocusMode: () => set((state) => ({ isFocusMode: !state.isFocusMode })),
+  exitFocusMode: () => set({ isFocusMode: false }),
   updateSettings: (updates) =>
     set((state) => {
       const settings = { ...state.settings, ...updates };

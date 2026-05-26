@@ -1,6 +1,10 @@
 import { useEffect, useRef } from 'react';
 import { Application, Assets, Container, Graphics, Sprite, Text } from 'pixi.js';
-import { cornerThreshold } from '../data/balance';
+import {
+  cornerThreshold,
+  museTapDirectionChangeDegreeMedium,
+  museTapEffectDurationMs,
+} from '../data/balance';
 import { getBackgroundById } from '../data/backgrounds';
 import { getMuseById } from '../data/muses';
 import { createInitialBody, stepBounceBody, type BounceBody } from '../game/bouncePhysics';
@@ -8,7 +12,9 @@ import { isCornerHit } from '../game/cornerHit';
 import {
   calculateBounceReward,
   calculateCornerReward,
-  calculateSpeedMultiplier,
+  calculateCornerThresholdBonus,
+  calculateMuseTapCornerRewardMultiplier,
+  calculateVisualSpeedMultiplier,
 } from '../game/rewardCalculator';
 import {
   getCloneRewardMultiplier,
@@ -18,7 +24,7 @@ import {
 } from '../game/skillEffects';
 import { useAppStore } from '../store/useAppStore';
 import { useGameStore } from '../store/useGameStore';
-import { playCornerHitSound, prepareAudioSystem } from '../systems/audioSystem';
+import { playCornerHitSound, playMuseTapVoice, prepareAudioSystem } from '../systems/audioSystem';
 import type { Muse } from '../types/game';
 
 interface BurstParticle {
@@ -28,6 +34,12 @@ interface BurstParticle {
   rotationSpeed: number;
   vx: number;
   vy: number;
+}
+
+interface TapEffect {
+  graphic: Graphics;
+  life: number;
+  maxLife: number;
 }
 
 interface ActiveMuseBody {
@@ -52,17 +64,21 @@ export function GameCanvas() {
     const app = new Application();
     let isCancelled = false;
     let isInitialized = false;
-    let resizeObserver: ResizeObserver | undefined;
     let unsubscribeStore: (() => void) | undefined;
     const cleanupAudio = prepareAudioSystem();
 
     const setup = async () => {
+      // The outer stage scales visually; Pixi keeps fixed logical coordinates.
+      const logicalWidth = host.clientWidth;
+      const logicalHeight = host.clientHeight;
+
       await app.init({
         antialias: true,
         autoDensity: true,
         backgroundAlpha: 0,
-        resizeTo: host,
+        height: logicalHeight,
         resolution: Math.min(window.devicePixelRatio || 1, 2),
+        width: logicalWidth,
       });
 
       if (isCancelled) {
@@ -83,6 +99,7 @@ export function GameCanvas() {
       const cornerFlash = new Graphics();
       const museLayer = new Container();
       const particleLayer = new Container();
+      const tapEffectLayer = new Container();
       const cornerNotice = new Text({
         text: 'CORNER HIT!',
         style: {
@@ -121,6 +138,19 @@ export function GameCanvas() {
       });
       skillNotice.anchor.set(0.5);
       skillNotice.visible = false;
+      const tapNotice = new Text({
+        text: '',
+        style: {
+          align: 'center',
+          fill: 0xffd681,
+          fontFamily: 'Arial, sans-serif',
+          fontSize: 16,
+          fontWeight: 'bold',
+          stroke: { color: 0x142044, width: 4 },
+        },
+      });
+      tapNotice.anchor.set(0.5);
+      tapNotice.visible = false;
       app.stage.addChild(
         arena,
         backgroundImage,
@@ -129,9 +159,11 @@ export function GameCanvas() {
         cornerFlash,
         museLayer,
         particleLayer,
+        tapEffectLayer,
         cornerNotice,
         rewardPopup,
         skillNotice,
+        tapNotice,
       );
 
       let pulseTime = 0;
@@ -139,8 +171,10 @@ export function GameCanvas() {
       let flashTime = 0;
       let rewardPopupTime = 0;
       let skillNoticeTime = 0;
+      let tapNoticeTime = 0;
       let skillTickAccumulatorMs = 0;
       const particles: BurstParticle[] = [];
+      const tapEffects: TapEffect[] = [];
       const inset = 12;
       let backgroundRequestId = 0;
       const activeMuses = new Map<string, ActiveMuseBody>();
@@ -150,6 +184,7 @@ export function GameCanvas() {
         'noir-rose': { fill: 0x53283e, outline: 0xff79af, figure: 0xffd5e5, glow: 0xff79bf },
       };
       const radii: Record<string, number> = { lumi: 46, astra: 40, noir: 43 };
+      let handleMuseTap = (_runtime: ActiveMuseBody) => undefined;
 
       const createMuseBody = (muse: Muse, index: number): ActiveMuseBody => {
         const radius = radii[muse.id] ?? 42;
@@ -172,6 +207,9 @@ export function GameCanvas() {
           glow: new Graphics(),
           icon: new Graphics(),
         };
+        runtime.icon.eventMode = 'static';
+        runtime.icon.cursor = 'pointer';
+        runtime.icon.on('pointertap', () => handleMuseTap(runtime));
         museLayer.addChild(runtime.glow, runtime.icon);
         return runtime;
       };
@@ -312,26 +350,6 @@ export function GameCanvas() {
         }
       };
 
-      const handleResize = () => {
-        drawArena();
-        cornerNotice.position.set(app.screen.width / 2, app.screen.height * 0.2);
-        skillNotice.position.set(app.screen.width / 2, app.screen.height * 0.29);
-        for (const runtime of activeMuses.values()) {
-          runtime.body = {
-            ...runtime.body,
-            x: Math.min(
-              Math.max(runtime.body.x, inset + runtime.body.radius),
-              app.screen.width - inset - runtime.body.radius,
-            ),
-            y: Math.min(
-              Math.max(runtime.body.y, inset + runtime.body.radius),
-              app.screen.height - inset - runtime.body.radius,
-            ),
-          };
-        }
-        drawMuses();
-      };
-
       const triggerCornerEffects = (reward: number, hitBody: BounceBody) => {
         const { effectsQuality, seVolume } = useAppStore.getState().settings;
         const particleCount = {
@@ -379,14 +397,77 @@ export function GameCanvas() {
         skillNoticeTime = 1.35;
       };
 
+      const rotateBodyVelocity = (body: BounceBody, degrees: number) => {
+        const radians = (degrees * Math.PI) / 180;
+        const vx = body.vx * Math.cos(radians) - body.vy * Math.sin(radians);
+        const vy = body.vx * Math.sin(radians) + body.vy * Math.cos(radians);
+        body.vx = vx;
+        body.vy = vy;
+      };
+
+      const triggerTapEffects = (runtime: ActiveMuseBody, subtitle: string) => {
+        const palette = museColors[runtime.muse.iconAsset] ?? museColors['lumi-orchid'];
+        const maxLife = museTapEffectDurationMs / 1_000;
+        const graphic = new Graphics()
+          .circle(runtime.body.x, runtime.body.y, runtime.body.radius + 14)
+          .stroke({ color: palette.glow, alpha: 0.94, width: 3 });
+
+        for (let index = 0; index < 6; index += 1) {
+          const angle = (Math.PI * 2 * index) / 6;
+          graphic
+            .star(
+              runtime.body.x + Math.cos(angle) * (runtime.body.radius + 22),
+              runtime.body.y + Math.sin(angle) * (runtime.body.radius + 22),
+              5,
+              5,
+              2.3,
+            )
+            .fill({ color: index % 2 === 0 ? palette.glow : 0xffd681, alpha: 0.92 });
+        }
+
+        tapEffectLayer.addChild(graphic);
+        tapEffects.push({ graphic, life: maxLife, maxLife });
+        tapNotice.text = `BOOST!\n${subtitle}`;
+        tapNotice.position.set(runtime.body.x, runtime.body.y - runtime.body.radius - 39);
+        tapNotice.visible = true;
+        tapNotice.alpha = 1;
+        tapNoticeTime = maxLife;
+      };
+
+      handleMuseTap = (runtime) => {
+        if (runtime.isClone) {
+          return;
+        }
+
+        const { language, seVolume } = useAppStore.getState().settings;
+        const { activateMuseTap, museTapStates } = useGameStore.getState();
+        const previousVoiceId = museTapStates[runtime.muse.id]?.lastTapVoiceId;
+        const voiceOptions = runtime.muse.tapVoices.filter(
+          (tapVoice) => tapVoice.id !== previousVoiceId,
+        );
+        const candidateVoices = voiceOptions.length ? voiceOptions : runtime.muse.tapVoices;
+        const tapVoice = candidateVoices[Math.floor(Math.random() * candidateVoices.length)];
+
+        if (!tapVoice || !activateMuseTap(runtime.muse.id, tapVoice.id, Date.now())) {
+          return;
+        }
+
+        const directionDegrees =
+          (Math.random() * 2 - 1) * museTapDirectionChangeDegreeMedium;
+        rotateBodyVelocity(runtime.body, directionDegrees);
+        triggerTapEffects(
+          runtime,
+          language === 'ja' ? tapVoice.subtitleJa : tapVoice.subtitleEn,
+        );
+        playMuseTapVoice(tapVoice, seVolume);
+      };
+
       drawArena();
       void updateBackground(useGameStore.getState().currentBackgroundId);
       cornerNotice.position.set(app.screen.width / 2, app.screen.height * 0.2);
       skillNotice.position.set(app.screen.width / 2, app.screen.height * 0.29);
       syncMuseBodies(useGameStore.getState().activeMuseIds);
       drawMuses();
-      resizeObserver = new ResizeObserver(handleResize);
-      resizeObserver.observe(host);
       unsubscribeStore = useGameStore.subscribe((state, previousState) => {
         if (state.currentBackgroundId !== previousState.currentBackgroundId) {
           void updateBackground(state.currentBackgroundId);
@@ -401,6 +482,7 @@ export function GameCanvas() {
         skillTickAccumulatorMs += ticker.deltaMS;
         if (skillTickAccumulatorMs >= 100) {
           useGameStore.getState().tickSkillStates(skillTickAccumulatorMs);
+          useGameStore.getState().tickMuseTapStates(Date.now());
           skillTickAccumulatorMs = 0;
         }
 
@@ -411,6 +493,8 @@ export function GameCanvas() {
           incrementCornerHit,
           activateMuseSkill,
           skillStates,
+          unlockedSkillNodes,
+          museTapStates,
         } = useGameStore.getState();
         const speedSkillMuse = getMuseById('astra');
         const skillSpeedMultiplier = speedSkillMuse
@@ -429,10 +513,15 @@ export function GameCanvas() {
           runtime.body.radius =
             runtime.baseRadius *
             getSkillScale(runtime.muse, !runtime.isClone && isSkillActive(skillStates, runtime.muse.id));
+          const isTapBoostActive =
+            !runtime.isClone &&
+            museTapStates[runtime.muse.id]?.isTapBoostActive === true &&
+            Date.now() < museTapStates[runtime.muse.id].tapBoostEndsAt;
           const result = stepBounceBody(
             runtime.body,
             { width: app.screen.width, height: app.screen.height, inset },
-            (ticker.deltaMS / 1_000) * calculateSpeedMultiplier(upgrades) * skillSpeedMultiplier,
+            (ticker.deltaMS / 1_000) *
+              calculateVisualSpeedMultiplier(upgrades, skillSpeedMultiplier, isTapBoostActive),
           );
           runtime.body = result.body;
 
@@ -443,7 +532,9 @@ export function GameCanvas() {
             const bounceReward = Math.max(
               1,
               Math.floor(
-                calculateBounceReward(upgrades) * runtime.muse.memoryMultiplier * rewardMultiplier,
+                calculateBounceReward(upgrades, unlockedSkillNodes) *
+                  runtime.muse.memoryMultiplier *
+                  rewardMultiplier,
               ),
             );
             addMemory(bounceReward);
@@ -453,15 +544,16 @@ export function GameCanvas() {
               isCornerHit(
                 runtime.body,
                 { width: app.screen.width, height: app.screen.height, inset },
-                cornerThreshold,
+                cornerThreshold + calculateCornerThresholdBonus(unlockedSkillNodes),
               )
             ) {
               const cornerReward = Math.max(
                 1,
                 Math.floor(
-                  calculateCornerReward(upgrades) *
+                  calculateCornerReward(upgrades, unlockedSkillNodes) *
                     runtime.muse.cornerMultiplier *
-                    rewardMultiplier,
+                    rewardMultiplier *
+                    calculateMuseTapCornerRewardMultiplier(isTapBoostActive),
                 ),
               );
               addMemory(cornerReward);
@@ -507,6 +599,14 @@ export function GameCanvas() {
             skillNotice.visible = false;
           }
         }
+        if (tapNoticeTime > 0) {
+          tapNoticeTime -= deltaSeconds;
+          tapNotice.y -= 13 * deltaSeconds;
+          tapNotice.alpha = Math.max(0, tapNoticeTime / (museTapEffectDurationMs / 1_000));
+          if (tapNoticeTime <= 0) {
+            tapNotice.visible = false;
+          }
+        }
         for (let index = particles.length - 1; index >= 0; index -= 1) {
           const particle = particles[index];
           particle.life -= deltaSeconds;
@@ -522,6 +622,17 @@ export function GameCanvas() {
             particles.splice(index, 1);
           }
         }
+        for (let index = tapEffects.length - 1; index >= 0; index -= 1) {
+          const tapEffect = tapEffects[index];
+          tapEffect.life -= deltaSeconds;
+          tapEffect.graphic.alpha = Math.max(0, tapEffect.life / tapEffect.maxLife);
+
+          if (tapEffect.life <= 0) {
+            tapEffectLayer.removeChild(tapEffect.graphic);
+            tapEffect.graphic.destroy();
+            tapEffects.splice(index, 1);
+          }
+        }
         drawMuses(pulseTime);
       });
     };
@@ -532,7 +643,6 @@ export function GameCanvas() {
       isCancelled = true;
       cleanupAudio();
       unsubscribeStore?.();
-      resizeObserver?.disconnect();
       if (!isInitialized) {
         return;
       }

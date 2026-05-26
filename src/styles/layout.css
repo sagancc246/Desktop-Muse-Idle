@@ -5,11 +5,12 @@
     radial-gradient(circle at 78% 68%, rgba(42, 159, 204, 0.14), transparent 26%),
     linear-gradient(140deg, #08091b 0%, #0d102b 46%, #060817 100%);
   display: flex;
-  height: 100vh;
+  height: 100%;
   justify-content: center;
-  min-height: 720px;
+  min-height: 0;
   overflow: hidden;
   position: relative;
+  width: 100%;
 }
 
 .title-decoration {

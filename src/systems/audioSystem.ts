@@ -1,3 +1,5 @@
+import type { TapVoice } from '../types/game';
+
 let audioContext: AudioContext | undefined;
 
 function getAudioContext(): AudioContext | undefined {
@@ -50,5 +52,19 @@ export function playCornerHitSound(seVolume: number): void {
     oscillator.connect(gain);
     oscillator.start(now + delay);
     oscillator.stop(now + delay + 0.19);
+  }
+}
+
+export function playMuseTapVoice(tapVoice: TapVoice, seVolume: number): void {
+  if (typeof window === 'undefined' || seVolume <= 0 || !tapVoice.audioPath) {
+    return;
+  }
+
+  try {
+    const voice = new Audio(tapVoice.audioPath);
+    voice.volume = Math.min(Math.max(seVolume, 0), 100) / 100;
+    void voice.play().catch(() => undefined);
+  } catch {
+    // Missing prototype voice assets should not interrupt gameplay.
   }
 }

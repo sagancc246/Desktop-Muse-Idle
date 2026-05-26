@@ -4,6 +4,7 @@ import { useGameStore } from '../store/useGameStore';
 export function MusePanel() {
   const activeMuseIds = useGameStore((state) => state.activeMuseIds);
   const skillStates = useGameStore((state) => state.skillStates);
+  const museTapStates = useGameStore((state) => state.museTapStates);
   const toggleActiveMuse = useGameStore((state) => state.toggleActiveMuse);
   const activeMuses = muses.filter((muse) => activeMuseIds.includes(muse.id));
 
@@ -38,6 +39,19 @@ export function MusePanel() {
             : isCoolingDown
               ? `CD ${(remainingMs / 1_000).toFixed(1)}s`
               : 'READY';
+          const tapState = museTapStates[muse.id];
+          const now = Date.now();
+          const isTapActive =
+            tapState?.isTapBoostActive === true && now < tapState.tapBoostEndsAt;
+          const isTapCoolingDown = !isTapActive && now < (tapState?.tapCooldownEndsAt ?? 0);
+          const tapRemainingMs = isTapActive
+            ? tapState.tapBoostEndsAt - now
+            : Math.max(0, (tapState?.tapCooldownEndsAt ?? 0) - now);
+          const tapStatus = isTapActive
+            ? `Active: ${(tapRemainingMs / 1_000).toFixed(1)}s`
+            : isTapCoolingDown
+              ? `Cooldown: ${(tapRemainingMs / 1_000).toFixed(1)}s`
+              : 'Ready';
 
           return (
             <article className={`muse-card${isActive ? ' active' : ''}`} key={muse.id}>
@@ -66,6 +80,12 @@ export function MusePanel() {
                   </span>
                 </div>
                 <p>{muse.skill.description}</p>
+              </div>
+              <div className="muse-tap-state">
+                <span>Muse Tap</span>
+                <strong className={`${isTapActive ? 'active' : ''}${isTapCoolingDown ? ' cooldown' : ''}`}>
+                  {tapStatus}
+                </strong>
               </div>
             </article>
           );
