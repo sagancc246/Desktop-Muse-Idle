@@ -1,0 +1,133 @@
+.app-shell {
+  isolation: isolate;
+  position: relative;
+}
+
+.app-shell > :not(.neon-background):not(.pinball-background) {
+  z-index: 1;
+}
+
+.neon-background {
+  --neon-bg-image: url("/assets/backgrounds/bg_neon_room.webp");
+  --neon-bg-opacity: 0.44;
+  --neon-bg-brightness: 0.72;
+  --neon-bg-saturation: 1.15;
+  --neon-glow-opacity: 0.42;
+  --neon-sweep-opacity: 0.16;
+  --neon-pulse-duration: 8.5s;
+  --neon-sweep-duration: 13s;
+  --neon-center-shield: 0.38;
+  --neon-corner-guard: 0.34;
+
+  background: #050716;
+  border-radius: inherit;
+  inset: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+  transition: opacity 420ms ease;
+  z-index: 0;
+}
+
+.neon-background.is-active {
+  opacity: 1;
+}
+
+.neon-background > div {
+  inset: 0;
+  position: absolute;
+}
+
+.neon-image-layer {
+  background:
+    radial-gradient(ellipse at center, rgba(5, 7, 20, var(--neon-center-shield)) 0%, transparent 31%),
+    linear-gradient(180deg, rgba(5, 7, 20, 0.14), rgba(5, 7, 20, 0.3)),
+    var(--neon-bg-image) center / cover no-repeat;
+  filter: brightness(var(--neon-bg-brightness)) saturate(var(--neon-bg-saturation));
+  opacity: var(--neon-bg-opacity);
+}
+
+.neon-glow-layer {
+  animation: neonGlowPulse var(--neon-pulse-duration) ease-in-out infinite;
+  background:
+    radial-gradient(circle at 8% 58%, rgba(0, 210, 255, 0.2), transparent 18%),
+    radial-gradient(circle at 88% 48%, rgba(200, 58, 255, 0.2), transparent 20%),
+    radial-gradient(ellipse at 52% 83%, rgba(255, 56, 226, 0.16), transparent 28%),
+    linear-gradient(90deg, rgba(0, 195, 255, 0.16), transparent 33%, transparent 67%, rgba(212, 52, 255, 0.16));
+  mix-blend-mode: screen;
+  opacity: var(--neon-glow-opacity);
+}
+
+.neon-sweep-layer {
+  animation: neonSweep var(--neon-sweep-duration) linear infinite;
+  background:
+    linear-gradient(
+      105deg,
+      transparent 0%,
+      transparent 39%,
+      rgba(115, 232, 255, 0.1) 46%,
+      rgba(230, 75, 255, 0.09) 50%,
+      transparent 61%,
+      transparent 100%
+    );
+  mix-blend-mode: screen;
+  opacity: var(--neon-sweep-opacity);
+  transform: translateX(-74%);
+}
+
+.neon-vignette-layer {
+  background:
+    radial-gradient(ellipse at center, rgba(5, 7, 20, 0.18) 0%, rgba(5, 7, 20, 0.22) 30%, transparent 60%),
+    radial-gradient(circle at top left, rgba(3, 4, 14, var(--neon-corner-guard)), transparent 24%),
+    radial-gradient(circle at top right, rgba(3, 4, 14, var(--neon-corner-guard)), transparent 24%),
+    radial-gradient(circle at bottom left, rgba(3, 4, 14, var(--neon-corner-guard)), transparent 26%),
+    radial-gradient(circle at bottom right, rgba(3, 4, 14, var(--neon-corner-guard)), transparent 26%);
+  box-shadow: inset 0 0 130px rgba(0, 0, 0, 0.58);
+}
+
+.app-shell.focus-mode .neon-background {
+  --neon-bg-opacity: 0.68;
+  --neon-bg-brightness: 0.84;
+  --neon-bg-saturation: 1.28;
+  --neon-glow-opacity: 0.62;
+  --neon-sweep-opacity: 0.28;
+  --neon-pulse-duration: 5.4s;
+  --neon-sweep-duration: 7.5s;
+  --neon-center-shield: 0.5;
+  --neon-corner-guard: 0.42;
+}
+
+@keyframes neonGlowPulse {
+  0%,
+  100% {
+    filter: brightness(0.9) saturate(1);
+    transform: scale(1);
+  }
+
+  50% {
+    filter: brightness(1.18) saturate(1.16);
+    transform: scale(1.015);
+  }
+}
+
+@keyframes neonSweep {
+  from {
+    transform: translateX(-74%);
+  }
+
+  to {
+    transform: translateX(74%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .neon-background {
+    transition: none;
+  }
+
+  .neon-glow-layer,
+  .neon-sweep-layer {
+    animation: none;
+  }
+}

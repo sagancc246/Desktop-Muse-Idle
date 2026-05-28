@@ -57,6 +57,13 @@ export interface Background {
   unlockStageId: string;
 }
 
+export type CornerHitPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+
+export interface CornerHitFlashEvent {
+  corner: CornerHitPosition;
+  occurredAt: number;
+}
+
 export type SkillType = 'clone' | 'grow' | 'speed_up';
 
 export interface MuseSkill {
@@ -104,12 +111,31 @@ export type Language = 'ja' | 'en';
 
 export type EffectsQuality = 'low' | 'medium' | 'high';
 
+export type MotionIntensity = 'low' | 'medium' | 'high';
+
 export interface AppSettings {
   bgmVolume: number;
   seVolume: number;
   language: Language;
   effectsQuality: EffectsQuality;
+  motionIntensity: MotionIntensity;
   autoSaveEnabled: boolean;
+}
+
+export interface OfflineRewardSummary {
+  elapsedSeconds: number;
+  memoryEarned: number;
+  multiplier: number;
+  wasCapped: boolean;
+}
+
+export interface StageClearSummary {
+  stageId: string;
+  stageName: string;
+  rewardBackgroundId: string;
+  rewardBackgroundName: string;
+  nextStageId: string | null;
+  nextStageName: string | null;
 }
 
 export interface GameState {
@@ -129,6 +155,9 @@ export interface GameState {
   fragments: number;
   unlockedSkillNodes: Record<string, number>;
   rebootCount: number;
+  pendingOfflineReward: OfflineRewardSummary | null;
+  pendingStageClear: StageClearSummary | null;
+  lastCornerHitFlash: CornerHitFlashEvent | null;
 }
 
 export interface SaveData {
@@ -147,6 +176,7 @@ export interface SaveData {
   fragments: number;
   unlockedSkillNodes: Record<string, number>;
   rebootCount: number;
+  lastSavedAt: number;
 }
 
 export interface GameActions {
@@ -165,6 +195,16 @@ export interface GameActions {
   tickMuseTapStates: (now: number) => void;
   unlockSkillNode: (skillNodeId: string) => void;
   reboot: () => boolean;
+  dismissOfflineReward: () => void;
+  dismissStageClear: () => void;
+  triggerCornerHitFlash: (corner: CornerHitPosition) => void;
+  refreshMemoryPerSecond: (motionIntensity: MotionIntensity) => void;
+  debugAddMemory: (amount: number) => void;
+  debugAddFragments: (amount: number) => void;
+  debugTriggerCornerHit: () => void;
+  debugCompleteCurrentStage: () => void;
+  debugActivateMuseSkill: (museId: string) => void;
+  debugActivateMuseTap: (museId: string) => void;
 }
 
 export type GameStore = GameState & GameActions;

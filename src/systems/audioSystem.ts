@@ -1,6 +1,8 @@
 import type { TapVoice } from '../types/game';
+import { warnAssetFallbackOnce } from './assetFallbacks';
 
 let audioContext: AudioContext | undefined;
+const missingVoiceAssetIds = new Set<string>();
 
 function getAudioContext(): AudioContext | undefined {
   if (typeof window === 'undefined') {
@@ -56,15 +58,30 @@ export function playCornerHitSound(seVolume: number): void {
 }
 
 export function playMuseTapVoice(tapVoice: TapVoice, seVolume: number): void {
-  if (typeof window === 'undefined' || seVolume <= 0 || !tapVoice.audioPath) {
+  if (
+    typeof window === 'undefined' ||
+    seVolume <= 0 ||
+    !tapVoice.audioPath ||
+    missingVoiceAssetIds.has(tapVoice.id)
+  ) {
     return;
   }
 
   try {
     const voice = new Audio(tapVoice.audioPath);
     voice.volume = Math.min(Math.max(seVolume, 0), 100) / 100;
-    void voice.play().catch(() => undefined);
+    void voice.play().catch(() => {
+      missingVoiceAssetIds.add(tapVoice.id);
+      warnAssetFallbackOnce(
+        `voice:${tapVoice.id}`,
+        `Voice asset missing for ${tapVoice.id}; subtitle fallback remains active.`,
+      );
+    });
   } catch {
-    // Missing prototype voice assets should not interrupt gameplay.
+    missingVoiceAssetIds.add(tapVoice.id);
+    warnAssetFallbackOnce(
+      `voice:${tapVoice.id}`,
+      `Voice asset missing for ${tapVoice.id}; subtitle fallback remains active.`,
+    );
   }
 }

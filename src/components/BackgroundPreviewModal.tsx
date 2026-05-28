@@ -1,4 +1,5 @@
 import type { Background } from '../types/game';
+import { FallbackImage } from './FallbackImage';
 
 interface BackgroundPreviewModalProps {
   background: Background;
@@ -25,7 +26,11 @@ export function BackgroundPreviewModal({
         <button aria-label="プレビューを閉じる" className="modal-close" onClick={onClose} type="button">
           Close
         </button>
-        <img alt={`${background.name} background preview`} src={background.imagePath} />
+        <FallbackImage
+          alt={`${background.name} background preview`}
+          assetLabel={`${background.id} preview`}
+          src={background.imagePath}
+        />
         <div className="preview-copy">
           <p className="eyebrow">UNLOCKED STILL</p>
           <h2>{background.name}</h2>

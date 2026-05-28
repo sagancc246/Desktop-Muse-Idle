@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { useGameStore } from '../store/useGameStore';
 import { localize } from '../systems/localization';
-import type { EffectsQuality, Language } from '../types/game';
+import type { EffectsQuality, Language, MotionIntensity } from '../types/game';
 
 interface SettingsModalProps {
   onBack: () => void;
@@ -79,6 +79,20 @@ export function SettingsModal({ onBack }: SettingsModalProps) {
                 updateSettings({ effectsQuality: event.target.value as EffectsQuality })
               }
               value={settings.effectsQuality}
+            >
+              <option value="low">low</option>
+              <option value="medium">medium</option>
+              <option value="high">high</option>
+            </select>
+          </label>
+          <label className="setting-row">
+            <span>Motion Intensity</span>
+            <select
+              aria-label="Motion Intensity"
+              onChange={(event) =>
+                updateSettings({ motionIntensity: event.target.value as MotionIntensity })
+              }
+              value={settings.motionIntensity}
             >
               <option value="low">low</option>
               <option value="medium">medium</option>

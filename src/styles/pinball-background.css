@@ -1,0 +1,199 @@
+.app-shell > :not(.neon-background):not(.pinball-background) {
+  z-index: 1;
+}
+
+.pinball-background {
+  --pinball-bg-image: url("/assets/backgrounds/bg_pinball_neon.webp");
+  --pinball-bg-opacity: 0.5;
+  --pinball-bg-brightness: 0.74;
+  --pinball-bg-saturation: 1.12;
+  --pinball-neon-opacity: 0.36;
+  --pinball-neon-speed: 7.5s;
+  --pinball-scanline-opacity: 0.16;
+  --pinball-scanline-speed: 9s;
+  --pinball-reflection-opacity: 0.32;
+  --pinball-hud-dim: 0.46;
+  --pinball-corner-flash-opacity: 0.9;
+  --pinball-corner-flash-duration: 620ms;
+
+  background: #050718;
+  inset: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+  transition: opacity 420ms ease;
+  z-index: 0;
+}
+
+.pinball-background.is-active {
+  opacity: 1;
+}
+
+.pinball-background > div {
+  inset: 0;
+  position: absolute;
+}
+
+.pinball-background.is-focus {
+  --pinball-bg-opacity: 0.74;
+  --pinball-bg-brightness: 0.9;
+  --pinball-bg-saturation: 1.28;
+  --pinball-neon-opacity: 0.58;
+  --pinball-neon-speed: 4.6s;
+  --pinball-scanline-opacity: 0.28;
+  --pinball-scanline-speed: 4.8s;
+  --pinball-reflection-opacity: 0.48;
+  --pinball-hud-dim: 0.52;
+}
+
+.pinball-image-layer {
+  background:
+    radial-gradient(ellipse at center, rgba(5, 7, 22, 0.24) 0%, transparent 31%),
+    linear-gradient(180deg, rgba(5, 7, 22, 0.12), rgba(5, 7, 22, 0.36)),
+    var(--pinball-bg-image) center / cover no-repeat;
+  filter: brightness(var(--pinball-bg-brightness)) saturate(var(--pinball-bg-saturation));
+  opacity: var(--pinball-bg-opacity);
+}
+
+.pinball-neon-layer {
+  animation: pinballNeonPulse var(--pinball-neon-speed) ease-in-out infinite;
+  background:
+    radial-gradient(circle at 12% 15%, rgba(255, 57, 238, 0.24), transparent 18%),
+    radial-gradient(circle at 88% 15%, rgba(35, 209, 255, 0.22), transparent 18%),
+    radial-gradient(circle at 10% 88%, rgba(255, 50, 229, 0.22), transparent 20%),
+    radial-gradient(circle at 88% 87%, rgba(42, 214, 255, 0.22), transparent 20%),
+    linear-gradient(90deg, rgba(255, 54, 224, 0.12), transparent 28%, transparent 72%, rgba(50, 212, 255, 0.12)),
+    linear-gradient(180deg, rgba(70, 204, 255, 0.11), transparent 35%, rgba(255, 61, 220, 0.12));
+  mix-blend-mode: screen;
+  opacity: var(--pinball-neon-opacity);
+}
+
+.pinball-scanline-layer {
+  animation: pinballScanline var(--pinball-scanline-speed) linear infinite;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent 0,
+      transparent 17px,
+      rgba(119, 229, 255, 0.09) 18px,
+      rgba(245, 72, 255, 0.08) 19px,
+      transparent 22px
+    ),
+    linear-gradient(105deg, transparent 0%, transparent 39%, rgba(134, 238, 255, 0.11) 46%, rgba(255, 82, 239, 0.1) 52%, transparent 62%);
+  mix-blend-mode: screen;
+  opacity: var(--pinball-scanline-opacity);
+  transform: translateY(-10%);
+}
+
+.pinball-floor-reflection-layer {
+  animation: pinballReflectionDrift calc(var(--pinball-neon-speed) * 1.35) ease-in-out infinite;
+  background:
+    radial-gradient(ellipse at 50% 78%, rgba(67, 109, 255, 0.2), transparent 30%),
+    linear-gradient(180deg, transparent 42%, rgba(37, 96, 255, 0.12) 58%, rgba(255, 42, 231, 0.13) 100%);
+  mix-blend-mode: screen;
+  opacity: var(--pinball-reflection-opacity);
+}
+
+.pinball-hud-dim-layer {
+  background:
+    radial-gradient(ellipse at center, rgba(4, 6, 20, var(--pinball-hud-dim)) 0%, rgba(4, 6, 20, 0.22) 37%, transparent 62%),
+    linear-gradient(90deg, rgba(3, 5, 17, 0.3), transparent 20%, transparent 80%, rgba(3, 5, 17, 0.3)),
+    linear-gradient(180deg, rgba(3, 5, 17, 0.32), transparent 26%, transparent 72%, rgba(3, 5, 17, 0.36));
+  box-shadow: inset 0 0 130px rgba(0, 0, 0, 0.48);
+}
+
+.pinball-corner-flash {
+  opacity: 0;
+}
+
+.pinball-corner-flash.top-left {
+  background: radial-gradient(circle at top left, rgba(255, 91, 242, var(--pinball-corner-flash-opacity)), rgba(99, 206, 255, 0.22) 10%, transparent 25%);
+}
+
+.pinball-corner-flash.top-right {
+  background: radial-gradient(circle at top right, rgba(84, 225, 255, var(--pinball-corner-flash-opacity)), rgba(255, 82, 232, 0.2) 10%, transparent 25%);
+}
+
+.pinball-corner-flash.bottom-left {
+  background: radial-gradient(circle at bottom left, rgba(255, 77, 233, var(--pinball-corner-flash-opacity)), rgba(102, 226, 255, 0.22) 10%, transparent 26%);
+}
+
+.pinball-corner-flash.bottom-right {
+  background: radial-gradient(circle at bottom right, rgba(72, 218, 255, var(--pinball-corner-flash-opacity)), rgba(255, 82, 232, 0.22) 10%, transparent 26%);
+}
+
+.pinball-background[data-corner-hit="top-left"] .pinball-corner-flash.top-left,
+.pinball-background[data-corner-hit="top-right"] .pinball-corner-flash.top-right,
+.pinball-background[data-corner-hit="bottom-left"] .pinball-corner-flash.bottom-left,
+.pinball-background[data-corner-hit="bottom-right"] .pinball-corner-flash.bottom-right {
+  animation: pinballCornerFlash var(--pinball-corner-flash-duration) ease-out;
+}
+
+@keyframes pinballNeonPulse {
+  0%,
+  100% {
+    filter: brightness(0.92) saturate(1);
+    transform: scale(1);
+  }
+
+  48% {
+    filter: brightness(1.22) saturate(1.18);
+    transform: scale(1.012);
+  }
+}
+
+@keyframes pinballScanline {
+  from {
+    background-position: 0 -80px, -60% 0;
+  }
+
+  to {
+    background-position: 0 80px, 60% 0;
+  }
+}
+
+@keyframes pinballReflectionDrift {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+
+  50% {
+    transform: translateY(10px) scale(1.02);
+  }
+}
+
+@keyframes pinballCornerFlash {
+  0% {
+    opacity: 0;
+  }
+
+  16% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pinball-background {
+    transition: none;
+  }
+
+  .pinball-neon-layer,
+  .pinball-scanline-layer,
+  .pinball-floor-reflection-layer,
+  .pinball-background[data-corner-hit] .pinball-corner-flash {
+    animation: none;
+  }
+
+  .pinball-background[data-corner-hit="top-left"] .pinball-corner-flash.top-left,
+  .pinball-background[data-corner-hit="top-right"] .pinball-corner-flash.top-right,
+  .pinball-background[data-corner-hit="bottom-left"] .pinball-corner-flash.bottom-left,
+  .pinball-background[data-corner-hit="bottom-right"] .pinball-corner-flash.bottom-right {
+    opacity: 0.34;
+  }
+}

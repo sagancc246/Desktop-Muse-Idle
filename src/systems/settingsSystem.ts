@@ -1,4 +1,4 @@
-import type { AppSettings, EffectsQuality, Language } from '../types/game';
+import type { AppSettings, EffectsQuality, Language, MotionIntensity } from '../types/game';
 
 const settingsStorageKey = 'desktop-muse-idle-settings';
 
@@ -7,6 +7,7 @@ export const defaultSettings: AppSettings = {
   seVolume: 80,
   language: 'ja',
   effectsQuality: 'medium',
+  motionIntensity: 'medium',
   autoSaveEnabled: true,
 };
 
@@ -22,20 +23,37 @@ function isEffectsQuality(value: unknown): value is EffectsQuality {
   return value === 'low' || value === 'medium' || value === 'high';
 }
 
-function isSettings(value: unknown): value is AppSettings {
+function isMotionIntensity(value: unknown): value is MotionIntensity {
+  return value === 'low' || value === 'medium' || value === 'high';
+}
+
+function migrateSettings(value: unknown): AppSettings | null {
   if (!value || typeof value !== 'object') {
-    return false;
+    return null;
   }
 
   const settings = value as Partial<AppSettings>;
 
-  return (
-    isVolume(settings.bgmVolume) &&
-    isVolume(settings.seVolume) &&
-    isLanguage(settings.language) &&
-    isEffectsQuality(settings.effectsQuality) &&
-    typeof settings.autoSaveEnabled === 'boolean'
-  );
+  if (
+    !isVolume(settings.bgmVolume) ||
+    !isVolume(settings.seVolume) ||
+    !isLanguage(settings.language) ||
+    !isEffectsQuality(settings.effectsQuality) ||
+    typeof settings.autoSaveEnabled !== 'boolean'
+  ) {
+    return null;
+  }
+
+  return {
+    bgmVolume: settings.bgmVolume,
+    seVolume: settings.seVolume,
+    language: settings.language,
+    effectsQuality: settings.effectsQuality,
+    motionIntensity: isMotionIntensity(settings.motionIntensity)
+      ? settings.motionIntensity
+      : defaultSettings.motionIntensity,
+    autoSaveEnabled: settings.autoSaveEnabled,
+  };
 }
 
 export function loadSettings(): AppSettings {
@@ -51,7 +69,7 @@ export function loadSettings(): AppSettings {
     }
 
     const parsed: unknown = JSON.parse(serialized);
-    return isSettings(parsed) ? parsed : defaultSettings;
+    return migrateSettings(parsed) ?? defaultSettings;
   } catch {
     return defaultSettings;
   }

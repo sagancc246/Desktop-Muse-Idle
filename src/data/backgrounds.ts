@@ -19,7 +19,14 @@ export const backgrounds: Background[] = [
     id: 'bg_neon_room',
     name: 'Neon Room',
     description: 'A vivid terminal glow for the final loop.',
-    imagePath: './assets/backgrounds/bg_neon_room.svg',
+    imagePath: './assets/backgrounds/bg_neon_room.webp',
+    unlockStageId: 'stage-3',
+  },
+  {
+    id: 'bg_pinball_neon',
+    name: 'Pinball Neon',
+    description: 'A neon pinball table with animated CSS glow layers.',
+    imagePath: './assets/backgrounds/bg_pinball_neon.webp',
     unlockStageId: 'stage-3',
   },
 ];

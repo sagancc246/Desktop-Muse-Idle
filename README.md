@@ -270,6 +270,23 @@ npm run electron:build
 
 現在はステージ目標による進行確認に加え、`rewardBackgroundId` に対応する背景の解放、Gallery での閲覧、現在背景の選択にも対応しています。追加のスチルカテゴリや大量の背景コンテンツはまだ実装していません。
 
+### ステージクリア演出
+
+- ステージ目標の Corner Hit 数に到達した瞬間、ゲーム画面中央に `Stage Clear!` オーバーレイを表示します。
+- オーバーレイではクリアしたステージ名、解放された背景名、次に解放されたステージ名を確認できます。
+- 最終ステージをクリアした場合は、現時点の全ステージクリア案内を表示します。
+- 演出状態はセーブデータには保存せず、クリア直後だけの一時表示として扱います。
+- 開発ビルドの `Debug Panel` にある `Clear Stage` でも同じ演出を確認できます。
+
+#### ステージクリア演出の確認方法
+
+1. `npm run dev` を実行し、ゲーム画面へ進みます。
+2. 開発ビルドでは右側の `Debug Panel` から `Clear Stage` を選択します。
+3. `Stage Clear!` オーバーレイが表示され、クリアステージ、解放背景、次ステージが表示されることを確認します。
+4. `Continue` を選択するとゲーム画面へ戻り、StagePanel が次ステージ進行に切り替わっていることを確認します。
+5. 通常プレイでも Corner Hit 目標到達時に同じ演出が表示されることを確認します。
+6. `npm run build` を実行し、TypeScript と Vite のビルドが成功することを確認します。
+
 ### 確認方法
 
 1. `npm install` を実行します。
@@ -408,8 +425,8 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 
 ## 設定画面
 
-- `src/systems/settingsSystem.ts` にゲーム進行セーブとは独立した設定保存を追加し、`bgmVolume: 70`、`seVolume: 80`、`language: "ja"`、`effectsQuality: "medium"`、`autoSaveEnabled: true` を初期値としました。
-- `SettingsModal` で `BGM Volume`、`SE Volume`、`Language`、`Effects Quality`、`Auto Save`、`Reset Save Data` を設定できます。
+- `src/systems/settingsSystem.ts` にゲーム進行セーブとは独立した設定保存を追加し、`bgmVolume: 70`、`seVolume: 80`、`language: "ja"`、`effectsQuality: "medium"`、`motionIntensity: "medium"`、`autoSaveEnabled: true` を初期値としました。
+- `SettingsModal` で `BGM Volume`、`SE Volume`、`Language`、`Effects Quality`、`Motion Intensity`、`Auto Save`、`Reset Save Data` を設定できます。
 - BGM は音源をまだ追加していないため音量値の保存までに留め、SE Volume は Corner Hit SE、Effects Quality は Corner Hit の粒子数へ反映します。
 - `Auto Save` を OFF にするとゲーム画面の10秒オートセーブを停止し、再度 ON にすると再開します。
 - `Reset Save Data` は確認ダイアログの後にゲーム進行だけを初期化し、設定値は保持します。
@@ -418,8 +435,8 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 
 ### 設定画面の確認方法
 
-1. タイトル画面の `Settings` を選択し、各音量スライダー、Language、Effects Quality、Auto Save、Reset Save Data、Back が表示されることを確認します。
-2. `BGM Volume` と `SE Volume` を変更し、Language を `en`、Effects Quality を `high`、Auto Save を `OFF` に変更します。
+1. タイトル画面の `Settings` を選択し、各音量スライダー、Language、Effects Quality、Motion Intensity、Auto Save、Reset Save Data、Back が表示されることを確認します。
+2. `BGM Volume` と `SE Volume` を変更し、Language を `en`、Effects Quality を `high`、Motion Intensity を `low`、Auto Save を `OFF` に変更します。
 3. ページを再読み込みして Settings を再度開き、変更値が復元されることを確認します。
 4. Language の変更で設定画面内の案内文が切り替わり、SE Volume と Effects Quality がゲームの Corner Hit 演出へ反映されることを確認します。
 5. タイトルから Settings を開いた場合の `Back` はタイトルへ戻り、ゲーム上部の `Settings` から開いた場合の `Back` はゲームへ戻ることを確認します。
@@ -433,7 +450,7 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 - `SkillTreePanel` では Bounce / Corner / Muse の3系統、合計9個の恒久強化を一覧表示し、Fragment と前提ノード条件を満たしたスキルだけ解放できます。
 - Bounce / Corner 報酬倍率、Corner Hit 判定距離、キャラスキルの継続時間とクールダウンをゲーム処理へ反映しました。
 - `Stable Motion` は画面酔いを避けるため、見た目の Muse 速度をさらに上げず、内部収益倍率として作用します。
-- `Passive Cache` のオフライン報酬倍率は `rewardCalculator` に計算口を追加しています。オフライン収益の付与自体は、既存プロトタイプに復帰収益システムがないため今後の実装対象です。
+- `Passive Cache` はオフライン復帰時の Memory 報酬を `x1.20` にする恒久強化として反映されます。
 - 旧セーブデータは Fragment `0`、未解放ツリー、Reboot 回数 `0` として読み込み、既存の進行を維持します。Reboot とスキル解放は操作直後にも保存します。
 
 ### Reboot とスキルツリーの確認方法
@@ -446,6 +463,59 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 6. Corner 報酬ノード解放後の Corner Hit 報酬、Corner Sensor I 解放後の判定距離、Muse ノード解放後のスキル ACTIVE / CD 時間に効果が反映されることを確認します。
 7. ページを再読み込みして Continue を選択し、Fragment、Reboot 回数、解放済みノードが保持されることを確認します。
 8. `npm run build` を実行し、TypeScript と Vite のビルドが成功することを確認します。
+
+## オフライン報酬
+
+- セーブデータへ `lastSavedAt` を追加し、`Continue` 選択時に前回保存からの経過時間に応じた Memory を付与します。
+- 報酬の対象時間は最大8時間で、壁ヒット報酬、`Speed Tune`、出撃中の Muse、恒久収益強化をもとに保存された `Memory/sec` を利用します。
+- オフライン報酬は通常プレイ中の自動収益を追加するものではなく、復帰時のみ付与されます。
+- `Passive Cache` を解放済みの場合、復帰報酬に `x1.20` を適用し、復帰モーダルにも倍率を表示します。
+- 付与後は直ちに保存するため、再読み込みによる同じ待機時間の二重取得を防ぎます。
+- 従来形式のセーブはそのまま読み込めます。`lastSavedAt` のない既存セーブでは、一度新形式で保存された後からオフライン報酬が発生します。
+
+### オフライン報酬の確認方法
+
+1. ゲームを開始し、10秒の自動保存を待ってからタイトル画面へ戻るかページを閉じます。
+2. しばらく時間を置いて起動し、`Continue` を選択すると `Welcome Back` モーダルと獲得 Memory が表示されることを確認します。
+3. `Collect` を選択し、表示された Memory が上部の合計値へ加算済みであることを確認します。
+4. 再読み込みしてすぐ `Continue` しても、同じ待機時間分が再度付与されないことを確認します。
+5. `Passive Cache` を解放したセーブで同様に復帰し、モーダルに `x1.20` が表示され、獲得量へ倍率が反映されることを確認します。
+6. 8時間を超える保存時刻を持つセーブで復帰し、モーダルに上限到達が表示されることを確認します。
+7. `npm run build` を実行し、TypeScript と Vite のビルドが成功することを確認します。
+
+## Motion Intensity / Speed Tune内部効率化
+
+- `SettingsModal` に `Motion Intensity` を追加し、`low` / `medium` / `high` をLocalStorageに保存します。旧設定データには `medium` を自動補完します。
+- Motion Intensity は見た目速度の上限を切り替えます。`low` は `x1.6`、`medium` は `x2.2`、`high` は `x3.0` までです。
+- `Speed Tune` の生倍率が見た目速度上限を超えた場合、超過分は内部収益倍率に変換され、壁ヒット報酬、Corner Hit報酬、オフライン用 `Memory/sec` に反映されます。
+- Muse Tap は Motion Intensity に連動します。`low` は速度 `x1.1` / 方向変化 `±8度`、`medium` は `x1.25` / `±15度`、`high` は `x1.4` / `±20度` です。
+- Muse Tap中のCorner Hit報酬は `low` / `medium` で `x1.5`、`high` で `x1.75` になります。
+- `low` ではCorner Hitの粒子数を減らし、フラッシュを抑えて画面酔いを軽減します。
+
+### Motion Intensity の確認方法
+
+1. `Settings` を開き、`Motion Intensity` を `low` / `medium` / `high` に切り替えられることを確認します。
+2. `Speed Tune` を複数Lv購入し、`low` では見た目速度が控えめなまま、上部の `Memory/sec` が内部効率として伸びることを確認します。
+3. Motion Intensity を `high` に変更し、同じ `Speed Tune` Lvでも見た目速度上限が高くなることを確認します。
+4. Muse Tapを発動し、`low` では方向変化と速度上昇が控えめ、`high` では強めになることを確認します。
+5. `low` のCorner Hit演出で粒子とフラッシュが控えめになることを確認します。
+6. ページを再読み込みしても Motion Intensity 設定が保持されることを確認します。
+7. `npm run build` を実行し、TypeScript と Vite のビルドが成功することを確認します。
+
+## セーブデータのマイグレーション検証
+
+- `scripts/fixtures/saveMigrationFixtures.mjs` に旧MVP形式、ステージ・背景・Muse・スキルツリー追加後の形式、設定保存の検証データを追加しました。
+- `npm run verify:save-migrations` は実際の `saveSystem.ts` と `settingsSystem.ts` を実行し、LocalStorageだけを検証用に差し替えて復元結果を判定します。
+- 旧MVPセーブでは追加後のフィールドが既定値で補完され、`lastSavedAt` がない間は意図しないオフライン報酬が付与されないことを確認します。
+- 拡張途中のセーブでは、有効なステージ進捗、背景、Muse、Fragment、スキルノードを維持し、不明なIDや最大Lv超過を安全に除去・補正します。
+- 設定はゲーム進行セーブとは別の LocalStorage キーに保存されるため、正しい設定値の復元と、不完全な設定データの既定値フォールバックを個別に検証します。
+- Motion Intensity 追加前の設定データは、既存設定値を維持したまま `motionIntensity: "medium"` を補完します。
+- 不正JSONまたは必須値が壊れたゲームセーブは削除され、初期状態で安全に継続できることを検証します。
+
+### セーブデータ検証の確認方法
+
+1. `npm run verify:save-migrations` を実行し、`Save migration verification passed` と表示されることを確認します。
+2. `npm run build` を実行し、アプリ本体の TypeScript と Vite ビルドが成功することを確認します。
 
 ## Fixed Stage Layout
 
@@ -464,6 +534,122 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 5. Open Settings and Gallery from their available entry points and confirm their panels scale with the stage rather than reflowing separately.
 6. Run `npm run build` and confirm the TypeScript and Vite build completes.
 
+## Safe Clone Spawn
+
+- Lumi's `clone` skill now places its temporary copy at a safe offset instead of creating it directly on top of the source muse.
+- `src/game/spawnUtils.ts` searches random positions around the source while keeping the clone inside the arena, away from walls, and at least `80` logical pixels from active muses and clones; icon radii add extra visible separation when needed.
+- Spawn tuning values are defined in `src/data/balance.ts`: `cloneSpawnMinDistance = 80`, `cloneSpawnWallPadding = 48`, and `cloneSpawnMaxAttempts = 20`.
+- If random search cannot find a suitable position, the game selects a clamped fallback near the center or the candidate with the largest available separation.
+- A clone begins with a small randomized direction offset and a short ring/star spawn effect. Its existing size, lifetime, clone flag, and reduced reward behavior remain unchanged.
+
+### Safe Clone Spawn Verification
+
+1. Run `npm run dev`, continue into the game, and wait for Lumi to score a Corner Hit and activate `Mirror Echo`.
+2. Confirm that the translucent clone appears apart from Lumi and any other active muse, rather than directly overlapping one of them.
+3. Confirm that the clone starts traveling at a slightly different angle and that a brief ring/star effect appears at its spawn position.
+4. Observe additional skill activations with multiple active muses and confirm the clone remains inside the arena and away from the wall padding.
+5. Confirm that clone bounces still award reduced Memory and that Corner Hit and stage progress continue normally.
+6. Run `npm run build` and confirm the TypeScript and Vite build completes.
+
+## Development Debug Panel
+
+- `src/components/DebugPanel.tsx` is rendered only when `import.meta.env.DEV` is true, so it appears in `npm run dev` and stays hidden in production builds.
+- The panel provides direct test controls for Memory, Fragment, Corner Hit progress, current stage completion/background unlock, Reboot readiness, Muse skill activation, and Muse Tap activation.
+- Debug Corner Hit uses the normal stage-progress/background-unlock path, while adding the current bounce and corner reward to make reward and progression checks fast.
+- The store-side debug actions are guarded by `import.meta.env.DEV` so accidental production calls do nothing.
+
+### Development Debug Panel Verification
+
+1. Run `npm run dev`, start or continue into the game screen, and confirm the right-side `Debug Panel` appears under the normal Muse panels.
+2. Click `+1K Memory`, `+10K Memory`, and `+1 Fragment` and confirm ResourceBar/Reboot values update.
+3. Click `Trigger Corner` and confirm Memory, Bounce count, Corner Hit count, and Stage progress increase.
+4. Click `Clear Stage` and confirm the current stage reaches its goal, the next stage unlocks when available, and the reward background is added.
+5. Click each Muse `Skill` and `Tap` button and confirm MusePanel state changes to active/cooldown.
+6. Run `npm run build` and confirm the TypeScript and Vite build completes.
+
+## Hidden Tab Rendering Control
+
+- When the browser tab becomes hidden, `GameCanvas` stops the PixiJS ticker and skips frame updates so bounces, Corner Hits, and visual effects are not simulated in a background tab.
+- When the tab is hidden or the page is unloaded, the current game state is checkpoint-saved with `lastSavedAt`.
+- When the tab becomes visible again, the hidden duration is passed through the existing offline reward calculation once, skill/tap timers are settled, and the game is saved again to prevent duplicate hidden-time rewards.
+- The first resumed frame caps its simulation delta to avoid a large physics jump after returning from a hidden tab.
+
+### Hidden Tab Rendering Verification
+
+1. Run `npm run dev`, start or continue into the game, and confirm Muse movement and Memory gain work normally.
+2. Switch to another browser tab or minimize the window for at least 10 seconds.
+3. Return to the game and confirm the Muse does not jump across the arena or rapidly count multiple bounces/Corner Hits at once.
+4. If `Memory/sec` is above zero, confirm the hidden duration is applied as a single offline reward on return.
+5. Hide and restore the tab repeatedly and confirm the same hidden interval is not awarded more than once.
+6. Run `npm run build` and confirm the TypeScript and Vite build completes.
+
+## Asset Fallbacks
+
+- Missing background images no longer break the game view. `GameCanvas`, Gallery thumbnails, and background previews fall back to an inline SVG placeholder.
+- If `currentBackgroundId` is empty or a background file cannot be loaded by PixiJS, the canvas keeps a safe fallback backdrop visible instead of showing a broken/blank image state.
+- Unknown Muse `iconAsset` values fall back to Lumi's palette so the character remains visible and playable.
+- Missing Muse Tap voice files are remembered after the first failed playback attempt. Subtitles and tap effects still appear, and repeated taps do not keep retrying the same missing file.
+- In development builds, each missing asset logs a single warning to help identify what needs to be replaced later.
+
+### Asset Fallback Verification
+
+1. Run `npm run dev` and enter the game screen.
+2. Temporarily change one background `imagePath` in `src/data/backgrounds.ts` to a missing file and confirm GameCanvas, Gallery thumbnail, and preview use the fallback image without crashing.
+3. Temporarily change a Muse `iconAsset` in `src/data/muses.ts` to an unknown value and confirm the Muse remains visible with the fallback palette.
+4. Trigger Muse Tap while the prototype voice files are missing and confirm the subtitle/effect still appears without gameplay interruption.
+5. Restore the temporary test edits.
+6. Run `npm run build` and confirm the TypeScript and Vite build completes.
+
+## Asset Rules / Ledger
+
+- `docs/ASSET_GUIDE.md` defines the common asset workflow, folder roles, naming rules, recommended formats, and replacement checks.
+- `docs/ASSET_LEDGER.md` tracks each asset's ID, category, status, source path, runtime path, license, source/author, usage, and notes.
+- `src/assets/` is reserved for source/management assets, while `public/assets/` is the runtime location for files loaded by the Web/Electron app.
+- Category folders are prepared under `src/assets/ui/`, `src/assets/icons/`, `src/assets/backgrounds/`, `src/assets/effects/`, `src/assets/audio/`, and `src/assets/store/`.
+- Release-blocking assets should not remain `missing` or `needs_final` in the ledger.
+- Store image dimensions can change by platform, so final exports should be checked against each official store requirement before submission.
+
+### Asset Rules / Ledger Verification
+
+1. Open `docs/ASSET_GUIDE.md` and confirm it covers folder usage, naming, image/audio specs, license recording, and replacement steps.
+2. Open `docs/ASSET_LEDGER.md` and confirm existing backgrounds, planned Muse icons, prototype voices, SE, UI, and store art are listed.
+3. Confirm `src/assets/` contains category folders for UI, icons, backgrounds, effects, audio, and store assets.
+4. When adding or replacing an asset, update the ledger and run `npm run build`.
+
+## Neon Background Glow
+
+- `bg_neon_room` now uses the runtime asset at `public/assets/backgrounds/bg_neon_room.webp`, with the editable/source copy tracked at `src/assets/backgrounds/bg_neon_room.png`.
+- `NeonBackground` adds CSS-only `neon-glow-layer`, `neon-sweep-layer`, and `neon-vignette-layer` overlays behind the game UI.
+- Glow strength, sweep speed, center protection, and corner darkening are controlled with CSS custom properties in `src/styles/neon-background.css`.
+- Focus Mode increases the glow brightness and animation speed while keeping the center readable for Muse visibility and the corners guarded from white-out.
+- `prefers-reduced-motion: reduce` disables the pulse and sweep animations.
+
+### Neon Background Glow Verification
+
+1. Run `npm run dev`, unlock/select `Neon Room`, and confirm the neon room appears behind the game stage.
+2. Confirm the glow is subtle in normal mode and that Muse, HUD, Corner Hit text, and corner effects remain readable.
+3. Press `F` or the `Focus` button and confirm the glow becomes brighter/faster without changing gameplay bounds.
+4. Enable reduced motion in the OS/browser and confirm the animated pulse/sweep stops.
+5. Run `npm run build` and confirm the TypeScript and Vite build completes.
+
+## Pinball Neon Background
+
+- `bg_pinball_neon` uses `public/assets/backgrounds/bg_pinball_neon.webp`, with the source copy tracked at `src/assets/backgrounds/bg_pinball_neon.png`.
+- `PinballBackground` is shown only while `bg_pinball_neon` is the selected background.
+- The background is split into CSS-only image, neon glow, scanline, floor reflection, HUD dim, and per-corner flash layers.
+- Focus Mode increases the glow, pulse speed, scanline frequency, and floor reflection with CSS custom properties.
+- Corner Hit events now publish a transient corner position, so only the hit corner flashes briefly.
+- `prefers-reduced-motion: reduce` disables continuous motion and keeps corner feedback subdued.
+
+### Pinball Neon Background Verification
+
+1. Run `npm run dev`, clear Stage 3 or use a save where `bg_pinball_neon` is unlocked, then select `Pinball Neon` from Gallery.
+2. Confirm normal mode shows subtle neon pulse, scanlines, floor reflection, and a readable center area for Muse/HUD.
+3. Press `F` or the `Focus` button and confirm Focus Mode strengthens the glow and scanline motion.
+4. Trigger a Corner Hit, or use the development `Debug Panel` `Trigger Corner` button, and confirm only the relevant corner flashes.
+5. Enable reduced motion in the OS/browser and confirm continuous background animation stops.
+6. Run `npm run build` and confirm the TypeScript and Vite build completes.
+
 ## Muse Tap
 
 - ゲームエリア内の本体 Muse アイコンをクリックまたはタップすると、対象 Muse が3秒間 Boost 状態になります。Clone はタップ対象になりません。
@@ -471,7 +657,7 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 - 連打による稼ぎを避けるため、各 Muse は8秒のクールタイムを持ち、Boost 中やクールタイム中の再タップは無効です。
 - `MusePanel` に Muse Tap の `Ready`、`Active`、`Cooldown` と残り時間を表示します。
 - タップ時はアイコン周辺に光るリングと小さな星、`BOOST!` とキャラ字幕を短時間表示します。仮ボイス音源がまだ存在しない場合も字幕表示で動作し、エラーで停止しません。
-- Motion Intensity 設定は現時点では未導入のため、Muse Tap は medium 相当の速度倍率 `x1.25` と方向変化 `±15度` を利用します。
+- Motion Intensity 設定に応じて、Muse Tap の速度倍率、方向変化、Corner Hit報酬倍率が変化します。
 - 見た目の速度倍率には上限を設け、既存の Speed Tune や一時スキルと組み合わせても過剰な視覚速度にならないようにしました。
 
 ### Muse Tap の確認方法

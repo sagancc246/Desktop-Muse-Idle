@@ -1,4 +1,4 @@
-import { getBackgroundById } from '../data/backgrounds';
+import { backgrounds, getBackgroundById } from '../data/backgrounds';
 import { createInitialMuseTapStates, getMuseById, initialActiveMuseIds } from '../data/muses';
 import {
   createInitialStageCornerHits,
@@ -8,8 +8,11 @@ import {
 } from '../data/stages';
 import { createInitialUpgrades, upgradeIds } from '../data/upgrades';
 import { createInitialSkillNodes, skillNodes } from '../data/skillTree';
+import { calculateOfflineReward } from '../game/offlineReward';
+import { calculateOfflineMemoryPerSecond } from '../game/rewardCalculator';
 import { createInitialSkillStates } from '../game/skillEffects';
 import type { GameState, SaveData, UpgradeCollection, UpgradeId } from '../types/game';
+import type { MotionIntensity } from '../types/game';
 
 export const saveVersion = 1;
 
@@ -32,6 +35,7 @@ type CompatibleSaveData = Pick<
       | 'fragments'
       | 'unlockedSkillNodes'
       | 'rebootCount'
+      | 'lastSavedAt'
     >
   >;
 
@@ -123,7 +127,12 @@ function restoreBackgroundState(
 ): Pick<GameState, 'unlockedBackgrounds' | 'currentBackgroundId'> {
   const clearedRewards = stages
     .filter((stage) => clearedStages.includes(stage.id))
-    .map((stage) => stage.rewardBackgroundId)
+    .flatMap((stage) => [
+      stage.rewardBackgroundId,
+      ...backgrounds
+        .filter((background) => background.unlockStageId === stage.id)
+        .map((background) => background.id),
+    ])
     .filter((backgroundId) => getBackgroundById(backgroundId) !== undefined);
   const savedBackgrounds = Array.isArray(data.unlockedBackgrounds)
     ? data.unlockedBackgrounds.filter(
@@ -179,8 +188,8 @@ function restoreSkillTreeState(
   };
 }
 
-export function createNewGameState(): GameState {
-  return {
+export function createNewGameState(motionIntensity: MotionIntensity = 'medium'): GameState {
+  const state: GameState = {
     memory: 0,
     memoryPerSecond: 0,
     totalBounces: 0,
@@ -197,7 +206,19 @@ export function createNewGameState(): GameState {
     fragments: 0,
     unlockedSkillNodes: createInitialSkillNodes(),
     rebootCount: 0,
+    pendingOfflineReward: null,
+    pendingStageClear: null,
+    lastCornerHitFlash: null,
   };
+
+  state.memoryPerSecond = calculateOfflineMemoryPerSecond(
+    state.upgrades,
+    state.unlockedSkillNodes,
+    state.activeMuseIds,
+    motionIntensity,
+  );
+
+  return state;
 }
 
 export function hasSaveData(): boolean {
@@ -219,8 +240,18 @@ export function clearSaveData(): void {
   }
 }
 
-export function loadGameState(): GameState {
-  const defaultState = createNewGameState();
+interface LoadGameStateOptions {
+  applyOfflineReward?: boolean;
+  motionIntensity?: MotionIntensity;
+  now?: number;
+}
+
+export function loadGameState({
+  applyOfflineReward = false,
+  motionIntensity = 'medium',
+  now = Date.now(),
+}: LoadGameStateOptions = {}): GameState {
+  const defaultState = createNewGameState(motionIntensity);
 
   if (typeof window === 'undefined') {
     return defaultState;
@@ -241,10 +272,9 @@ export function loadGameState(): GameState {
     }
 
     const stageState = restoreStageState(parsedData);
-
-    return {
+    const restoredState: GameState = {
       memory: parsedData.memory,
-      memoryPerSecond: parsedData.memoryPerSecond,
+      memoryPerSecond: 0,
       totalBounces: parsedData.totalBounces,
       totalCornerHits: parsedData.totalCornerHits,
       upgrades: restoreUpgrades(parsedData.upgrades),
@@ -254,14 +284,44 @@ export function loadGameState(): GameState {
       skillStates: createInitialSkillStates(),
       museTapStates: createInitialMuseTapStates(),
       ...restoreSkillTreeState(parsedData),
+      pendingOfflineReward: null,
+      pendingStageClear: null,
+      lastCornerHitFlash: null,
     };
+    restoredState.memoryPerSecond = calculateOfflineMemoryPerSecond(
+      restoredState.upgrades,
+      restoredState.unlockedSkillNodes,
+      restoredState.activeMuseIds,
+      motionIntensity,
+    );
+
+    if (!applyOfflineReward) {
+      return restoredState;
+    }
+
+    const offlineReward = calculateOfflineReward({
+      lastSavedAt: isNonNegativeNumber(parsedData.lastSavedAt)
+        ? parsedData.lastSavedAt
+        : undefined,
+      memoryPerSecond: parsedData.memoryPerSecond,
+      now,
+      unlockedSkillNodes: restoredState.unlockedSkillNodes,
+    });
+
+    return offlineReward
+      ? {
+          ...restoredState,
+          memory: restoredState.memory + offlineReward.memoryEarned,
+          pendingOfflineReward: offlineReward,
+        }
+      : restoredState;
   } catch {
     window.localStorage.removeItem(storageKey);
     return defaultState;
   }
 }
 
-export function saveGameState(state: GameState): void {
+export function saveGameState(state: GameState, motionIntensity: MotionIntensity = 'medium'): void {
   if (typeof window === 'undefined') {
     return;
   }
@@ -269,7 +329,12 @@ export function saveGameState(state: GameState): void {
   const data: SaveData = {
     saveVersion,
     memory: state.memory,
-    memoryPerSecond: state.memoryPerSecond,
+    memoryPerSecond: calculateOfflineMemoryPerSecond(
+      state.upgrades,
+      state.unlockedSkillNodes,
+      state.activeMuseIds,
+      motionIntensity,
+    ),
     totalBounces: state.totalBounces,
     totalCornerHits: state.totalCornerHits,
     upgrades: {
@@ -286,6 +351,7 @@ export function saveGameState(state: GameState): void {
     fragments: state.fragments,
     unlockedSkillNodes: state.unlockedSkillNodes,
     rebootCount: state.rebootCount,
+    lastSavedAt: Date.now(),
   };
 
   try {
@@ -295,12 +361,18 @@ export function saveGameState(state: GameState): void {
   }
 }
 
-export function startAutoSave(getState: () => GameState): () => void {
+export function startAutoSave(
+  getState: () => GameState,
+  getMotionIntensity: () => MotionIntensity = () => 'medium',
+): () => void {
   if (typeof window === 'undefined') {
     return () => undefined;
   }
 
-  const intervalId = window.setInterval(() => saveGameState(getState()), autoSaveIntervalMs);
+  const intervalId = window.setInterval(
+    () => saveGameState(getState(), getMotionIntensity()),
+    autoSaveIntervalMs,
+  );
 
   return () => window.clearInterval(intervalId);
 }

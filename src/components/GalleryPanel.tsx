@@ -4,6 +4,7 @@ import { getStageById } from '../data/stages';
 import { useGameStore } from '../store/useGameStore';
 import type { Background } from '../types/game';
 import { BackgroundPreviewModal } from './BackgroundPreviewModal';
+import { FallbackImage } from './FallbackImage';
 
 interface GalleryPanelProps {
   mode?: 'panel' | 'screen';
@@ -118,7 +119,11 @@ export function GalleryPanel({ mode = 'panel', onBack }: GalleryPanelProps) {
                     onClick={() => setPreviewBackground(background)}
                     type="button"
                   >
-                    <img alt={`${background.name} thumbnail`} src={background.imagePath} />
+                    <FallbackImage
+                      alt={`${background.name} thumbnail`}
+                      assetLabel={`${background.id} thumbnail`}
+                      src={background.imagePath}
+                    />
                     <h3>{background.name}</h3>
                     <p>{background.description}</p>
                     <b>{background.id === currentBackgroundId ? 'IN USE' : 'PREVIEW'}</b>

@@ -1,7 +1,12 @@
 import { useEffect, useRef } from 'react';
-import { Application, Assets, Container, Graphics, Sprite, Text } from 'pixi.js';
+import { Application, Assets, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import {
+  cloneSpawnMaxAttempts,
+  cloneSpawnMinDistance,
+  cloneSpawnWallPadding,
   cornerThreshold,
+  museTapDirectionChangeDegreeHigh,
+  museTapDirectionChangeDegreeLow,
   museTapDirectionChangeDegreeMedium,
   museTapEffectDurationMs,
 } from '../data/balance';
@@ -22,10 +27,12 @@ import {
   getSkillSpeedMultiplier,
   isSkillActive,
 } from '../game/skillEffects';
+import { findSafeCloneSpawnPosition } from '../game/spawnUtils';
 import { useAppStore } from '../store/useAppStore';
 import { useGameStore } from '../store/useGameStore';
 import { playCornerHitSound, playMuseTapVoice, prepareAudioSystem } from '../systems/audioSystem';
-import type { Muse } from '../types/game';
+import { fallbackBackgroundImagePath, warnAssetFallbackOnce } from '../systems/assetFallbacks';
+import type { CornerHitPosition, MotionIntensity, Muse } from '../types/game';
 
 interface BurstParticle {
   graphic: Graphics;
@@ -65,6 +72,8 @@ export function GameCanvas() {
     let isCancelled = false;
     let isInitialized = false;
     let unsubscribeStore: (() => void) | undefined;
+    let removeDebugListeners: (() => void) | undefined;
+    let removeVisibilityListener: (() => void) | undefined;
     const cleanupAudio = prepareAudioSystem();
 
     const setup = async () => {
@@ -88,6 +97,19 @@ export function GameCanvas() {
 
       isInitialized = true;
       host.appendChild(app.canvas);
+      const updateTickerVisibility = () => {
+        if (document.visibilityState === 'hidden') {
+          app.ticker.stop();
+          return;
+        }
+
+        app.ticker.start();
+      };
+
+      document.addEventListener('visibilitychange', updateTickerVisibility);
+      removeVisibilityListener = () =>
+        document.removeEventListener('visibilitychange', updateTickerVisibility);
+      updateTickerVisibility();
 
       const arena = new Graphics();
       const backgroundImage = new Sprite();
@@ -186,6 +208,47 @@ export function GameCanvas() {
       const radii: Record<string, number> = { lumi: 46, astra: 40, noir: 43 };
       let handleMuseTap = (_runtime: ActiveMuseBody) => undefined;
 
+      const getMusePalette = (muse: Muse) => {
+        const palette = museColors[muse.iconAsset];
+
+        if (!palette) {
+          warnAssetFallbackOnce(
+            `muse-icon:${muse.iconAsset}`,
+            `Muse icon palette missing for ${muse.iconAsset}; using Lumi fallback palette.`,
+          );
+          return museColors['lumi-orchid'];
+        }
+
+        return palette;
+      };
+
+      const getTapDirectionChangeDegrees = (motionIntensity: MotionIntensity) => {
+        if (motionIntensity === 'low') {
+          return museTapDirectionChangeDegreeLow;
+        }
+
+        if (motionIntensity === 'high') {
+          return museTapDirectionChangeDegreeHigh;
+        }
+
+        return museTapDirectionChangeDegreeMedium;
+      };
+
+      const getCornerHitPosition = (body: BounceBody): CornerHitPosition => {
+        const isLeft = body.x < app.screen.width / 2;
+        const isTop = body.y < app.screen.height / 2;
+
+        if (isTop && isLeft) {
+          return 'top-left';
+        }
+
+        if (isTop) {
+          return 'top-right';
+        }
+
+        return isLeft ? 'bottom-left' : 'bottom-right';
+      };
+
       const createMuseBody = (muse: Muse, index: number): ActiveMuseBody => {
         const radius = radii[muse.id] ?? 42;
         const body = createInitialBody(
@@ -238,6 +301,40 @@ export function GameCanvas() {
         });
       };
 
+      function rotateBodyVelocity(body: BounceBody, degrees: number) {
+        const radians = (degrees * Math.PI) / 180;
+        const vx = body.vx * Math.cos(radians) - body.vy * Math.sin(radians);
+        const vy = body.vx * Math.sin(radians) + body.vy * Math.cos(radians);
+        body.vx = vx;
+        body.vy = vy;
+      }
+
+      const triggerCloneSpawnEffects = (runtime: ActiveMuseBody) => {
+        const palette = getMusePalette(runtime.muse);
+        const maxLife = 0.72;
+        const graphic = new Graphics()
+          .circle(runtime.body.x, runtime.body.y, runtime.body.radius + 18)
+          .stroke({ color: palette.glow, alpha: 0.88, width: 4 })
+          .circle(runtime.body.x, runtime.body.y, runtime.body.radius + 29)
+          .stroke({ color: palette.outline, alpha: 0.44, width: 2 });
+
+        for (let index = 0; index < 4; index += 1) {
+          const angle = (Math.PI * 2 * index) / 4 + Math.PI / 4;
+          graphic
+            .star(
+              runtime.body.x + Math.cos(angle) * (runtime.body.radius + 27),
+              runtime.body.y + Math.sin(angle) * (runtime.body.radius + 27),
+              4,
+              5,
+              2.4,
+            )
+            .fill({ color: palette.glow, alpha: 0.9 });
+        }
+
+        tapEffectLayer.addChild(graphic);
+        tapEffects.push({ graphic, life: maxLife, maxLife });
+      };
+
       const createClone = (source: ActiveMuseBody) => {
         const runtimeId = `${source.muse.id}:clone`;
         if (activeMuses.has(runtimeId)) {
@@ -245,23 +342,35 @@ export function GameCanvas() {
         }
 
         const baseRadius = source.baseRadius * 0.92;
+        const spawnPosition = findSafeCloneSpawnPosition({
+          activeMuses: Array.from(activeMuses.values(), (runtime) => runtime.body),
+          bounds: { width: app.screen.width, height: app.screen.height, inset },
+          cloneRadius: baseRadius,
+          maxAttempts: cloneSpawnMaxAttempts,
+          minDistance: cloneSpawnMinDistance,
+          sourcePosition: source.body,
+          wallPadding: cloneSpawnWallPadding,
+        });
+        const directionOffset =
+          (Math.random() < 0.5 ? -1 : 1) * (8 + Math.random() * 22);
         const runtime: ActiveMuseBody = {
           runtimeId,
           muse: source.muse,
           body: {
             ...source.body,
             radius: baseRadius,
-            x: source.body.x,
-            y: source.body.y,
-            vx: -source.body.vx,
+            x: spawnPosition.x,
+            y: spawnPosition.y,
           },
           baseRadius,
           isClone: true,
           glow: new Graphics(),
           icon: new Graphics(),
         };
+        rotateBodyVelocity(runtime.body, directionOffset);
         museLayer.addChild(runtime.glow, runtime.icon);
         activeMuses.set(runtimeId, runtime);
+        triggerCloneSpawnEffects(runtime);
       };
 
       const drawArena = () => {
@@ -303,13 +412,23 @@ export function GameCanvas() {
         const requestId = ++backgroundRequestId;
 
         if (!background) {
-          backgroundImage.visible = false;
+          try {
+            const texture = await Assets.load<Texture>(fallbackBackgroundImagePath);
+
+            if (!isCancelled && requestId === backgroundRequestId) {
+              backgroundImage.texture = texture;
+              backgroundImage.visible = true;
+              drawArena();
+            }
+          } catch {
+            if (requestId === backgroundRequestId) {
+              backgroundImage.visible = false;
+            }
+          }
           return;
         }
 
-        try {
-          const texture = await Assets.load(background.imagePath);
-
+        const applyTexture = (texture: Texture) => {
           if (isCancelled || requestId !== backgroundRequestId) {
             return;
           }
@@ -317,9 +436,22 @@ export function GameCanvas() {
           backgroundImage.texture = texture;
           backgroundImage.visible = true;
           drawArena();
+        };
+
+        try {
+          applyTexture(await Assets.load<Texture>(background.imagePath));
         } catch {
-          if (requestId === backgroundRequestId) {
-            backgroundImage.visible = false;
+          warnAssetFallbackOnce(
+            `pixi-background:${background.id}`,
+            `Background asset missing for ${background.id}; using fallback backdrop.`,
+          );
+
+          try {
+            applyTexture(await Assets.load<Texture>(fallbackBackgroundImagePath));
+          } catch {
+            if (requestId === backgroundRequestId) {
+              backgroundImage.visible = false;
+            }
           }
         }
       };
@@ -327,7 +459,7 @@ export function GameCanvas() {
       const drawMuses = (pulseTime = 0) => {
         for (const runtime of activeMuses.values()) {
           const { body, muse, icon, glow } = runtime;
-          const palette = museColors[muse.iconAsset] ?? museColors['lumi-orchid'];
+          const palette = getMusePalette(muse);
           const scale = body.radius / 46;
           const glowRadius = body.radius + 7 + Math.sin(pulseTime * 2.3) * 4;
           const glowAlpha = 0.15 + (Math.sin(pulseTime * 2.3) + 1) * 0.06;
@@ -351,17 +483,21 @@ export function GameCanvas() {
       };
 
       const triggerCornerEffects = (reward: number, hitBody: BounceBody) => {
-        const { effectsQuality, seVolume } = useAppStore.getState().settings;
-        const particleCount = {
+        const { effectsQuality, motionIntensity, seVolume } = useAppStore.getState().settings;
+        const baseParticleCount = {
           low: 6,
           medium: 12,
           high: 18,
         }[effectsQuality];
+        const particleCount =
+          motionIntensity === 'low'
+            ? Math.max(3, Math.floor(baseParticleCount * 0.5))
+            : baseParticleCount;
 
         cornerNotice.visible = true;
         cornerNotice.alpha = 1;
         cornerNoticeTime = 1.1;
-        flashTime = 0.16;
+        flashTime = motionIntensity === 'low' ? 0 : 0.16;
         rewardPopup.text = `+${reward.toLocaleString()} Memory`;
         rewardPopup.position.set(hitBody.x, hitBody.y - hitBody.radius - 20);
         rewardPopup.visible = true;
@@ -397,16 +533,8 @@ export function GameCanvas() {
         skillNoticeTime = 1.35;
       };
 
-      const rotateBodyVelocity = (body: BounceBody, degrees: number) => {
-        const radians = (degrees * Math.PI) / 180;
-        const vx = body.vx * Math.cos(radians) - body.vy * Math.sin(radians);
-        const vy = body.vx * Math.sin(radians) + body.vy * Math.cos(radians);
-        body.vx = vx;
-        body.vy = vy;
-      };
-
       const triggerTapEffects = (runtime: ActiveMuseBody, subtitle: string) => {
-        const palette = museColors[runtime.muse.iconAsset] ?? museColors['lumi-orchid'];
+        const palette = getMusePalette(runtime.muse);
         const maxLife = museTapEffectDurationMs / 1_000;
         const graphic = new Graphics()
           .circle(runtime.body.x, runtime.body.y, runtime.body.radius + 14)
@@ -439,7 +567,7 @@ export function GameCanvas() {
           return;
         }
 
-        const { language, seVolume } = useAppStore.getState().settings;
+        const { language, motionIntensity, seVolume } = useAppStore.getState().settings;
         const { activateMuseTap, museTapStates } = useGameStore.getState();
         const previousVoiceId = museTapStates[runtime.muse.id]?.lastTapVoiceId;
         const voiceOptions = runtime.muse.tapVoices.filter(
@@ -453,7 +581,7 @@ export function GameCanvas() {
         }
 
         const directionDegrees =
-          (Math.random() * 2 - 1) * museTapDirectionChangeDegreeMedium;
+          (Math.random() * 2 - 1) * getTapDirectionChangeDegrees(motionIntensity);
         rotateBodyVelocity(runtime.body, directionDegrees);
         triggerTapEffects(
           runtime,
@@ -461,6 +589,62 @@ export function GameCanvas() {
         );
         playMuseTapVoice(tapVoice, seVolume);
       };
+
+      if (import.meta.env.DEV) {
+        const handleDebugSkill = (event: Event) => {
+          const museId = (event as CustomEvent<{ museId?: string }>).detail?.museId;
+          if (!museId) {
+            return;
+          }
+
+          const runtime = activeMuses.get(museId);
+          if (!runtime || runtime.isClone) {
+            return;
+          }
+
+          useGameStore.getState().debugActivateMuseSkill(museId);
+          triggerSkillNotice(runtime.muse);
+          if (runtime.muse.skill.type === 'clone') {
+            createClone(runtime);
+          }
+        };
+
+        const handleDebugTap = (event: Event) => {
+          const museId = (event as CustomEvent<{ museId?: string }>).detail?.museId;
+          if (!museId) {
+            return;
+          }
+
+          const runtime = activeMuses.get(museId);
+          if (!runtime || runtime.isClone) {
+            return;
+          }
+
+          const tapVoice = runtime.muse.tapVoices[0];
+          if (!tapVoice) {
+            return;
+          }
+
+          const { language, motionIntensity, seVolume } = useAppStore.getState().settings;
+          useGameStore.getState().debugActivateMuseTap(museId);
+          rotateBodyVelocity(
+            runtime.body,
+            (Math.random() * 2 - 1) * getTapDirectionChangeDegrees(motionIntensity),
+          );
+          triggerTapEffects(
+            runtime,
+            language === 'ja' ? tapVoice.subtitleJa : tapVoice.subtitleEn,
+          );
+          playMuseTapVoice(tapVoice, seVolume);
+        };
+
+        window.addEventListener('desktop-muse-idle:debug-skill', handleDebugSkill);
+        window.addEventListener('desktop-muse-idle:debug-tap', handleDebugTap);
+        removeDebugListeners = () => {
+          window.removeEventListener('desktop-muse-idle:debug-skill', handleDebugSkill);
+          window.removeEventListener('desktop-muse-idle:debug-tap', handleDebugTap);
+        };
+      }
 
       drawArena();
       void updateBackground(useGameStore.getState().currentBackgroundId);
@@ -479,7 +663,12 @@ export function GameCanvas() {
       });
 
       app.ticker.add((ticker) => {
-        skillTickAccumulatorMs += ticker.deltaMS;
+        if (document.visibilityState === 'hidden') {
+          return;
+        }
+
+        const deltaMs = Math.min(ticker.deltaMS, 100);
+        skillTickAccumulatorMs += deltaMs;
         if (skillTickAccumulatorMs >= 100) {
           useGameStore.getState().tickSkillStates(skillTickAccumulatorMs);
           useGameStore.getState().tickMuseTapStates(Date.now());
@@ -491,11 +680,13 @@ export function GameCanvas() {
           addMemory,
           incrementBounce,
           incrementCornerHit,
+          triggerCornerHitFlash,
           activateMuseSkill,
           skillStates,
           unlockedSkillNodes,
           museTapStates,
         } = useGameStore.getState();
+        const { motionIntensity } = useAppStore.getState().settings;
         const speedSkillMuse = getMuseById('astra');
         const skillSpeedMultiplier = speedSkillMuse
           ? getSkillSpeedMultiplier(speedSkillMuse, isSkillActive(skillStates, speedSkillMuse.id))
@@ -520,8 +711,13 @@ export function GameCanvas() {
           const result = stepBounceBody(
             runtime.body,
             { width: app.screen.width, height: app.screen.height, inset },
-            (ticker.deltaMS / 1_000) *
-              calculateVisualSpeedMultiplier(upgrades, skillSpeedMultiplier, isTapBoostActive),
+            (deltaMs / 1_000) *
+              calculateVisualSpeedMultiplier(
+                upgrades,
+                skillSpeedMultiplier,
+                isTapBoostActive,
+                motionIntensity,
+              ),
           );
           runtime.body = result.body;
 
@@ -532,7 +728,7 @@ export function GameCanvas() {
             const bounceReward = Math.max(
               1,
               Math.floor(
-                calculateBounceReward(upgrades, unlockedSkillNodes) *
+                calculateBounceReward(upgrades, unlockedSkillNodes, motionIntensity) *
                   runtime.muse.memoryMultiplier *
                   rewardMultiplier,
               ),
@@ -550,15 +746,16 @@ export function GameCanvas() {
               const cornerReward = Math.max(
                 1,
                 Math.floor(
-                  calculateCornerReward(upgrades, unlockedSkillNodes) *
+                  calculateCornerReward(upgrades, unlockedSkillNodes, motionIntensity) *
                     runtime.muse.cornerMultiplier *
                     rewardMultiplier *
-                    calculateMuseTapCornerRewardMultiplier(isTapBoostActive),
+                    calculateMuseTapCornerRewardMultiplier(isTapBoostActive, motionIntensity),
                 ),
               );
               addMemory(cornerReward);
               if (!runtime.isClone) {
                 incrementCornerHit();
+                triggerCornerHitFlash(getCornerHitPosition(runtime.body));
                 triggerCornerEffects(bounceReward + cornerReward, runtime.body);
                 if (activateMuseSkill(runtime.muse.id)) {
                   triggerSkillNotice(runtime.muse);
@@ -570,7 +767,7 @@ export function GameCanvas() {
             }
           }
         }
-        const deltaSeconds = ticker.deltaMS / 1_000;
+        const deltaSeconds = deltaMs / 1_000;
         pulseTime += deltaSeconds;
         if (cornerNoticeTime > 0) {
           cornerNoticeTime -= deltaSeconds;
@@ -643,6 +840,8 @@ export function GameCanvas() {
       isCancelled = true;
       cleanupAudio();
       unsubscribeStore?.();
+      removeDebugListeners?.();
+      removeVisibilityListener?.();
       if (!isInitialized) {
         return;
       }
