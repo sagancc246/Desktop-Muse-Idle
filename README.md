@@ -460,7 +460,7 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 3. `100,000 Memory` 以上で `Reboot` を選択し、確認後に Memory と通常アップグレードが初期化され、Fragment が増えることを確認します。
 4. Fragment を使用して `Bounce Memory I` や `Corner Bonus I` を解放し、残 Fragment とスキル Lv が更新されることを確認します。
 5. 前提ノードを解放すると、その先のノードの Unlock が選択可能になることを確認します。
-6. Corner 報酬ノード解放後の Corner Hit 報酬、Corner Sensor I 解放後の判定距離、Muse ノード解放後のスキル ACTIVE / CD 時間に効果が反映されることを確認します。
+6. Corner 報酬ノード解放後の Corner Hit 報酬、Corner Sensor I 解放後の Near Corner 検知距離と補助演出、Muse ノード解放後のスキル ACTIVE / CD 時間に効果が反映されることを確認します。
 7. ページを再読み込みして Continue を選択し、Fragment、Reboot 回数、解放済みノードが保持されることを確認します。
 8. `npm run build` を実行し、TypeScript と Vite のビルドが成功することを確認します。
 
@@ -533,6 +533,28 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 4. Continue the game and confirm that the PixiJS arena, moving muses, bounce bounds, and Corner Hit behavior do not shift when resizing the browser.
 5. Open Settings and Gallery from their available entry points and confirm their panels scale with the stage rather than reflowing separately.
 6. Run `npm run build` and confirm the TypeScript and Vite build completes.
+
+## Non-Default Skin Unlock Flow
+
+- `Stage` can now define `skinRewardIds`.
+- Stage 2 now rewards `lumi_pastel` when cleared.
+- `unlockSkin()` prevents duplicate unlocks, saves the updated skin ownership, and queues a skin unlock notification.
+- Stage rewards and Debug Panel skin unlocks both use the same unlock flow.
+- `SkinUnlockToast` shows `New Skin Unlocked!`, skin name, Muse name, and rarity.
+- The development `DebugPanel` can unlock `lumi_pastel`, `astra_cyber`, `noir_gothic`, or all non-default skins.
+- `DebugPanel` also displays the current `unlockedSkinIds` for quick save/load checks.
+- `StagePanel` displays skin rewards for the current stage when available.
+
+### Non-Default Skin Unlock Verification
+
+1. Run `npm run dev` and open `http://127.0.0.1:5173/`.
+2. In development mode, use `Debug Panel` -> `Skins` -> `Unlock Lumi Pastel`.
+3. Confirm `New Skin Unlocked!` appears and `unlockedSkinIds` includes `lumi_pastel`.
+4. Open Lumi's `Change Skin`, confirm `Lumi Pastel` is `Owned`, then click `Equip`.
+5. Confirm Lumi's GameCanvas palette changes to the pastel skin immediately.
+6. Use `Debug Panel` -> `Clear Stage` until Stage 2 clears, and confirm Stage 2 can also unlock `lumi_pastel` when it was not already owned.
+7. Save/reload/continue and confirm the unlocked skin remains owned.
+8. Run `npm run build` and confirm the TypeScript and Vite build completes.
 
 ## Safe Clone Spawn
 
@@ -618,7 +640,8 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 
 ## Neon Background Glow
 
-- `bg_neon_room` now uses the runtime asset at `public/assets/backgrounds/bg_neon_room.webp`, with the editable/source copy tracked at `src/assets/backgrounds/bg_neon_room.png`.
+- `bg_neon_room` uses the runtime asset at `public/assets/backgrounds/bg_neon_room.webp`, with the editable/source copy tracked at `src/assets/backgrounds/bg_neon_room.png`.
+- The current image is a sci-fi neon room matched to the existing CSS glow overlays.
 - `NeonBackground` adds CSS-only `neon-glow-layer`, `neon-sweep-layer`, and `neon-vignette-layer` overlays behind the game UI.
 - Glow strength, sweep speed, center protection, and corner darkening are controlled with CSS custom properties in `src/styles/neon-background.css`.
 - Focus Mode increases the glow brightness and animation speed while keeping the center readable for Muse visibility and the corners guarded from white-out.
@@ -630,6 +653,20 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 2. Confirm the glow is subtle in normal mode and that Muse, HUD, Corner Hit text, and corner effects remain readable.
 3. Press `F` or the `Focus` button and confirm the glow becomes brighter/faster without changing gameplay bounds.
 4. Enable reduced motion in the OS/browser and confirm the animated pulse/sweep stops.
+5. Run `npm run build` and confirm the TypeScript and Vite build completes.
+
+## Cozy Room Background
+
+- `bg_cozy_room` now uses the runtime asset at `public/assets/backgrounds/bg_cozy_room.webp`, with the editable/source copy tracked at `src/assets/backgrounds/bg_cozy_room.png`.
+- The Stage 2 reward background is now a warm room image instead of the SVG placeholder.
+- Gallery thumbnails, previews, current background selection, and GameCanvas rendering all use the same WebP runtime path.
+
+### Cozy Room Background Verification
+
+1. Run `npm run dev`, clear Stage 2 or use a save where `bg_cozy_room` is unlocked, then select `Cozy Room` from Gallery.
+2. Confirm the warm room appears in GameCanvas and remains readable behind Muse icons and HUD text.
+3. Open the Gallery preview and confirm the image, name, and description render without the fallback placeholder.
+4. Reload the page and confirm the selected background is restored from the save data.
 5. Run `npm run build` and confirm the TypeScript and Vite build completes.
 
 ## Pinball Neon Background
@@ -650,6 +687,104 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 5. Enable reduced motion in the OS/browser and confirm continuous background animation stops.
 6. Run `npm run build` and confirm the TypeScript and Vite build completes.
 
+## First-Run Tutorial
+
+- 初回ゲーム画面遷移時に、5ステップの短いチュートリアルを表示します。
+- 内容は Muse の自動移動、Corner Hit、Upgrade、Stage/Gallery、Muse Tap/Reboot の順で案内します。
+- `Next` / `Back` / `Skip` / `Start Playing` のボタン操作に加え、`Enter` で次へ、`Esc` でスキップできます。
+- チュートリアル表示時は `Next` / `Start Playing` に初期フォーカスを当て、キーボードだけでも進めやすくしています。
+- Settings の `チュートリアルを表示` / `Show Tutorial` から、既読後でもチュートリアルを再表示できます。
+- チュートリアル文言は Settings の Language 設定に合わせて日本語 / 英語で切り替わります。
+- 完了またはスキップ後は `desktop-muse-idle-tutorial-seen` に既読フラグを保存し、以後は自動表示しません。
+- チュートリアル既読フラグはゲーム進行セーブとは別管理なので、既存セーブ構造には影響しません。
+
+### First-Run Tutorial Verification
+
+1. Browser DevToolsなどで LocalStorage の `desktop-muse-idle-tutorial-seen` を削除します。
+2. `npm run dev` を実行し、タイトル画面から `Start` または `Continue` でゲーム画面へ入ります。
+3. チュートリアルが表示され、5ステップを `Next` / `Back` で移動できることを確認します。
+4. `Enter` で次へ進み、`Esc` または `Skip` で閉じられることを確認します。
+5. 完了後にページを再読み込みしてもチュートリアルが再表示されないことを確認します。
+6. Settings から `Show Tutorial` を選択し、ゲーム画面でチュートリアルが再表示されることを確認します。
+7. Settings の Language を `ja` / `en` に切り替え、チュートリアル文言も切り替わることを確認します。
+8. `npm run build` を実行し、TypeScript と Vite のビルドが成功することを確認します。
+
+## Keyboard / Accessibility
+
+- タイトル画面、Settings、Gallery、背景プレビュー、Credits、Offline Reward、Stage Clear の主要画面で初期フォーカスを設定しました。
+- Settings / Gallery / 背景プレビュー / Credits は `Esc` で閉じる、または前の画面へ戻れます。
+- Offline Reward、Stage Clear、背景プレビューは `Enter` で主要アクションを実行できます。
+- Focus / Settings / Gallery / 背景プレビューなどの操作ボタンに `aria-label` を追加し、背景プレビューや確認ダイアログには `aria-modal` を付与しました。
+- キーボードフォーカスが見えるよう、共通の `:focus-visible` アウトラインを追加しました。
+- Settings、Gallery、背景プレビュー、Credits、Offline Reward、Stage Clear、First-Run Tutorial の主要モーダルで `Tab` / `Shift+Tab` のフォーカス循環を追加しました。
+- Settings の説明、確認ダイアログ、チュートリアル再表示案内は Language 設定に合わせて日本語 / 英語で表示されます。
+
+### Keyboard / Accessibility Verification
+
+1. タイトル画面を開き、`Start` にフォーカスが当たり、`Tab` で各ボタンへ移動できることを確認します。
+2. Settings を開き、`Esc` または `Back` で元の画面へ戻れることを確認します。
+3. Gallery を開き、獲得済み背景を `Enter` でプレビューし、`Esc` でプレビュー、もう一度 `Esc` でGalleryを閉じられることを確認します。
+4. Offline Reward / Stage Clear 表示時に `Enter` で閉じられることを確認します。
+5. 各モーダル内で `Tab` と `Shift+Tab` を押し、フォーカスがモーダル外へ抜けず循環することを確認します。
+6. `Tab` 移動中にボタン、スライダー、セレクトのフォーカス枠が見えることを確認します。
+7. `npm run build` を実行し、TypeScript と Vite のビルドが成功することを確認します。
+
+## Corner Hit Effects
+
+- `src/effects/` に `effectManager`、`screenFlash`、`cornerGlow`、`ringEffect`、`floatingText` を追加し、Corner Hit演出を独立した演出レイヤーとして管理します。
+- Corner Hit時に、ピンク / ラベンダー / ゴールド系の淡い画面フラッシュ、ヒットした角のグロー、Muse周囲のリング、`CORNER HIT!`、`+Memory` 表示を出します。
+- `Lucky Corner` 解放済みの場合は、通常Corner Hitより少し強い `LUCKY CORNER!` 演出になります。
+- `Motion Intensity: low` では、フラッシュalpha、角グロー、リング、粒子数を抑えます。強い白フラッシュや長い点滅は使っていません。
+- `ResourceBar` の `Memory` と `Corner Hits` はCorner Hit時に短くpulseし、HUD側でも反応が分かるようにしました。
+
+### Corner Hit Effects Verification
+
+1. `npm run dev` を実行し、ゲーム画面でCorner Hitを発生させます。
+2. 画面が一瞬だけ淡く光り、ヒットした四隅が短くグローすることを確認します。
+3. Muse周囲に広がるリング、`CORNER HIT!`、`+Memory` 表示が出ることを確認します。
+4. 上部ResourceBarの `Memory` と `Corner Hits` が短く強調されることを確認します。
+5. Settingsで `Motion Intensity` を `low` に変更し、フラッシュと粒子が控えめになることを確認します。
+6. Skill Treeで `Lucky Corner` を解放した状態では、通常より少し強い `LUCKY CORNER!` 表示になることを確認します。
+7. `npm run build` を実行し、TypeScript と Vite のビルドが成功することを確認します。
+
+## Muse Unlocks
+
+- Museデータに `defaultUnlocked` と `unlockCondition` を追加し、初期状態ではLumiだけが解放済みになります。
+- AstraはStage 2クリア、NoirはStage 4クリアで解放されます。Stage 4はPinball Neon背景報酬のステージとして追加しました。
+- `unlockedMuseIds` と `activeMuseIds` はセーブ/ロード対象です。旧セーブはLumiのみを初期解放し、既に条件を満たしている場合はロード時に解放状態を補完します。
+- 解放条件達成時は `MuseUnlockModal` で `NEW MUSE UNLOCKED!`、キャラ名、説明、スキル名を表示します。
+- `MusePanel` は解放済みキャラをDeploy/Recallでき、未解放キャラには `Clear Stage 2` / `Clear Stage 4` の条件を表示します。
+
+### Muse Unlock Verification
+
+1. LocalStorageの進行セーブを消すか `Start` で新規開始し、MusePanelでLumiのみDeploy可能、Astra/NoirがLocked表示になることを確認します。
+2. 開発ビルドではDebug Panelの `Clear Stage` でStage 2まで進め、Astra解放モーダルが表示されることを確認します。
+3. Astra解放後、MusePanelからAstraをDeployでき、GameCanvasに追加表示されることを確認します。
+4. Stage 4をクリアし、Noir解放モーダルが表示され、NoirもDeployできることを確認します。
+5. ページを再読み込みしてContinueし、`unlockedMuseIds` と `activeMuseIds` が復元されることを確認します。
+6. `npm run build` を実行し、TypeScript と Vite のビルドが成功することを確認します。
+
+## Manual Save / Save Status
+
+- `useGameStore` に `saveStatus`、`lastSavedAt`、`lastSaveError`、`lastSaveSource` を追加し、保存状態をUIで確認できるようにしました。
+- `saveSystem` に `saveGame`、`loadGame`、`manualSave` を追加し、既存の `saveVersion` 付きLocalStorage保存形式は維持しています。
+- ゲーム画面右上の `Save` ボタン、Settings画面の `Manual Save` ボタンから任意タイミングで保存できます。
+- 保存中は `Saving...`、成功時は `Saved!`、失敗時は `Save Failed` を画面右上の `SaveStatusToast` に表示します。
+- Settings画面では `Last Saved: HH:mm` 形式で最終保存時刻を確認できます。
+- 10秒ごとの自動保存は継続し、自動保存成功時は控えめなToast表示になります。
+- `unlockedMuseIds`、`activeMuseIds`、`unlockedSkinIds`、`equippedSkinByMuseId` など既存の進行データも同じ保存形式で保持します。
+- Wallpaper設定は `desktopMuseIdle.wallpaperSettings` に分離して保存するため、手動セーブや進行データ初期化で上書きされません。
+
+### Manual Save Verification
+
+1. `npm run dev` を実行し、ゲーム画面右上の `Save` を選択します。
+2. `Saving...` の後に `Saved!` が表示され、1.5〜2秒程度で消えることを確認します。
+3. Settingsを開き、`Manual Save` を選択して同じToastが表示され、`Last Saved` 時刻が更新されることを確認します。
+4. Memory、Stage、背景、Muse解放状態、スキン装備状態などを変化させて手動保存し、ページを再読み込みしてContinue後に復元されることを確認します。
+5. Wallpaper Settingsを変更してから手動保存し、ページ再読み込み後もWallpaper設定が保持されることを確認します。
+6. 10秒以上待ち、自動保存でも控えめな `Saved!` Toastが出ることを確認します。
+7. `npm run build` を実行し、TypeScript と Vite のビルドが成功することを確認します。
+
 ## Muse Tap
 
 - ゲームエリア内の本体 Muse アイコンをクリックまたはタップすると、対象 Muse が3秒間 Boost 状態になります。Clone はタップ対象になりません。
@@ -668,3 +803,278 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 4. Lumi の分身が表示されている間、半透明の Clone をタップしても Muse Tap が発動しないことを確認します。
 5. Boost 中の対象キャラによる Corner Hit で、通常より大きな Corner 報酬が表示されることを確認します。
 6. `npm run build` を実行し、TypeScript と Vite のビルドが成功することを確認します。
+
+## Muse Skins
+
+- Added `src/data/skins.ts` as the skin registry for Lumi, Astra, and Noir.
+- Each Muse now has default owned skins plus locked test skins for future stage, capsule, shard, and DLC flows.
+- `unlockedSkinIds` and `equippedSkinByMuseId` are saved and restored through LocalStorage.
+- Old save data without skin fields is migrated by adding each Muse default skin and default equipment.
+- `MusePanel` shows the current equipped skin and opens `SkinSelectorModal`.
+- `SkinSelectorModal` lists owned, equipped, and locked skins. Locked skins cannot be equipped, and locked Muses can only preview skin information.
+- `GameCanvas` reads the equipped skin icon palette, so changing skins updates the Muse icon immediately.
+- Missing thumbnail assets fall back through the existing asset fallback image instead of crashing.
+
+### Muse Skins Verification
+
+1. Run `npm run dev`, start or continue a game, and open the game screen.
+2. In `MusePanel`, confirm each Muse card shows a Skin row and a `Change Skin` or `View Skins` button.
+3. Open the skin selector and confirm owned default skins show `Owned` / `Equipped`, while test skins show `Locked`.
+4. Confirm locked skins cannot be equipped and locked Muses cannot equip skins.
+5. Use a save where Astra or Noir is unlocked, equip an owned default skin if needed, save, reload, and confirm the selected skin state remains.
+6. Run `npm run build` and confirm the TypeScript and Vite build completes.
+
+## Corner Collision Accuracy
+
+- Corner Hit detection now uses the same-frame wall collision result from `stepBounceBody`.
+- A Corner Hit is awarded only when an X wall and a Y wall are both hit in the same update frame.
+- Wall-only hits near a corner are treated as Near Corner feedback and do not award Corner Hit rewards or stage progress.
+- Collision detection uses fixed Pixi stage coordinates and each Muse radius, so browser scale does not affect hit results.
+- Corner IDs now use `top_left`, `top_right`, `bottom_left`, and `bottom_right` internally. CSS-only pinball flashes map those IDs back to their existing class names.
+- `nearCornerDistance` and `cornerHitGracePx` are defined in `src/data/balance.ts` for future tuning.
+
+### Corner Collision Accuracy Verification
+
+1. Run `npm run dev` and start or continue a game.
+2. Watch normal left/right or top/bottom wall bounces near corners and confirm they do not increment Corner Hits.
+3. Confirm those near-corner wall hits show only subtle Near Corner feedback with no `+Corner` reward.
+4. Confirm a true simultaneous X/Y corner bounce increments total Corner Hits and stage progress exactly once.
+5. Select the pinball background if unlocked, trigger a true Corner Hit, and confirm the correct corner flash appears.
+6. Run `npm run build` and confirm TypeScript and Vite build successfully.
+
+## Corner Sensor / Near Corner Redefinition
+
+- `corner_threshold` nodes no longer widen true Corner Hit detection.
+- True Corner Hits still require same-frame X-wall and Y-wall contact.
+- Corner Sensor now increases only Near Corner detection distance from `nearCornerDistance`.
+- Near Corner feedback remains guidance only: it does not increment `totalCornerHits`, does not advance stage goals, and does not award Corner Hit rewards.
+- `Corner Sensor I` now describes the new behavior in the Skill Tree UI.
+- Future Near Reward nodes can grant small Memory from Near Corners through `near_corner_reward`, while true Corner rewards remain separate.
+- `StagePanel` now reminds players that stage progress counts only true Corner Hits.
+
+### Corner Sensor / Near Corner Verification
+
+1. Run `npm run dev`, open the Skill Tree, and confirm `Corner Sensor I` explains Near Corner guidance instead of wider Corner Hit detection.
+2. Unlock `Corner Sensor I` in a development save and confirm wall-only hits near corners show Near Corner feedback more often.
+3. Confirm those Near Corners do not increase `Corner Hits` or the current stage progress.
+4. Confirm true simultaneous X/Y corner bounces still increment Corner Hits and stage progress exactly once.
+5. Run `npm run build` and confirm TypeScript and Vite build successfully.
+
+## Clone Collision Rewards
+
+- Clone bodies now use the same wall, Near Corner, and Corner Hit collision path as main Muse bodies.
+- Clone wall hits award Memory with `cloneWallRewardMultiplier`.
+- Clone Corner Hits award reduced Corner Memory with `cloneCornerRewardMultiplier`.
+- Clone Corner Hits now increment `totalCornerHits` and current stage Corner progress exactly once per true corner collision.
+- Clone Near Corners show Near feedback but do not advance Corner Hit or stage counts.
+- Clone Corner effects use the existing Corner FX path with a reduced particle count.
+- Clone bodies still cannot trigger Muse Tap and cannot activate clone skills, so clones do not create more clones.
+- Future Jackpot/Fever systems can use `cloneJackpotChanceMultiplier` and `cloneFeverGaugeMultiplier` from `src/data/balance.ts`.
+
+### Clone Collision Rewards Verification
+
+1. Run `npm run dev` and trigger Lumi's clone skill from a Corner Hit or the development Debug Panel.
+2. Confirm the clone bounces independently and wall hits increase Memory at a reduced rate.
+3. Confirm a true clone X/Y corner bounce shows Corner Hit effects and increments total Corner Hits.
+4. Confirm clone Corner Hits advance the current stage progress.
+5. Confirm clone Near Corners show only Near feedback and do not advance Corner Hit or stage counts.
+6. Confirm tapping the clone does not trigger Muse Tap and the clone does not create another clone.
+7. Wait for the clone skill duration to end and confirm the clone disappears without errors.
+8. Run `npm run build` and confirm TypeScript and Vite build successfully.
+
+## Vega Muse Bumper
+
+- Added Vega as a Stage 3 unlockable Muse with the `Muse Bumper` skill.
+- Vega's skill state uses the existing Muse skill timer flow, so MusePanel shows Ready, Active, and Cooldown status.
+- While `Muse Bumper` is active, only collisions between Vega and non-Vega active Muses or clones are resolved.
+- Vega acts as a moving bumper: hit Muses are pushed outward from Vega and their velocity is redirected with a capped boost.
+- Vega receives a small recoil and both bodies are clamped inside the fixed stage bounds after collision resolution.
+- Vega-to-Muse bumper collisions are not Corner Hits and do not increment `totalCornerHits` or stage progress.
+- If the redirected Muse later hits a real corner, normal Corner Hit logic still applies.
+- Clone bodies can bounce off Vega, but their bumper reward is reduced.
+- Pair cooldowns prevent repeated reward bursts while the same Muse overlaps Vega.
+- Vega displays a larger gold bumper ring and `BUMPER ACTIVE` label while the skill is active.
+
+### Vega Muse Bumper Verification
+
+1. Run `npm run dev`, unlock Vega by clearing Stage 3 or using development stage tools, and deploy Vega with at least one other Muse.
+2. Trigger Vega's Corner Hit and confirm `Muse Bumper` becomes Active in MusePanel.
+3. Confirm only Muses or clones that touch Vega bounce outward; non-Vega Muses should pass through each other.
+4. Confirm bumper collisions add a small amount of Memory but do not increase Corner Hits or stage progress.
+5. Confirm a Muse redirected by Vega can still later hit a real corner and count as a normal Corner Hit.
+6. Confirm clones can bounce off Vega, cannot Muse Tap, and do not create more clones.
+7. Keep a Muse overlapping Vega and confirm Memory does not explode every frame because of pair cooldown.
+8. Run `npm run build` and confirm TypeScript and Vite build successfully.
+
+## Debug Collision Tools
+
+- The development-only `Debug Panel` now includes a `Collision / Skill Status` section.
+- The status view shows active Pixi runtime bodies, clone count, Vega Bumper timer state, and the latest collision/debug event reported by `GameCanvas`.
+- `Deploy Vega` unlocks Vega in the current dev save and places her in the active Muse lineup for quick bumper tests.
+- `Force Vega Bumper` activates Vega's `Muse Bumper` without waiting for a Corner Hit.
+- `Force Vega Hit` arms a direct Vega-to-Muse collision so the next update resolves through the normal bumper collision path.
+- `Force Clone Corner` activates a clone skill and positions the clone to hit a true X/Y corner on the next update.
+- `Force Near Corner` positions an active Muse for a wall-only Near Corner check, confirming it does not advance Corner Hit or stage progress.
+
+### Debug Collision Tools Verification
+
+1. Run `npm run dev` and open the game screen in development mode.
+2. Use `Deploy Vega`, then `Force Vega Bumper`, and confirm Vega shows `BUMPER ACTIVE`.
+3. Use `Force Vega Hit` and confirm Memory increases slightly while Corner Hits and stage progress do not increase.
+4. Use `Force Clone Corner` and confirm a clone appears, hits a true corner, increments Corner Hits, and updates the Debug Panel latest event.
+5. Use `Force Near Corner` and confirm Near Corner feedback appears without Corner Hit or stage progress increases.
+6. Run `npm run build` and confirm TypeScript and Vite build successfully.
+
+## Statistics
+
+- Added persistent `GameStats` to track long-term play records separately from the current resource values.
+- Stats currently track total wall hits, total Corner Hits, highest reached Stage, Reboot count, total play time, unlocked background count, total Memory earned, Near Corners, Jackpots, and Fever activations.
+- Wall hits, Corner Hits, Near Corners, Reboots, unlocked backgrounds, offline rewards, and play time now update the stats store.
+- Old save data without `stats` is migrated by filling defaults from existing totals such as `totalBounces`, `totalCornerHits`, `rebootCount`, current Memory, and current Stage.
+- `StatsPanel` can be opened from the title screen, Settings, or the game ResourceBar.
+- Opening Stats from the game exits Focus Mode first, keeping the fixed 1920x1080 stage layout stable.
+- `Esc` or `Close` returns to the previous screen.
+
+### Statistics Verification
+
+1. Run `npm run dev` and open `Stats` from the title screen.
+2. Start or continue a game, then open `Stats` from the ResourceBar and confirm all statistic cards render.
+3. Let a few wall hits happen and confirm `Total Wall Hits` and `Total Memory Earned` increase.
+4. Trigger a true Corner Hit and confirm `Total Corner Hits` increases.
+5. Trigger or observe a Near Corner and confirm `Near Corners` increases without stage progress from Near Corner alone.
+6. Clear a stage and confirm `Highest Stage Reached` and unlocked background count update.
+7. Reboot and confirm `Reboots` increases.
+8. Save, reload, continue, and confirm stats persist. Old saves without `stats` should load with default-filled values.
+9. Run `npm run build` and confirm TypeScript and Vite build successfully.
+
+## Wallpaper Mode State
+
+- Added shared `wallpaperMode` state to `useAppStore`.
+- Supported values are `off`, `stage`, and `muse_overlay`.
+- Added `setWallpaperMode`, `exitWallpaperMode`, `toggleWallpaperStageMode`, and `toggleMuseOverlayMode` actions.
+- Settings now includes a `Wallpaper Mode` selector for `Off`, `Wallpaper Stage`, and `Muse Overlay`.
+- Added `WallpaperModePanel` to the game screen so the current mode is visible and can be changed without opening Settings.
+- ResourceBar now has a small `Wallpaper` button that toggles Wallpaper Stage Mode.
+- `Esc` returns Wallpaper Mode to `off` while on the game screen.
+- Turning Focus Mode on exits Wallpaper Mode to avoid conflicting display states.
+- This stage only adds shared state and UI controls; it does not change GameCanvas coordinates, Corner Hit detection, or reward calculation.
+
+### Wallpaper Mode Verification
+
+1. Run `npm run dev` and open the game screen.
+2. Open Settings and change `Wallpaper Mode` between `Off`, `Wallpaper Stage`, and `Muse Overlay`.
+3. Return to the game screen and confirm `WallpaperModePanel` shows the selected mode.
+4. Use the ResourceBar `Wallpaper` button and confirm it toggles Wallpaper Stage Mode.
+5. Press `Esc` while Wallpaper Mode is active and confirm the mode returns to `Off`.
+6. Enable Focus Mode while Wallpaper Mode is active and confirm Wallpaper Mode is cleared.
+7. Confirm Muse movement, Corner Hit detection, rewards, and stage progress are unchanged.
+8. Run `npm run build` and confirm TypeScript and Vite build successfully.
+
+## Wallpaper Stage Mode
+
+- `wallpaperMode === "stage"` now enables Wallpaper Stage Mode.
+- Wallpaper Stage Mode keeps the existing fixed 1920x1080 stage shell and does not change GameCanvas physics, internal coordinates, Corner Hit detection, or reward multipliers.
+- ResourceBar, UpgradePanel, StagePanel, GalleryPanel, MusePanel, DebugPanel, and RebootPanel are hidden while the mode is active.
+- GameCanvas is expanded into a large centered viewing area so the selected background, Muse movement, and Corner/Near effects are the focus.
+- Added `WallpaperStageHud` with Memory, current Stage, Corner Hit progress, Fever placeholder state, and an Exit button.
+- The HUD fades after a few seconds of inactivity and becomes visible again on pointer or keyboard activity.
+- `Esc` or `Exit Wallpaper` returns `wallpaperMode` to `off`.
+- Pinball and Neon background CSS effects use the stronger focus-style presentation while Wallpaper Stage Mode is active.
+
+### Wallpaper Stage Mode Verification
+
+1. Run `npm run dev` and enter the game screen.
+2. Click the ResourceBar `Wallpaper` button or select `Wallpaper Stage` from Settings.
+3. Confirm the normal management UI disappears and only the large GameCanvas plus Wallpaper HUD remain.
+4. Wait a few seconds and confirm the Wallpaper HUD fades, then move the pointer or press a key and confirm it becomes visible again.
+5. Confirm Muse movement, Memory gain, Wall Hits, Corner Hits, Stage progress, and Muse Tap continue while the mode is active.
+6. Trigger Corner Hit or Near Corner feedback and confirm the visual effects still appear.
+7. Press `Esc` or click `Exit Wallpaper` and confirm the normal UI returns.
+8. Run `npm run build` and confirm TypeScript and Vite build successfully.
+
+## Muse Overlay Mode
+
+- `wallpaperMode === "muse_overlay"` now enables a web-only Muse Overlay preview mode.
+- The mode hides the selected background image, CSS background effects, ResourceBar, UpgradePanel, StagePanel, GalleryPanel, MusePanel, DebugPanel, RebootPanel, and large blocking reward/unlock UI.
+- GameCanvas keeps the same Pixi coordinate system, movement, Corner Hit detection, Muse Tap, rewards, and stage progress while presenting only the Muse bodies and reduced effects.
+- The stage uses a dark checker-style placeholder backdrop to suggest future transparent-window behavior without adding Electron-specific code.
+- Added `MuseOverlayHud`, which stays hidden by default and briefly appears on pointer or keyboard activity.
+- The HUD includes an `Exit` button and a Click Through placeholder label for future Electron work.
+- `Esc` also exits Muse Overlay Mode by returning `wallpaperMode` to `off`.
+
+### Muse Overlay Mode Verification
+
+1. Run `npm run dev` and enter the game screen.
+2. Open Settings or `WallpaperModePanel`, then select `Muse Overlay`.
+3. Confirm the background image and large management UI disappear, leaving only moving Muse bodies on the dark checker placeholder backdrop.
+4. Move the pointer or press a key and confirm the small Muse Overlay HUD appears briefly.
+5. Confirm Muse movement, Muse Tap, Wall Hits, Corner Hits, Memory gain, and stage progress continue while the mode is active.
+6. Trigger a Corner Hit or Near Corner and confirm the effects are still visible but more subdued than normal.
+7. Press `Esc` or click `Exit` in the overlay HUD and confirm the normal game UI returns.
+8. Run `npm run build` and confirm TypeScript and Vite build successfully.
+
+## Platform Overlay Adapter Stub
+
+- Added `src/platform/platformAdapter.ts` as the shared platform boundary for future desktop behavior.
+- Added safe no-op implementations in `localAdapter` and `steamAdapter`.
+- `platform.ts` exposes overlay-related adapter calls for Always on Top, Click Through, Transparent Window, entering Overlay Mode, and exiting Overlay Mode.
+- `useAppStore` now owns placeholder state for Always on Top, Click Through, and Transparent Window.
+- Wallpaper Muse Overlay entry/exit now calls the platform adapter boundary instead of leaving React components to know about future Electron APIs.
+- Settings includes web-safe placeholder toggles for `Always on Top`, `Click Through`, and `Transparent Window`.
+- `MuseOverlayHud` displays the current Click Through placeholder state.
+- No Electron main process, native module, or Steam SDK implementation was added in this step.
+
+### Platform Overlay Adapter Verification
+
+1. Run `npm run dev` and open Settings.
+2. Toggle `Always on Top`, `Click Through`, and `Transparent Window`; confirm the UI state changes without browser errors.
+3. Select `Muse Overlay` and confirm the overlay preview still opens normally.
+4. Move the pointer to reveal `MuseOverlayHud` and confirm the Click Through placeholder reflects the Settings value.
+5. Press `Esc` or click `Exit` and confirm normal game UI returns.
+6. Run `npm run build` and confirm TypeScript and Vite build successfully.
+
+## Wallpaper Low Power Settings
+
+- Added persistent `wallpaperSettings` for long-running Wallpaper Stage and Muse Overlay sessions.
+- Settings now includes a `Wallpaper Settings` group with FPS, Effects, Wallpaper BGM, Wallpaper SE Scale, and Overlay HUD controls.
+- Wallpaper modes can run at 30fps or 60fps through Pixi ticker `maxFPS`; normal gameplay keeps its existing unrestricted ticker behavior.
+- `Effects: low` reduces Wallpaper-mode particles, screen flash alpha, and effect layer intensity without changing Corner Hit detection or rewards.
+- Wallpaper SE Scale lowers Corner Hit and Muse Tap voice volume only while Wallpaper Stage or Muse Overlay is active.
+- Wallpaper BGM currently controls a web-safe audioSystem mute stub, ready for a future BGM player.
+- Muse Overlay HUD can now be hidden entirely with `Overlay HUD: OFF`; `Esc` still exits the mode.
+- Wallpaper Stage HUD and Muse Overlay HUD show the active FPS / Effects setting for quick verification.
+
+### Wallpaper Low Power Verification
+
+1. Run `npm run dev` and open Settings.
+2. In `Wallpaper Settings`, set FPS to `30`, Effects to `low`, adjust `Wallpaper SE Scale`, and toggle `Overlay HUD`.
+3. Enter `Wallpaper Stage` and confirm the HUD shows `30fps / low`.
+4. Trigger Corner Hit or Near Corner feedback and confirm effects are visibly more subdued while Memory, Corner Hits, and stage progress still advance normally.
+5. Enter `Muse Overlay` with `Overlay HUD: ON`, move the pointer, and confirm the HUD shows the active FPS / Effects values.
+6. Set `Overlay HUD: OFF`, re-enter Muse Overlay, and confirm the HUD does not appear while `Esc` still returns to normal.
+7. Switch FPS back to `60` and Effects to `normal`, then confirm Wallpaper modes become more responsive/bright again.
+8. Reload the page, reopen Settings, and confirm the Wallpaper Settings values persist.
+9. Run `npm run build` and confirm TypeScript and Vite build successfully.
+
+## Wallpaper Mode Settings Persistence
+
+- Wallpaper settings are now saved separately from game progress and normal app settings.
+- The LocalStorage key is `desktopMuseIdle.wallpaperSettings`.
+- Persisted wallpaper settings include FPS, effects quality, BGM enablement, Wallpaper SE scale, Stage HUD visibility, Overlay HUD visibility, Click Through preference, and Always on Top preference.
+- `wallpaperMode` itself is intentionally not persisted. The app always starts with `wallpaperMode: "off"`.
+- Reloading while in Wallpaper Stage Mode or Muse Overlay Mode returns to the normal game screen on next launch.
+- Invalid or malformed wallpaper settings data falls back safely to defaults.
+- Legacy wallpaper settings previously embedded in `desktop-muse-idle-settings` are read once as a migration fallback when the new key is missing.
+- Wallpaper settings remain separate from Focus Mode, Screensaver Mode, and game save data.
+
+### Wallpaper Mode Settings Persistence Verification
+
+1. Run `npm run dev`.
+2. Open Settings and set Wallpaper FPS to `30`.
+3. Set Effects to `low`.
+4. Set `Overlay HUD` to `OFF`.
+5. Reload the page and confirm the Wallpaper Settings values are still restored.
+6. Enter Wallpaper Stage Mode, reload, and confirm the app starts back in normal mode.
+7. Enter Muse Overlay Mode, reload, and confirm the app starts back in normal mode.
+8. Set `localStorage["desktopMuseIdle.wallpaperSettings"]` to invalid JSON, reload, and confirm the app does not crash and falls back to defaults.
+9. Run `npm run build` and confirm TypeScript and Vite build successfully.

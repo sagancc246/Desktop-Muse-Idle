@@ -30,6 +30,12 @@ export function SkillTreePanel({ onClose }: SkillTreePanelProps) {
           {skillTreeCategories.map((category) => (
             <section className="skill-tree-category" key={category.id}>
               <h2>{category.name}</h2>
+              {category.id === 'corner' ? (
+                <p className="skill-tree-category-note">
+                  Corner Hits require same-frame X/Y wall contact. Sensor nodes only improve Near
+                  Corner guidance and do not widen true Corner Hit detection.
+                </p>
+              ) : null}
               {skillNodes
                 .filter((skillNode) => skillNode.category === category.id)
                 .map((skillNode) => {

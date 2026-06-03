@@ -10,6 +10,7 @@ interface PinballBackgroundProps {
 export function PinballBackground({ cornerHit, focusMode }: PinballBackgroundProps) {
   const currentBackgroundId = useGameStore((state) => state.currentBackgroundId);
   const isActive = currentBackgroundId === 'bg_pinball_neon';
+  const cornerHitClass = cornerHit?.replace('_', '-');
 
   return (
     <div
@@ -17,7 +18,7 @@ export function PinballBackground({ cornerHit, focusMode }: PinballBackgroundPro
       className={`pinball-background${isActive ? ' is-active' : ''}${
         focusMode ? ' is-focus' : ''
       }`}
-      data-corner-hit={cornerHit ?? undefined}
+      data-corner-hit={cornerHitClass ?? undefined}
     >
       <div className="pinball-image-layer" />
       <div className="pinball-neon-layer" />

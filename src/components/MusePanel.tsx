@@ -1,8 +1,15 @@
+import { useState } from 'react';
 import { muses } from '../data/muses';
+import { getEquippedSkinForMuse } from '../data/skins';
+import { getMuseUnlockConditionLabel } from '../game/unlockChecker';
 import { useGameStore } from '../store/useGameStore';
+import { SkinSelectorModal } from './SkinSelectorModal';
 
 export function MusePanel() {
+  const [skinModalMuseId, setSkinModalMuseId] = useState<string | null>(null);
   const activeMuseIds = useGameStore((state) => state.activeMuseIds);
+  const unlockedMuseIds = useGameStore((state) => state.unlockedMuseIds);
+  const equippedSkinByMuseId = useGameStore((state) => state.equippedSkinByMuseId);
   const skillStates = useGameStore((state) => state.skillStates);
   const museTapStates = useGameStore((state) => state.museTapStates);
   const toggleActiveMuse = useGameStore((state) => state.toggleActiveMuse);
@@ -27,6 +34,7 @@ export function MusePanel() {
       </div>
       <div className="muse-roster">
         {muses.map((muse) => {
+          const isUnlocked = unlockedMuseIds.includes(muse.id);
           const isActive = activeMuseIds.includes(muse.id);
           const skillState = skillStates[muse.id];
           const isSkillActive = (skillState?.activeRemainingMs ?? 0) > 0;
@@ -52,45 +60,78 @@ export function MusePanel() {
             : isTapCoolingDown
               ? `Cooldown: ${(tapRemainingMs / 1_000).toFixed(1)}s`
               : 'Ready';
+          const equippedSkin = getEquippedSkinForMuse(muse.id, equippedSkinByMuseId);
 
           return (
-            <article className={`muse-card${isActive ? ' active' : ''}`} key={muse.id}>
+            <article
+              className={`muse-card${isActive ? ' active' : ''}${isUnlocked ? '' : ' locked'}`}
+              key={muse.id}
+            >
               <div className={`muse-swatch ${muse.iconAsset}`} aria-hidden="true" />
               <div className="muse-card-copy">
-                <h3>{muse.name}</h3>
+                <h3>{isUnlocked ? muse.name : '???'}</h3>
                 <p>
-                  Memory x{muse.memoryMultiplier.toFixed(2)} / Corner x
-                  {muse.cornerMultiplier.toFixed(2)}
+                  {isUnlocked
+                    ? `Memory x${muse.memoryMultiplier.toFixed(2)} / Corner x${muse.cornerMultiplier.toFixed(2)}`
+                    : getMuseUnlockConditionLabel(muse)}
                 </p>
               </div>
-              <button
-                disabled={!muse.unlocked || (isActive && activeMuseIds.length === 1)}
-                onClick={() => toggleActiveMuse(muse.id)}
-                type="button"
-              >
-                {isActive ? 'Recall' : 'Deploy'}
-              </button>
-              <div className="muse-skill">
-                <div className="muse-skill-heading">
-                  <strong>{muse.skill.name}</strong>
-                  <span
-                    className={`muse-skill-status${isSkillActive ? ' active' : ''}${isCoolingDown ? ' cooldown' : ''}`}
-                  >
-                    {skillStatus}
-                  </span>
+              <div className="muse-card-actions">
+                <button
+                  disabled={!isUnlocked || (isActive && activeMuseIds.length === 1)}
+                  onClick={() => toggleActiveMuse(muse.id)}
+                  type="button"
+                >
+                  {isUnlocked ? (isActive ? 'Recall' : 'Deploy') : 'Locked'}
+                </button>
+                <button
+                  className="muse-skin-action"
+                  onClick={() => setSkinModalMuseId(muse.id)}
+                  type="button"
+                >
+                  {isUnlocked ? 'Change Skin' : 'View Skins'}
+                </button>
+              </div>
+              <div className="muse-skin-row">
+                <span>Skin</span>
+                <strong>{equippedSkin?.name ?? 'Default Skin'}</strong>
+              </div>
+              {isUnlocked ? (
+                <>
+                  <div className="muse-skill">
+                    <div className="muse-skill-heading">
+                      <strong>{muse.skill.name}</strong>
+                      <span
+                        className={`muse-skill-status${isSkillActive ? ' active' : ''}${isCoolingDown ? ' cooldown' : ''}`}
+                      >
+                        {skillStatus}
+                      </span>
+                    </div>
+                    <p>{muse.skill.description}</p>
+                  </div>
+                  <div className="muse-tap-state">
+                    <span>Muse Tap</span>
+                    <strong className={`${isTapActive ? 'active' : ''}${isTapCoolingDown ? ' cooldown' : ''}`}>
+                      {tapStatus}
+                    </strong>
+                  </div>
+                </>
+              ) : (
+                <div className="muse-skill locked-copy">
+                  <div className="muse-skill-heading">
+                    <strong>Unlock Condition</strong>
+                    <span className="muse-skill-status cooldown">LOCKED</span>
+                  </div>
+                  <p>{getMuseUnlockConditionLabel(muse)}</p>
                 </div>
-                <p>{muse.skill.description}</p>
-              </div>
-              <div className="muse-tap-state">
-                <span>Muse Tap</span>
-                <strong className={`${isTapActive ? 'active' : ''}${isTapCoolingDown ? ' cooldown' : ''}`}>
-                  {tapStatus}
-                </strong>
-              </div>
+              )}
             </article>
           );
         })}
       </div>
+      {skinModalMuseId ? (
+        <SkinSelectorModal museId={skinModalMuseId} onClose={() => setSkinModalMuseId(null)} />
+      ) : null}
     </aside>
   );
 }

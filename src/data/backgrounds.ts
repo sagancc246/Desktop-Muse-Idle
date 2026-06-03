@@ -12,7 +12,7 @@ export const backgrounds: Background[] = [
     id: 'bg_cozy_room',
     name: 'Cozy Room',
     description: 'A warm hideaway for long idle sessions.',
-    imagePath: './assets/backgrounds/bg_cozy_room.svg',
+    imagePath: './assets/backgrounds/bg_cozy_room.webp',
     unlockStageId: 'stage-2',
   },
   {
@@ -27,7 +27,7 @@ export const backgrounds: Background[] = [
     name: 'Pinball Neon',
     description: 'A neon pinball table with animated CSS glow layers.',
     imagePath: './assets/backgrounds/bg_pinball_neon.webp',
-    unlockStageId: 'stage-3',
+    unlockStageId: 'stage-4',
   },
 ];
 

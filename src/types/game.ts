@@ -8,6 +8,7 @@ export type SkillTreeEffectType =
   | 'bounce_reward'
   | 'corner_reward'
   | 'corner_threshold'
+  | 'near_corner_reward'
   | 'offline_reward'
   | 'skill_duration'
   | 'skill_cooldown'
@@ -47,6 +48,7 @@ export interface Stage {
   description: string;
   cornerHitGoal: number;
   rewardBackgroundId: string;
+  skinRewardIds?: string[];
 }
 
 export interface Background {
@@ -57,14 +59,31 @@ export interface Background {
   unlockStageId: string;
 }
 
-export type CornerHitPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+export type CornerHitPosition = 'top_left' | 'top_right' | 'bottom_left' | 'bottom_right';
 
 export interface CornerHitFlashEvent {
   corner: CornerHitPosition;
   occurredAt: number;
 }
 
-export type SkillType = 'clone' | 'grow' | 'speed_up';
+export type SkillType = 'clone' | 'grow' | 'speed_up' | 'bumper';
+
+export type MuseSkillId = 'clone' | 'speed_up' | 'giant' | 'bumper';
+
+export type MuseUnlockConditionType =
+  | 'initial'
+  | 'stage_clear'
+  | 'total_corner_hits'
+  | 'jackpot_count'
+  | 'reboot_count'
+  | 'capsule'
+  | 'shard_exchange';
+
+export interface MuseUnlockCondition {
+  type: MuseUnlockConditionType;
+  targetId?: string;
+  value?: number;
+}
 
 export interface MuseSkill {
   id: string;
@@ -88,6 +107,22 @@ export interface TapVoice {
   subtitleEn: string;
 }
 
+export type SkinRarity = 'common' | 'rare' | 'epic' | 'legendary';
+
+export type SkinUnlockMethod = 'default' | 'stage' | 'capsule' | 'shard' | 'dlc';
+
+export interface MuseSkin {
+  id: string;
+  museId: string;
+  name: string;
+  description: string;
+  rarity: SkinRarity;
+  iconAsset: string;
+  thumbnailAsset: string;
+  defaultUnlocked: boolean;
+  unlockMethod: SkinUnlockMethod;
+}
+
 export interface MuseTapState {
   isTapBoostActive: boolean;
   tapBoostEndsAt: number;
@@ -98,8 +133,11 @@ export interface MuseTapState {
 export interface Muse {
   id: string;
   name: string;
+  description: string;
   iconAsset: string;
-  unlocked: boolean;
+  skillId: MuseSkillId;
+  defaultUnlocked: boolean;
+  unlockCondition: MuseUnlockCondition;
   baseSpeed: number;
   memoryMultiplier: number;
   cornerMultiplier: number;
@@ -112,6 +150,35 @@ export type Language = 'ja' | 'en';
 export type EffectsQuality = 'low' | 'medium' | 'high';
 
 export type MotionIntensity = 'low' | 'medium' | 'high';
+
+export type WallpaperMode = 'off' | 'stage' | 'muse_overlay';
+
+export interface OverlayWindowPreferences {
+  isAlwaysOnTopEnabled: boolean;
+  isClickThroughEnabled: boolean;
+  isTransparentWindowEnabled: boolean;
+}
+
+export interface WallpaperSettings {
+  alwaysOnTopPreferred: boolean;
+  bgmEnabled: boolean;
+  clickThroughPreferred: boolean;
+  effectsQuality: 'low' | 'normal';
+  fps: 30 | 60;
+  seVolumeScale: number;
+  showStageHud: boolean;
+  showOverlayHud: boolean;
+}
+
+export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+
+export type SaveSource = 'manual' | 'auto';
+
+export interface SaveResult {
+  error?: string;
+  savedAt: number | null;
+  success: boolean;
+}
 
 export interface AppSettings {
   bgmVolume: number;
@@ -138,23 +205,46 @@ export interface StageClearSummary {
   nextStageName: string | null;
 }
 
+export interface GameStats {
+  totalWallHits: number;
+  totalCornerHits: number;
+  highestStageReached: number;
+  rebootCount: number;
+  totalPlayTimeMs: number;
+  unlockedBackgroundCount: number;
+  totalMemoryEarned: number;
+  totalNearCorners: number;
+  totalJackpots: number;
+  totalFeverActivations: number;
+}
+
 export interface GameState {
   memory: number;
   memoryPerSecond: number;
   totalBounces: number;
   totalCornerHits: number;
+  stats: GameStats;
   upgrades: UpgradeCollection;
   currentStageId: string;
   stageCornerHits: Record<string, number>;
   clearedStages: string[];
   unlockedBackgrounds: string[];
   currentBackgroundId: string | null;
+  unlockedMuseIds: string[];
   activeMuseIds: string[];
+  newlyUnlockedMuseIds: string[];
+  unlockedSkinIds: string[];
+  equippedSkinByMuseId: Record<string, string>;
+  newlyUnlockedSkinIds: string[];
   skillStates: Record<string, MuseSkillState>;
   museTapStates: Record<string, MuseTapState>;
   fragments: number;
   unlockedSkillNodes: Record<string, number>;
   rebootCount: number;
+  saveStatus: SaveStatus;
+  lastSavedAt: number | null;
+  lastSaveError: string | null;
+  lastSaveSource: SaveSource | null;
   pendingOfflineReward: OfflineRewardSummary | null;
   pendingStageClear: StageClearSummary | null;
   lastCornerHitFlash: CornerHitFlashEvent | null;
@@ -172,30 +262,56 @@ export interface SaveData {
   clearedStages: string[];
   unlockedBackgrounds: string[];
   currentBackgroundId: string | null;
+  unlockedMuseIds: string[];
   activeMuseIds: string[];
+  unlockedSkinIds: string[];
+  equippedSkinByMuseId: Record<string, string>;
   fragments: number;
   unlockedSkillNodes: Record<string, number>;
   rebootCount: number;
   lastSavedAt: number;
+  stats?: GameStats;
 }
 
 export interface GameActions {
   addMemory: (amount: number) => void;
   incrementBounce: () => void;
   incrementCornerHit: () => void;
+  recordWallHit: (memoryEarned: number) => void;
+  recordCornerHit: (memoryEarned: number) => void;
+  recordNearCorner: () => void;
+  recordJackpot: (memoryEarned: number) => void;
+  recordFeverStart: () => void;
+  recordStageReached: (stageNumber: number) => void;
+  recordReboot: () => void;
+  updateUnlockedBackgroundCount: (count: number) => void;
+  addPlayTime: (deltaMs: number) => void;
   purchaseUpgrade: (upgradeId: UpgradeId) => void;
   selectBackground: (backgroundId: string) => void;
   startNewGame: () => void;
   continueGame: () => void;
   resetSaveData: () => void;
+  unlockMuse: (museId: string) => void;
+  checkMuseUnlocks: () => void;
+  setActiveMuses: (museIds: string[]) => void;
   toggleActiveMuse: (museId: string) => void;
+  unlockSkin: (skinId: string) => void;
+  equipSkin: (museId: string, skinId: string) => void;
+  isSkinUnlocked: (skinId: string) => boolean;
+  getEquippedSkin: (museId: string) => MuseSkin | null;
   activateMuseSkill: (museId: string) => boolean;
   tickSkillStates: (deltaMs: number) => void;
   activateMuseTap: (museId: string, voiceId: string, now: number) => boolean;
   tickMuseTapStates: (now: number) => void;
   unlockSkillNode: (skillNodeId: string) => void;
   reboot: () => boolean;
+  manualSave: () => void;
+  autoSave: () => void;
+  setSaveStatus: (status: SaveStatus) => void;
+  clearSaveStatus: () => void;
   dismissOfflineReward: () => void;
+  dismissMuseUnlock: () => void;
+  dismissSkinUnlock: () => void;
   dismissStageClear: () => void;
   triggerCornerHitFlash: (corner: CornerHitPosition) => void;
   refreshMemoryPerSecond: (motionIntensity: MotionIntensity) => void;

@@ -1,3 +1,9 @@
+import {
+  cloneCornerRewardMultiplier,
+  cloneFeverGaugeMultiplier,
+  cloneJackpotChanceMultiplier,
+  cloneWallRewardMultiplier,
+} from '../data/balance';
 import { muses } from '../data/muses';
 import { calculateSkillTreeMultiplier } from '../data/skillTree';
 import type { Muse, MuseSkillState } from '../types/game';
@@ -70,6 +76,18 @@ export function getSkillSpeedMultiplier(muse: Muse, isActive: boolean): number {
   return muse.skill.type === 'speed_up' && isActive ? 1 + muse.skill.power : 1;
 }
 
-export function getCloneRewardMultiplier(muse: Muse): number {
-  return muse.skill.type === 'clone' ? muse.skill.power : 1;
+export function getCloneWallRewardMultiplier(isClone: boolean): number {
+  return isClone ? cloneWallRewardMultiplier : 1;
+}
+
+export function getCloneCornerRewardMultiplier(isClone: boolean): number {
+  return isClone ? cloneCornerRewardMultiplier : 1;
+}
+
+export function getCloneJackpotChanceMultiplier(isClone: boolean): number {
+  return isClone ? cloneJackpotChanceMultiplier : 1;
+}
+
+export function getCloneFeverGaugeMultiplier(isClone: boolean): number {
+  return isClone ? cloneFeverGaugeMultiplier : 1;
 }

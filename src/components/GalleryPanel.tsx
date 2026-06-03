@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { backgrounds } from '../data/backgrounds';
 import { getStageById } from '../data/stages';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import { useGameStore } from '../store/useGameStore';
 import type { Background } from '../types/game';
 import { BackgroundPreviewModal } from './BackgroundPreviewModal';
@@ -17,15 +18,23 @@ export function GalleryPanel({ mode = 'panel', onBack }: GalleryPanelProps) {
   const selectBackground = useGameStore((state) => state.selectBackground);
   const [isOpen, setIsOpen] = useState(false);
   const [previewBackground, setPreviewBackground] = useState<Background | null>(null);
+  const galleryModalRef = useRef<HTMLElement>(null);
+  const openButtonRef = useRef<HTMLButtonElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
   const currentBackground = backgrounds.find((background) => background.id === currentBackgroundId);
   const isScreen = mode === 'screen';
   const isGalleryVisible = isScreen || isOpen;
+
+  useFocusTrap(galleryModalRef, isGalleryVisible && !previewBackground);
+
   const closeGallery = () => {
     if (isScreen) {
       onBack?.();
-    } else {
-      setIsOpen(false);
+      return;
     }
+
+    setIsOpen(false);
+    window.setTimeout(() => openButtonRef.current?.focus(), 0);
   };
 
   useEffect(() => {
@@ -34,18 +43,26 @@ export function GalleryPanel({ mode = 'panel', onBack }: GalleryPanelProps) {
       return;
     }
 
+    const timerId = window.setTimeout(() => closeButtonRef.current?.focus(), 0);
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        if (previewBackground) {
-          setPreviewBackground(null);
-        } else {
-          closeGallery();
-        }
+      if (event.key !== 'Escape') {
+        return;
       }
+
+      event.preventDefault();
+      if (previewBackground) {
+        setPreviewBackground(null);
+        return;
+      }
+
+      closeGallery();
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      window.clearTimeout(timerId);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, [isGalleryVisible, previewBackground]);
 
   return (
@@ -62,8 +79,14 @@ export function GalleryPanel({ mode = 'panel', onBack }: GalleryPanelProps) {
           <p className="gallery-current">
             Now showing <strong>{currentBackground?.name ?? 'No backdrop'}</strong>
           </p>
-          <button className="gallery-open" onClick={() => setIsOpen(true)} type="button">
-            Gallery を開く
+          <button
+            aria-label="Open Still Gallery"
+            className="gallery-open"
+            onClick={() => setIsOpen(true)}
+            ref={openButtonRef}
+            type="button"
+          >
+            Open Gallery
           </button>
         </section>
       )}
@@ -77,6 +100,7 @@ export function GalleryPanel({ mode = 'panel', onBack }: GalleryPanelProps) {
             aria-modal={!isScreen}
             className={`gallery-modal panel${isScreen ? ' gallery-page' : ''}`}
             onClick={(event) => event.stopPropagation()}
+            ref={galleryModalRef}
             role={isScreen ? undefined : 'dialog'}
           >
             <header className="gallery-header">
@@ -85,12 +109,13 @@ export function GalleryPanel({ mode = 'panel', onBack }: GalleryPanelProps) {
                 <h2>Still Gallery</h2>
               </div>
               <button
-                aria-label={isScreen ? 'Title に戻る' : 'ギャラリーを閉じる'}
+                aria-label={isScreen ? 'Back to Title' : 'Close Gallery'}
                 className="modal-close"
                 onClick={closeGallery}
+                ref={closeButtonRef}
                 type="button"
               >
-                {isScreen ? 'Title に戻る' : 'Close'}
+                {isScreen ? 'Back to Title' : 'Close'}
               </button>
             </header>
             <div className="gallery-grid">
@@ -100,18 +125,23 @@ export function GalleryPanel({ mode = 'panel', onBack }: GalleryPanelProps) {
 
                 if (!isUnlocked) {
                   return (
-                    <article className="gallery-card locked" key={background.id}>
+                    <article
+                      aria-label={`${background.name} locked`}
+                      className="gallery-card locked"
+                      key={background.id}
+                    >
                       <div className="gallery-locked-image">
                         <span>LOCKED</span>
                       </div>
                       <h3>???</h3>
-                      <p>{unlockStage?.name ?? background.unlockStageId} をクリアで解放</p>
+                      <p>Unlock by clearing {unlockStage?.name ?? background.unlockStageId}</p>
                     </article>
                   );
                 }
 
                 return (
                   <button
+                    aria-label={`Preview ${background.name}`}
                     className={`gallery-card unlocked${
                       background.id === currentBackgroundId ? ' selected' : ''
                     }`}

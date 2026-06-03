@@ -3,10 +3,14 @@ import {
   baseMemoryPerBounce,
   museTapCornerRewardMultiplier,
   museTapCornerRewardMultiplierHigh,
+  nearCornerDistance,
+  nearCornerRewardRate,
   museTapSpeedMultiplierHigh,
   museTapSpeedMultiplierLow,
   museTapSpeedMultiplierMedium,
   offlineBounceFrequencyPerSecond,
+  vegaBumperCloneRewardMultiplier,
+  vegaBumperRewardMultiplier,
   visualSpeedMultiplierMaxHigh,
   visualSpeedMultiplierMaxLow,
   visualSpeedMultiplierMaxMedium,
@@ -132,6 +136,34 @@ export function calculateMuseTapCornerRewardMultiplier(
 
 export function calculateCornerThresholdBonus(unlockedSkillNodes: Record<string, number>): number {
   return calculateSkillTreeAdditiveBonus(unlockedSkillNodes, 'corner_threshold');
+}
+
+export function calculateNearCornerDistance(unlockedSkillNodes: Record<string, number>): number {
+  return nearCornerDistance + calculateSkillTreeAdditiveBonus(unlockedSkillNodes, 'corner_threshold');
+}
+
+export function calculateNearCornerReward(
+  bounceReward: number,
+  unlockedSkillNodes: Record<string, number>,
+): number {
+  const multiplier = calculateSkillTreeMultiplier(unlockedSkillNodes, 'near_corner_reward');
+
+  if (multiplier <= 1) {
+    return 0;
+  }
+
+  return Math.max(1, Math.floor(bounceReward * nearCornerRewardRate * multiplier));
+}
+
+export function calculateVegaBumperReward(bounceReward: number, isClone: boolean): number {
+  return Math.max(
+    1,
+    Math.floor(
+      bounceReward *
+        vegaBumperRewardMultiplier *
+        (isClone ? vegaBumperCloneRewardMultiplier : 1),
+    ),
+  );
 }
 
 export function calculateOfflineRewardMultiplier(

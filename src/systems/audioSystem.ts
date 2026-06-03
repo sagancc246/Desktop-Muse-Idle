@@ -2,6 +2,7 @@ import type { TapVoice } from '../types/game';
 import { warnAssetFallbackOnce } from './assetFallbacks';
 
 let audioContext: AudioContext | undefined;
+let isWallpaperBgmMuted = false;
 const missingVoiceAssetIds = new Set<string>();
 
 function getAudioContext(): AudioContext | undefined {
@@ -29,6 +30,14 @@ export function prepareAudioSystem(): () => void {
   window.addEventListener('pointerdown', activateAudio, { once: true });
 
   return () => window.removeEventListener('pointerdown', activateAudio);
+}
+
+export function setWallpaperBgmMuted(muted: boolean): void {
+  isWallpaperBgmMuted = muted;
+}
+
+export function getWallpaperBgmMuted(): boolean {
+  return isWallpaperBgmMuted;
 }
 
 export function playCornerHitSound(seVolume: number): void {

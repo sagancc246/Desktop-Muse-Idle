@@ -1,3 +1,6 @@
+import { clampPositionToBounds, detectBounceCollision } from './cornerHitDetector';
+import type { CornerCollisionResult } from './cornerHitDetector';
+
 export interface BounceBody {
   x: number;
   y: number;
@@ -15,6 +18,11 @@ export interface ArenaBounds {
 export interface BounceStepResult {
   body: BounceBody;
   bounced: boolean;
+  collision: CornerCollisionResult;
+}
+
+export interface BounceStepOptions {
+  nearCornerDistance?: number;
 }
 
 export function createInitialBody(
@@ -37,29 +45,33 @@ export function stepBounceBody(
   body: BounceBody,
   bounds: ArenaBounds,
   deltaSeconds: number,
+  options: BounceStepOptions = {},
 ): BounceStepResult {
   const nextBody = {
     ...body,
     x: body.x + body.vx * deltaSeconds,
     y: body.y + body.vy * deltaSeconds,
   };
-  const minX = bounds.inset + body.radius;
-  const maxX = bounds.width - bounds.inset - body.radius;
-  const minY = bounds.inset + body.radius;
-  const maxY = bounds.height - bounds.inset - body.radius;
-  let bounced = false;
+  const collision = detectBounceCollision({
+    bounds,
+    nearDistance: options.nearCornerDistance,
+    nextX: nextBody.x,
+    nextY: nextBody.y,
+    previousBody: body,
+  });
+  const bounced = collision.hitXWall || collision.hitYWall;
+  const clampedPosition = clampPositionToBounds(nextBody, collision);
 
-  if (nextBody.x <= minX || nextBody.x >= maxX) {
-    nextBody.x = Math.min(Math.max(nextBody.x, minX), maxX);
+  nextBody.x = clampedPosition.x;
+  nextBody.y = clampedPosition.y;
+
+  if (collision.hitXWall) {
     nextBody.vx *= -1;
-    bounced = true;
   }
 
-  if (nextBody.y <= minY || nextBody.y >= maxY) {
-    nextBody.y = Math.min(Math.max(nextBody.y, minY), maxY);
+  if (collision.hitYWall) {
     nextBody.vy *= -1;
-    bounced = true;
   }
 
-  return { body: nextBody, bounced };
+  return { body: nextBody, bounced, collision };
 }

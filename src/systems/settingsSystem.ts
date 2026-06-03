@@ -1,4 +1,9 @@
-import type { AppSettings, EffectsQuality, Language, MotionIntensity } from '../types/game';
+import type {
+  AppSettings,
+  EffectsQuality,
+  Language,
+  MotionIntensity,
+} from '../types/game';
 
 const settingsStorageKey = 'desktop-muse-idle-settings';
 

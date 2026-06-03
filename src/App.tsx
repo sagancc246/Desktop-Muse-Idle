@@ -2,24 +2,32 @@ import { useEffect, useState } from 'react';
 import { CreditsModal } from './components/CreditsModal';
 import { DebugPanel } from './components/DebugPanel';
 import { FocusHud } from './components/FocusHud';
+import { FirstRunTutorial } from './components/FirstRunTutorial';
 import { GameCanvas } from './components/GameCanvas';
 import { GalleryPanel } from './components/GalleryPanel';
 import { MusePanel } from './components/MusePanel';
+import { MuseOverlayHud } from './components/MuseOverlayHud';
+import { MuseUnlockModal } from './components/MuseUnlockModal';
 import { NeonBackground } from './components/NeonBackground';
 import { OfflineRewardModal } from './components/OfflineRewardModal';
 import { PinballBackground } from './components/PinballBackground';
 import { RebootPanel } from './components/RebootPanel';
 import { ResourceBar } from './components/ResourceBar';
+import { SaveStatusToast } from './components/SaveStatusToast';
 import { SettingsModal } from './components/SettingsModal';
+import { SkinUnlockToast } from './components/SkinUnlockToast';
 import { StageClearOverlay } from './components/StageClearOverlay';
 import { StagePanel } from './components/StagePanel';
+import { StatsPanel } from './components/StatsPanel';
 import { TitleScreen } from './components/TitleScreen';
 import { UpgradePanel } from './components/UpgradePanel';
+import { WallpaperModePanel } from './components/WallpaperModePanel';
+import { WallpaperStageHud } from './components/WallpaperStageHud';
 import { STAGE_HEIGHT, STAGE_WIDTH, useStageScale } from './hooks/useStageScale';
 import { calculateOfflineReward } from './game/offlineReward';
 import { useAppStore } from './store/useAppStore';
-import { saveGameState, startAutoSave } from './systems/saveSystem';
 import { useGameStore } from './store/useGameStore';
+import { setWallpaperBgmMuted } from './systems/audioSystem';
 import type { CornerHitPosition } from './types/game';
 
 export default function App() {
@@ -27,21 +35,45 @@ export default function App() {
   const setScreen = useAppStore((state) => state.setScreen);
   const openSettings = useAppStore((state) => state.openSettings);
   const closeSettings = useAppStore((state) => state.closeSettings);
+  const openStats = useAppStore((state) => state.openStats);
+  const closeStats = useAppStore((state) => state.closeStats);
+  const hasSeenTutorial = useAppStore((state) => state.hasSeenTutorial);
+  const completeTutorial = useAppStore((state) => state.completeTutorial);
   const isFocusMode = useAppStore((state) => state.isFocusMode);
+  const wallpaperMode = useAppStore((state) => state.wallpaperMode);
+  const wallpaperSettings = useAppStore((state) => state.wallpaperSettings);
   const toggleFocusMode = useAppStore((state) => state.toggleFocusMode);
   const exitFocusMode = useAppStore((state) => state.exitFocusMode);
+  const exitWallpaperMode = useAppStore((state) => state.exitWallpaperMode);
+  const toggleWallpaperStageMode = useAppStore((state) => state.toggleWallpaperStageMode);
   const autoSaveEnabled = useAppStore((state) => state.settings.autoSaveEnabled);
+  const language = useAppStore((state) => state.settings.language);
   const motionIntensity = useAppStore((state) => state.settings.motionIntensity);
   const startNewGame = useGameStore((state) => state.startNewGame);
   const continueGame = useGameStore((state) => state.continueGame);
+  const autoSave = useGameStore((state) => state.autoSave);
+  const addPlayTime = useGameStore((state) => state.addPlayTime);
   const pendingOfflineReward = useGameStore((state) => state.pendingOfflineReward);
   const dismissOfflineReward = useGameStore((state) => state.dismissOfflineReward);
   const pendingStageClear = useGameStore((state) => state.pendingStageClear);
   const dismissStageClear = useGameStore((state) => state.dismissStageClear);
+  const newlyUnlockedMuseIds = useGameStore((state) => state.newlyUnlockedMuseIds);
+  const dismissMuseUnlock = useGameStore((state) => state.dismissMuseUnlock);
+  const newlyUnlockedSkinIds = useGameStore((state) => state.newlyUnlockedSkinIds);
+  const dismissSkinUnlock = useGameStore((state) => state.dismissSkinUnlock);
   const lastCornerHitFlash = useGameStore((state) => state.lastCornerHitFlash);
   const [pinballCornerHit, setPinballCornerHit] = useState<CornerHitPosition | null>(null);
   const stageScale = useStageScale();
   const showDebugPanel = import.meta.env.DEV;
+  const isWallpaperStageMode = wallpaperMode === 'stage';
+  const isMuseOverlayMode = wallpaperMode === 'muse_overlay';
+  const shouldShowTutorial =
+    currentScreen === 'game' &&
+    !isMuseOverlayMode &&
+    !hasSeenTutorial &&
+    !pendingOfflineReward &&
+    !pendingStageClear &&
+    !newlyUnlockedMuseIds[0];
 
   useEffect(() => {
     if (!lastCornerHitFlash) {
@@ -67,8 +99,27 @@ export default function App() {
       return undefined;
     }
 
-    return startAutoSave(() => useGameStore.getState(), () => useAppStore.getState().settings.motionIntensity);
-  }, [autoSaveEnabled, currentScreen]);
+    const intervalId = window.setInterval(() => {
+      useGameStore.getState().autoSave();
+    }, 10_000);
+
+    return () => window.clearInterval(intervalId);
+  }, [autoSave, autoSaveEnabled, currentScreen]);
+
+  useEffect(() => {
+    if (currentScreen !== 'game') {
+      return undefined;
+    }
+
+    let lastTickAt = Date.now();
+    const intervalId = window.setInterval(() => {
+      const now = Date.now();
+      addPlayTime(now - lastTickAt);
+      lastTickAt = now;
+    }, 1_000);
+
+    return () => window.clearInterval(intervalId);
+  }, [addPlayTime, currentScreen]);
 
   useEffect(() => {
     if (currentScreen !== 'game' || typeof document === 'undefined') {
@@ -78,10 +129,7 @@ export default function App() {
     let hiddenStartedAt = document.visibilityState === 'hidden' ? Date.now() : null;
 
     const checkpointCurrentGame = () => {
-      saveGameState(
-        useGameStore.getState(),
-        useAppStore.getState().settings.motionIntensity,
-      );
+      useGameStore.getState().autoSave();
     };
 
     const restoreFromVisibilityCheckpoint = () => {
@@ -105,15 +153,16 @@ export default function App() {
       if (offlineReward) {
         useGameStore.setState((state) => ({
           memory: state.memory + offlineReward.memoryEarned,
+          stats: {
+            ...state.stats,
+            totalMemoryEarned: state.stats.totalMemoryEarned + offlineReward.memoryEarned,
+          },
           pendingOfflineReward: offlineReward,
         }));
       }
 
       hiddenStartedAt = null;
-      saveGameState(
-        useGameStore.getState(),
-        useAppStore.getState().settings.motionIntensity,
-      );
+      useGameStore.getState().autoSave();
     };
 
     const handleVisibilityChange = () => {
@@ -140,6 +189,10 @@ export default function App() {
   }, [motionIntensity]);
 
   useEffect(() => {
+    setWallpaperBgmMuted(wallpaperMode !== 'off' && !wallpaperSettings.bgmEnabled);
+  }, [wallpaperMode, wallpaperSettings.bgmEnabled]);
+
+  useEffect(() => {
     if (currentScreen !== 'game') {
       exitFocusMode();
       return undefined;
@@ -161,6 +214,9 @@ export default function App() {
       if (event.key.toLowerCase() === 'f') {
         event.preventDefault();
         toggleFocusMode();
+      } else if (event.key === 'Escape' && wallpaperMode !== 'off') {
+        event.preventDefault();
+        exitWallpaperMode();
       } else if (event.key === 'Escape' && isFocusMode) {
         event.preventDefault();
         exitFocusMode();
@@ -170,7 +226,14 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown);
 
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentScreen, exitFocusMode, isFocusMode, toggleFocusMode]);
+  }, [
+    currentScreen,
+    exitFocusMode,
+    exitWallpaperMode,
+    isFocusMode,
+    toggleFocusMode,
+    wallpaperMode,
+  ]);
 
   let screenContent;
 
@@ -188,37 +251,70 @@ export default function App() {
           startNewGame();
           setScreen('game');
         }}
+        onStats={() => openStats('title')}
       />
     );
   } else if (currentScreen === 'settings') {
-    screenContent = <SettingsModal onBack={closeSettings} />;
+    screenContent = <SettingsModal onBack={closeSettings} onStats={() => openStats('settings')} />;
   } else if (currentScreen === 'gallery') {
     screenContent = <GalleryPanel mode="screen" onBack={() => setScreen('title')} />;
   } else if (currentScreen === 'credits') {
     screenContent = <CreditsModal onBack={() => setScreen('title')} />;
+  } else if (currentScreen === 'stats') {
+    screenContent = <StatsPanel onBack={closeStats} />;
   } else {
     screenContent = (
-      <div className={`app-shell${isFocusMode ? ' focus-mode' : ''}`}>
+      <div
+        className={`app-shell${isFocusMode ? ' focus-mode' : ''}${
+          isWallpaperStageMode ? ' wallpaper-stage-mode' : ''
+        }${isMuseOverlayMode ? ' muse-overlay-mode' : ''}`}
+      >
         <NeonBackground />
-        <PinballBackground cornerHit={pinballCornerHit} focusMode={isFocusMode} />
-        <ResourceBar onFocus={toggleFocusMode} onSettings={() => openSettings('game')} />
+        <PinballBackground
+          cornerHit={pinballCornerHit}
+          focusMode={isFocusMode || isWallpaperStageMode}
+        />
+        <ResourceBar
+          onFocus={toggleFocusMode}
+          onSettings={() => openSettings('game')}
+          onStats={() => openStats('game')}
+          onWallpaperStage={toggleWallpaperStageMode}
+          wallpaperMode={wallpaperMode}
+        />
         <main className="workspace">
           <UpgradePanel />
-          <GameCanvas />
+          <GameCanvas presentationMode={isMuseOverlayMode ? 'muse_overlay' : 'normal'} />
           <div className="side-panel-stack">
             <StagePanel />
+            <WallpaperModePanel />
             <GalleryPanel />
             <MusePanel />
             {showDebugPanel ? <DebugPanel /> : null}
           </div>
         </main>
         <RebootPanel />
+        {!isMuseOverlayMode ? <SaveStatusToast /> : null}
         {isFocusMode ? <FocusHud onExit={exitFocusMode} /> : null}
-        {pendingOfflineReward ? (
+        {isWallpaperStageMode && wallpaperSettings.showStageHud ? (
+          <WallpaperStageHud onExit={exitWallpaperMode} />
+        ) : null}
+        {isMuseOverlayMode && wallpaperSettings.showOverlayHud ? (
+          <MuseOverlayHud onExit={exitWallpaperMode} />
+        ) : null}
+        {!isMuseOverlayMode && pendingOfflineReward ? (
           <OfflineRewardModal onClose={dismissOfflineReward} reward={pendingOfflineReward} />
         ) : null}
-        {pendingStageClear ? (
+        {!isMuseOverlayMode && pendingStageClear ? (
           <StageClearOverlay onClose={dismissStageClear} summary={pendingStageClear} />
+        ) : null}
+        {!isMuseOverlayMode && newlyUnlockedMuseIds[0] ? (
+          <MuseUnlockModal museId={newlyUnlockedMuseIds[0]} onClose={dismissMuseUnlock} />
+        ) : null}
+        {!isMuseOverlayMode && newlyUnlockedSkinIds[0] ? (
+          <SkinUnlockToast skinId={newlyUnlockedSkinIds[0]} onClose={dismissSkinUnlock} />
+        ) : null}
+        {shouldShowTutorial ? (
+          <FirstRunTutorial language={language} onComplete={completeTutorial} />
         ) : null}
       </div>
     );

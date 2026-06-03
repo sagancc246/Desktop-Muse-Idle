@@ -14,13 +14,21 @@ export const stages: Stage[] = [
     description: 'Keep the muse bouncing through a longer session.',
     cornerHitGoal: 300,
     rewardBackgroundId: 'bg_cozy_room',
+    skinRewardIds: ['lumi_pastel'],
   },
   {
     id: 'stage-3',
     name: 'Stage 3',
-    description: 'Complete the final corner-hit challenge.',
+    description: 'Reach the neon rhythm and prepare for the final unlock.',
     cornerHitGoal: 500,
     rewardBackgroundId: 'bg_neon_room',
+  },
+  {
+    id: 'stage-4',
+    name: 'Stage 4',
+    description: 'Master the pinball field and unlock the late-game Muse.',
+    cornerHitGoal: 700,
+    rewardBackgroundId: 'bg_pinball_neon',
   },
 ];
 

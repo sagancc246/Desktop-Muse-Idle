@@ -1,3 +1,4 @@
+import { getSkinById } from '../data/skins';
 import { getNextStage, getStageById, initialStageId, stages } from '../data/stages';
 import { useGameStore } from '../store/useGameStore';
 
@@ -15,6 +16,9 @@ export function StagePanel() {
   const completionPercent = Math.min((progress / currentStage.cornerHitGoal) * 100, 100);
   const isComplete = clearedStages.includes(currentStage.id);
   const isFinalStageCleared = isComplete && !getNextStage(currentStage.id);
+  const skinRewards = (currentStage.skinRewardIds ?? [])
+    .map((skinId) => getSkinById(skinId))
+    .filter((skin) => skin !== undefined);
 
   return (
     <section className="stage-panel panel">
@@ -45,6 +49,15 @@ export function StagePanel() {
       <p className="stage-clear-count">
         Cleared {clearedStages.length} / {stages.length}
       </p>
+      <p className="stage-rule-note">
+        Stage progress counts only true Corner Hits. Near Corners are guidance and do not advance
+        this goal.
+      </p>
+      {skinRewards.length > 0 ? (
+        <p className="stage-skin-reward">
+          Skin reward: {skinRewards.map((skin) => skin.name).join(', ')}
+        </p>
+      ) : null}
     </section>
   );
 }

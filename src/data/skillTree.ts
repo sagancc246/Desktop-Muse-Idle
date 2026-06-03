@@ -1,3 +1,4 @@
+import { nearCornerDistancePerSensorLevel } from './balance';
 import type { SkillNode, SkillTreeCategory, SkillTreeEffectType } from '../types/game';
 
 export const skillTreeCategories: { id: SkillTreeCategory; name: string }[] = [
@@ -55,12 +56,12 @@ export const skillNodes: SkillNode[] = [
     id: 'corner_sensor_1',
     category: 'corner',
     name: 'Corner Sensor I',
-    description: 'Corner detection range +4.',
+    description: 'Near Corner detection +8px and stronger corner approach guidance. True Corner Hits still require simultaneous X/Y wall contact.',
     cost: 2,
     maxLevel: 1,
     requiredNodeIds: ['corner_bonus_1'],
     effectType: 'corner_threshold',
-    effectValue: 4,
+    effectValue: nearCornerDistancePerSensorLevel,
   },
   {
     id: 'lucky_corner',

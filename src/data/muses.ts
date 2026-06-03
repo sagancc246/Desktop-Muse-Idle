@@ -1,11 +1,15 @@
+import { vegaBumperSkill } from './skills';
 import type { Muse } from '../types/game';
 
 export const muses: Muse[] = [
   {
     id: 'lumi',
     name: 'Lumi',
+    description: 'A gentle starter Muse who creates short-lived echoes on Corner Hit.',
     iconAsset: 'lumi-orchid',
-    unlocked: true,
+    skillId: 'clone',
+    defaultUnlocked: true,
+    unlockCondition: { type: 'initial' },
     baseSpeed: 180,
     memoryMultiplier: 1,
     cornerMultiplier: 1,
@@ -34,7 +38,7 @@ export const muses: Muse[] = [
       {
         id: 'tap_lumi_03',
         audioPath: '/assets/voices/tap_lumi_03.ogg',
-        subtitleJa: 'もっと跳ねるね！',
+        subtitleJa: 'もっと跳ねるよ。',
         subtitleEn: 'I will bounce higher!',
       },
     ],
@@ -42,8 +46,11 @@ export const muses: Muse[] = [
   {
     id: 'astra',
     name: 'Astra',
+    description: 'A high-tempo Muse who accelerates the whole field for a short burst.',
     iconAsset: 'astra-cyan',
-    unlocked: true,
+    skillId: 'speed_up',
+    defaultUnlocked: false,
+    unlockCondition: { type: 'stage_clear', targetId: 'stage-2' },
     baseSpeed: 205,
     memoryMultiplier: 1.2,
     cornerMultiplier: 0.9,
@@ -60,7 +67,7 @@ export const muses: Muse[] = [
       {
         id: 'tap_astra_01',
         audioPath: '/assets/voices/tap_astra_01.ogg',
-        subtitleJa: '加速する。',
+        subtitleJa: '加速するよ。',
         subtitleEn: 'Accelerating.',
       },
       {
@@ -80,8 +87,11 @@ export const muses: Muse[] = [
   {
     id: 'noir',
     name: 'Noir',
+    description: 'A late-game Muse who grows larger and turns precise corners into big rewards.',
     iconAsset: 'noir-rose',
-    unlocked: true,
+    skillId: 'giant',
+    defaultUnlocked: false,
+    unlockCondition: { type: 'stage_clear', targetId: 'stage-4' },
     baseSpeed: 165,
     memoryMultiplier: 0.85,
     cornerMultiplier: 1.45,
@@ -115,7 +125,44 @@ export const muses: Muse[] = [
       },
     ],
   },
+  {
+    id: 'vega',
+    name: 'Vega',
+    description: 'A kinetic Muse who becomes a moving bumper and redirects nearby trajectories.',
+    iconAsset: 'vega-gold',
+    skillId: 'bumper',
+    defaultUnlocked: false,
+    unlockCondition: { type: 'stage_clear', targetId: 'stage-3' },
+    baseSpeed: 188,
+    memoryMultiplier: 1,
+    cornerMultiplier: 1.1,
+    skill: vegaBumperSkill,
+    tapVoices: [
+      {
+        id: 'tap_vega_01',
+        audioPath: '/assets/voices/tap_vega_01.ogg',
+        subtitleJa: 'ラインを変えるよ。',
+        subtitleEn: 'Changing the line.',
+      },
+      {
+        id: 'tap_vega_02',
+        audioPath: '/assets/voices/tap_vega_02.ogg',
+        subtitleJa: 'バンパー起動。',
+        subtitleEn: 'Bumper online.',
+      },
+      {
+        id: 'tap_vega_03',
+        audioPath: '/assets/voices/tap_vega_03.ogg',
+        subtitleJa: '角へ送るよ。',
+        subtitleEn: 'Sending you cornerward.',
+      },
+    ],
+  },
 ];
+
+export const initialUnlockedMuseIds = muses
+  .filter((muse) => muse.defaultUnlocked)
+  .map((muse) => muse.id);
 
 export const initialActiveMuseIds = ['lumi'];
 

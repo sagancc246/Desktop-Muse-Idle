@@ -37,6 +37,14 @@ button {
   font: inherit;
 }
 
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid rgba(140, 220, 255, 0.95);
+  outline-offset: 3px;
+}
+
 .appViewport {
   align-items: center;
   background:
@@ -69,6 +77,37 @@ button {
 }
 
 .app-shell.focus-mode {
+  gap: 0;
+  padding: 0;
+  position: relative;
+}
+
+.app-shell.wallpaper-stage-mode {
+  gap: 0;
+  padding: 0;
+  position: relative;
+}
+
+.app-shell.muse-overlay-mode {
+  background-color: #060815;
+  background-image:
+    linear-gradient(45deg, rgba(255, 255, 255, 0.055) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(255, 255, 255, 0.055) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.055) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.055) 75%),
+    radial-gradient(circle at 50% 50%, rgba(140, 220, 255, 0.07), transparent 42%);
+  background-position:
+    0 0,
+    0 16px,
+    16px -16px,
+    -16px 0,
+    center;
+  background-size:
+    32px 32px,
+    32px 32px,
+    32px 32px,
+    32px 32px,
+    100% 100%;
   gap: 0;
   padding: 0;
   position: relative;
@@ -135,6 +174,11 @@ button {
   color: #f6f3ff;
 }
 
+.resource-settings:disabled {
+  cursor: progress;
+  opacity: 0.62;
+}
+
 .metric {
   background: var(--surface-strong);
   border: 1px solid rgba(126, 130, 209, 0.16);
@@ -157,6 +201,30 @@ button {
 .metric strong {
   color: var(--cyan);
   font-size: 25px;
+}
+
+.metric.corner-pulse {
+  animation: metricCornerPulse 420ms ease-out;
+  border-color: rgba(255, 214, 129, 0.7);
+  box-shadow: 0 0 22px rgba(255, 157, 220, 0.24);
+}
+
+.metric.corner-pulse strong {
+  color: #ffd681;
+}
+
+@keyframes metricCornerPulse {
+  0% {
+    transform: scale(1);
+  }
+
+  28% {
+    transform: scale(1.045);
+  }
+
+  100% {
+    transform: scale(1);
+  }
 }
 
 .workspace {
@@ -349,6 +417,18 @@ button {
   margin: 9px 0 0;
 }
 
+.stage-skin-reward {
+  background: rgba(188, 137, 255, 0.1);
+  border: 1px solid rgba(188, 137, 255, 0.24);
+  border-radius: 10px;
+  color: #f1dcff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.35;
+  margin: 10px 0 0;
+  padding: 8px 9px;
+}
+
 .pixi-host {
   border: 2px dashed rgba(105, 104, 162, 0.32);
   border-radius: 22px;
@@ -371,7 +451,33 @@ button {
   display: none;
 }
 
+.wallpaper-stage-mode > .resource-bar,
+.wallpaper-stage-mode > .reboot-panel,
+.wallpaper-stage-mode .upgrade-panel,
+.wallpaper-stage-mode .side-panel-stack {
+  display: none;
+}
+
+.muse-overlay-mode > .resource-bar,
+.muse-overlay-mode > .reboot-panel,
+.muse-overlay-mode .upgrade-panel,
+.muse-overlay-mode .side-panel-stack,
+.muse-overlay-mode .neon-background,
+.muse-overlay-mode .pinball-background {
+  display: none;
+}
+
 .focus-mode .workspace {
+  display: block;
+  height: 100%;
+}
+
+.wallpaper-stage-mode .workspace {
+  display: block;
+  height: 100%;
+}
+
+.muse-overlay-mode .workspace {
   display: block;
   height: 100%;
 }
@@ -385,7 +491,33 @@ button {
   padding: 30px 24px;
 }
 
+.wallpaper-stage-mode .game-panel {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  height: 100%;
+  justify-content: center;
+  padding: 18px;
+}
+
+.muse-overlay-mode .game-panel {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  height: 100%;
+  justify-content: center;
+  padding: 0;
+}
+
 .focus-mode .game-panel .panel-heading {
+  display: none;
+}
+
+.wallpaper-stage-mode .game-panel .panel-heading {
+  display: none;
+}
+
+.muse-overlay-mode .game-panel .panel-heading {
   display: none;
 }
 
@@ -397,7 +529,36 @@ button {
   width: 100%;
 }
 
+.wallpaper-stage-mode .pixi-host {
+  aspect-ratio: 1242 / 659;
+  border-color: rgba(140, 220, 255, 0.1);
+  flex: 0 1 auto;
+  height: auto;
+  max-height: 100%;
+  width: 100%;
+}
+
+.muse-overlay-mode .pixi-host {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  flex: 1;
+  height: 100%;
+  max-height: 100%;
+  width: 100%;
+}
+
 .focus-mode .pixi-host canvas {
+  height: 100% !important;
+  width: 100% !important;
+}
+
+.wallpaper-stage-mode .pixi-host canvas {
+  height: 100% !important;
+  width: 100% !important;
+}
+
+.muse-overlay-mode .pixi-host canvas {
   height: 100% !important;
   width: 100% !important;
 }
@@ -451,6 +612,154 @@ button {
 
 .focus-exit:hover {
   background: rgba(111, 67, 163, 0.44);
+}
+
+.wallpaper-stage-hud {
+  align-items: center;
+  background:
+    radial-gradient(circle at 10% 50%, rgba(140, 220, 255, 0.12), transparent 38%),
+    rgba(8, 10, 25, 0.5);
+  border: 1px solid rgba(145, 132, 221, 0.22);
+  border-radius: 18px;
+  display: flex;
+  gap: 14px;
+  left: 34px;
+  padding: 11px 12px 11px 16px;
+  position: absolute;
+  right: 34px;
+  top: 28px;
+  transition:
+    opacity 700ms ease,
+    transform 700ms ease;
+  z-index: 5;
+}
+
+.wallpaper-stage-hud.dimmed {
+  opacity: 0.28;
+  transform: translateY(-5px);
+}
+
+.wallpaper-stage-metric,
+.wallpaper-stage-progress {
+  border-right: 1px solid rgba(145, 132, 221, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 146px;
+  padding-right: 18px;
+}
+
+.wallpaper-stage-metric.wide {
+  min-width: 230px;
+}
+
+.wallpaper-stage-metric span,
+.wallpaper-stage-progress span {
+  color: var(--text-soft);
+  font-size: 10px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.wallpaper-stage-metric strong,
+.wallpaper-stage-progress strong {
+  color: var(--cyan);
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.wallpaper-stage-progress {
+  min-width: 260px;
+}
+
+.wallpaper-stage-progress > div:first-child {
+  align-items: baseline;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.wallpaper-stage-progress-track {
+  background: rgba(56, 60, 102, 0.66);
+  border-radius: 999px;
+  height: 7px;
+  overflow: hidden;
+}
+
+.wallpaper-stage-progress-track span {
+  background: linear-gradient(90deg, var(--purple), var(--cyan));
+  display: block;
+  height: 100%;
+}
+
+.wallpaper-stage-exit {
+  background: rgba(42, 43, 76, 0.68);
+  border: 1px solid rgba(188, 137, 255, 0.38);
+  border-radius: 10px;
+  color: #f1dcff;
+  cursor: pointer;
+  margin-left: auto;
+  padding: 12px 18px;
+}
+
+.wallpaper-stage-exit:hover {
+  background: rgba(111, 67, 163, 0.44);
+}
+
+.muse-overlay-hud {
+  align-items: center;
+  background: rgba(8, 10, 25, 0.58);
+  border: 1px solid rgba(140, 220, 255, 0.2);
+  border-radius: 16px;
+  display: flex;
+  gap: 14px;
+  opacity: 0;
+  padding: 10px 11px 10px 14px;
+  pointer-events: none;
+  position: absolute;
+  right: 30px;
+  top: 26px;
+  transform: translateY(-7px);
+  transition:
+    opacity 220ms ease,
+    transform 220ms ease;
+  z-index: 6;
+}
+
+.muse-overlay-hud.visible,
+.muse-overlay-hud:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.muse-overlay-hud div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.muse-overlay-hud strong {
+  color: #f6f3ff;
+  font-size: 13px;
+}
+
+.muse-overlay-hud span {
+  color: var(--text-soft);
+  font-size: 10px;
+}
+
+.muse-overlay-hud button {
+  background: rgba(42, 43, 76, 0.72);
+  border: 1px solid rgba(255, 214, 129, 0.34);
+  border-radius: 10px;
+  color: #ffd681;
+  cursor: pointer;
+  padding: 9px 13px;
+}
+
+.muse-overlay-hud button:hover {
+  background: rgba(111, 67, 163, 0.42);
 }
 
 .portrait-placeholder {
@@ -526,6 +835,10 @@ button {
   border-color: rgba(140, 220, 255, 0.4);
 }
 
+.muse-card.locked {
+  opacity: 0.72;
+}
+
 .muse-swatch {
   border-radius: 50%;
   height: 26px;
@@ -544,6 +857,27 @@ button {
   background: #ff79af;
 }
 
+.muse-swatch.lumi-pastel {
+  background: #ffb8e7;
+}
+
+.muse-swatch.astra-cyber {
+  background: #37f6ff;
+}
+
+.muse-swatch.noir-gothic {
+  background: #dd6bff;
+}
+
+.muse-swatch.vega-gold {
+  background: #ffd681;
+}
+
+.muse-card.locked .muse-swatch {
+  background: linear-gradient(145deg, rgba(74, 72, 102, 0.8), rgba(24, 26, 49, 0.9));
+  border: 1px solid rgba(154, 149, 202, 0.28);
+}
+
 .muse-card-copy h3 {
   font-size: 13px;
   margin: 0 0 3px;
@@ -556,6 +890,12 @@ button {
   white-space: nowrap;
 }
 
+.muse-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
 .muse-card button {
   background: rgba(111, 67, 163, 0.34);
   border: 1px solid rgba(188, 137, 255, 0.42);
@@ -566,11 +906,38 @@ button {
   padding: 7px 8px;
 }
 
+.muse-card .muse-skin-action {
+  background: rgba(140, 220, 255, 0.1);
+  border-color: rgba(140, 220, 255, 0.26);
+  color: var(--cyan);
+  white-space: nowrap;
+}
+
 .muse-card button:disabled {
   background: rgba(42, 43, 76, 0.65);
   border-color: rgba(131, 128, 191, 0.22);
   color: #77768e;
   cursor: default;
+}
+
+.muse-skin-row {
+  align-items: center;
+  border-top: 1px solid rgba(138, 134, 211, 0.14);
+  display: flex;
+  grid-column: 1 / -1;
+  justify-content: space-between;
+  padding-top: 7px;
+}
+
+.muse-skin-row span {
+  color: var(--text-soft);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.muse-skin-row strong {
+  color: #ffd681;
+  font-size: 10px;
 }
 
 .muse-skill {
@@ -616,6 +983,10 @@ button {
   font-size: 9px;
   line-height: 1.35;
   margin: 5px 0 0;
+}
+
+.locked-copy p {
+  color: #b7b1d3;
 }
 
 .locked-row {
