@@ -160,3 +160,88 @@ The project also has foundations for Wallpaper Stage Mode, Muse Overlay Mode, an
 - Electron-specific behavior is not implemented yet; only adapter stubs exist.
 - In-app browser automation previously failed in this environment, so some UI checks were manual/procedural rather than automated.
 
+## Priority 1 Regression Verification
+
+- Added `scripts/priority1-regression.cjs` for repeatable Electron-based UI regression checks against the local Vite dev server.
+- Added `npm run verify:priority1` as the command wrapper for the regression script.
+- Verified the title-to-game flow:
+  - Start.
+  - Continue.
+  - Settings.
+  - Gallery.
+  - Credits.
+  - Stats.
+  - Quit placeholder.
+- Verified manual save from ResourceBar and Settings, including Last Saved update.
+- Verified `Saved!` and forced `Save Failed` toast paths.
+- Verified save reload for Memory, Stage, backgrounds, Muses, skins, stats, and Skill Tree fields.
+- Verified 10-second auto-save persists changed Memory.
+- Verified Wallpaper settings persist through `desktopMuseIdle.wallpaperSettings` and remain separate from game progress.
+- Verified reload after Wallpaper Stage Mode and Muse Overlay Mode starts with `wallpaperMode` back to `off`.
+- `npm.cmd run build` passed after the verification work; the existing Vite large chunk warning remains.
+
+## Priority 2 Collision And Reward Verification
+
+- Added `scripts/priority2-collision-reward.cjs` for repeatable Electron/Vite collision and reward checks.
+- Added `npm run verify:priority2` as the command wrapper for the Priority 2 verification script.
+- Reviewed the relevant collision and reward implementation:
+  - `src/game/cornerHitDetector.ts`
+  - `src/game/bouncePhysics.ts`
+  - `src/game/rewardCalculator.ts`
+  - `src/game/skillEffects.ts`
+  - `src/game/museCollision.ts`
+  - `src/components/GameCanvas.tsx`
+  - `src/store/useGameStore.ts`
+- Verified true Corner Hit is still `hitXWall && hitYWall` in the same collision step.
+- Verified wall-only near-corner contact is Near Corner feedback and does not become Corner Hit.
+- Verified Near Corner does not increment `totalCornerHits` or current `stageCornerHits`.
+- Verified Corner Sensor increases Near Corner distance only; it does not widen true Corner Hit detection.
+- Verified clone wall and clone Corner reward multipliers are reduced in the reward helpers.
+- Verified runtime clone Corner collision increments Corner Hit and stage progress exactly once.
+- Verified clones do not create additional clones from clone Corner Hits.
+- Verified Vega Bumper reward uses the bumper reward path and does not increment Corner Hit count or stage progress.
+- Verified Vega Bumper pair cooldown blocks repeated rewards for the same Vega/target pair.
+- No implementation fix was required during this pass.
+
+## Priority 3 Save Migration Verification
+
+- Extended `scripts/verify-save-migrations.mjs` for repeatable save migration and reset-boundary checks.
+- Added `npm run verify:priority3` as the command wrapper for the save migration verification script.
+- Reviewed the relevant save, settings, and reset implementation:
+  - `src/systems/saveSystem.ts`
+  - `src/systems/settingsSystem.ts`
+  - `src/systems/settingsStorage.ts`
+  - `src/store/useGameStore.ts`
+  - `src/data/skins.ts`
+- Verified empty LocalStorage loads a fresh default game state and reports no save data.
+- Verified malformed game save JSON falls back to a fresh state and removes the invalid game save key.
+- Verified old saves with missing stats, Muse, skin, and newer progression fields are restored with safe defaults.
+- Verified invalid skin ownership/equipped skin IDs fall back to default unlocked/equipped skins.
+- Verified saved app settings and legacy settings still migrate correctly.
+- Verified malformed and invalid wallpaper settings fall back through the existing wallpaper settings normalizer.
+- Verified legacy wallpaper settings can still be loaded from the app settings key when the dedicated wallpaper key is absent.
+- Verified the Reset Save Data storage boundary by confirming `clearSaveData()` removes only game progress and leaves app/wallpaper settings intact.
+- Verified persisted game save payloads do not include `wallpaperMode` or `wallpaperSettings`.
+- No game implementation fix was required during this pass.
+
+## Bundle Chunk Splitting
+
+- Addressed the Vite build warning where the main `index` chunk exceeded 500 kB.
+- Changed `App.tsx` to lazy-load non-initial screens and heavy runtime views:
+  - Settings.
+  - Gallery.
+  - Credits.
+  - Stats.
+  - Debug Panel.
+  - GameCanvas.
+- Added focused Rollup manual chunks in `vite.config.ts` for:
+  - React vendor code.
+  - Zustand vendor code.
+  - Other non-Pixi vendor code.
+- Left PixiJS on Vite/Rollup's automatic split path after confirming aggressive manual Pixi splitting caused circular chunk warnings.
+- `npm.cmd run build` now completes without the 500 kB chunk warning.
+- Current largest build chunks after splitting:
+  - `GameCanvas`: about 302.86 kB.
+  - `react-vendor`: about 142.92 kB.
+  - `index`: about 76.47 kB.
+- Re-ran `npm.cmd run verify:priority1`, `npm.cmd run verify:priority2`, and `npm.cmd run verify:priority3`; all passed.

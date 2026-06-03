@@ -4,6 +4,8 @@ This TODO focuses on the next practical work after the current `codex/desktop-mu
 
 ## Priority 1: Regression Checks
 
+Status: verified with `npm run verify:priority1` after `npm.cmd run build`.
+
 - Verify the full title-to-game flow:
   - Start.
   - Continue.
@@ -24,6 +26,8 @@ This TODO focuses on the next practical work after the current `codex/desktop-mu
 
 ## Priority 2: Collision And Reward Validation
 
+Status: verified with `npm run verify:priority2`.
+
 - Confirm true Corner Hit only occurs on same-frame X-wall and Y-wall contact.
 - Confirm wall-only hits near corners become Near Corner, not Corner Hit.
 - Confirm Near Corner does not increment:
@@ -41,6 +45,8 @@ This TODO focuses on the next practical work after the current `codex/desktop-mu
   - Collisions are not treated as Corner Hits.
 
 ## Priority 3: Save Migration Testing
+
+Status: verified with `npm run verify:priority3`.
 
 - Test with an empty LocalStorage.
 - Test with malformed game save JSON.
@@ -86,12 +92,16 @@ This TODO focuses on the next practical work after the current `codex/desktop-mu
 
 ## Priority 5: Performance And Bundle Size
 
-- Investigate Vite chunk warning for large `index` chunk.
+Status: Vite large `index` chunk warning resolved with screen lazy loading and vendor chunk splitting.
+
+- Investigate Vite chunk warning for large `index` chunk. Done: `index` is about 76.47 kB after splitting.
 - Consider dynamic imports for heavy panels:
-  - Gallery.
+  - Gallery. Done.
   - Stats.
+  - Settings. Done.
+  - Credits. Done.
   - Skill Tree.
-  - Debug Panel.
+  - Debug Panel. Done.
   - Skin selector.
 - Profile GameCanvas under:
   - Normal gameplay.
@@ -162,4 +172,3 @@ This TODO focuses on the next practical work after the current `codex/desktop-mu
 - Clone must not clone again.
 - Clone must not be Muse Tap target.
 - React components must not directly call future Electron APIs.
-

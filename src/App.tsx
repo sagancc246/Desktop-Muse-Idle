@@ -1,10 +1,6 @@
-import { useEffect, useState } from 'react';
-import { CreditsModal } from './components/CreditsModal';
-import { DebugPanel } from './components/DebugPanel';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { FocusHud } from './components/FocusHud';
 import { FirstRunTutorial } from './components/FirstRunTutorial';
-import { GameCanvas } from './components/GameCanvas';
-import { GalleryPanel } from './components/GalleryPanel';
 import { MusePanel } from './components/MusePanel';
 import { MuseOverlayHud } from './components/MuseOverlayHud';
 import { MuseUnlockModal } from './components/MuseUnlockModal';
@@ -14,11 +10,9 @@ import { PinballBackground } from './components/PinballBackground';
 import { RebootPanel } from './components/RebootPanel';
 import { ResourceBar } from './components/ResourceBar';
 import { SaveStatusToast } from './components/SaveStatusToast';
-import { SettingsModal } from './components/SettingsModal';
 import { SkinUnlockToast } from './components/SkinUnlockToast';
 import { StageClearOverlay } from './components/StageClearOverlay';
 import { StagePanel } from './components/StagePanel';
-import { StatsPanel } from './components/StatsPanel';
 import { TitleScreen } from './components/TitleScreen';
 import { UpgradePanel } from './components/UpgradePanel';
 import { WallpaperModePanel } from './components/WallpaperModePanel';
@@ -29,6 +23,25 @@ import { useAppStore } from './store/useAppStore';
 import { useGameStore } from './store/useGameStore';
 import { setWallpaperBgmMuted } from './systems/audioSystem';
 import type { CornerHitPosition } from './types/game';
+
+const CreditsModal = lazy(() =>
+  import('./components/CreditsModal').then(({ CreditsModal }) => ({ default: CreditsModal })),
+);
+const DebugPanel = lazy(() =>
+  import('./components/DebugPanel').then(({ DebugPanel }) => ({ default: DebugPanel })),
+);
+const GalleryPanel = lazy(() =>
+  import('./components/GalleryPanel').then(({ GalleryPanel }) => ({ default: GalleryPanel })),
+);
+const GameCanvas = lazy(() =>
+  import('./components/GameCanvas').then(({ GameCanvas }) => ({ default: GameCanvas })),
+);
+const SettingsModal = lazy(() =>
+  import('./components/SettingsModal').then(({ SettingsModal }) => ({ default: SettingsModal })),
+);
+const StatsPanel = lazy(() =>
+  import('./components/StatsPanel').then(({ StatsPanel }) => ({ default: StatsPanel })),
+);
 
 export default function App() {
   const currentScreen = useAppStore((state) => state.currentScreen);
@@ -330,7 +343,7 @@ export default function App() {
           width: STAGE_WIDTH,
         }}
       >
-        {screenContent}
+        <Suspense fallback={null}>{screenContent}</Suspense>
       </div>
     </div>
   );
