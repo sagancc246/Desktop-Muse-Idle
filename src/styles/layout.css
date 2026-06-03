@@ -1,0 +1,162 @@
+.title-screen {
+  align-items: center;
+  background:
+    radial-gradient(circle at 50% 32%, rgba(158, 94, 238, 0.2), transparent 28%),
+    radial-gradient(circle at 78% 68%, rgba(42, 159, 204, 0.14), transparent 26%),
+    linear-gradient(140deg, #08091b 0%, #0d102b 46%, #060817 100%);
+  display: flex;
+  height: 100%;
+  justify-content: center;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+}
+
+.title-decoration {
+  border: 1px solid rgba(188, 137, 255, 0.15);
+  pointer-events: none;
+  position: absolute;
+  transform: rotate(45deg);
+}
+
+.title-decoration-left {
+  bottom: 14%;
+  height: 290px;
+  left: -92px;
+  width: 290px;
+}
+
+.title-decoration-right {
+  height: 390px;
+  right: -126px;
+  top: 3%;
+  width: 390px;
+}
+
+.title-card {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  text-align: center;
+  width: 470px;
+  z-index: 1;
+}
+
+.title-card h1,
+.settings-card h1,
+.credits-card h1 {
+  font-size: 52px;
+  font-weight: 600;
+  letter-spacing: -0.055em;
+  margin: 8px 0 12px;
+}
+
+.title-subcopy {
+  color: #c7c4dd;
+  font-size: 17px;
+  letter-spacing: 0.04em;
+  margin: 0 0 42px;
+}
+
+.title-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  width: 292px;
+}
+
+.title-action,
+.screen-back {
+  background: rgba(21, 24, 53, 0.8);
+  border: 1px solid rgba(146, 139, 208, 0.28);
+  border-radius: 11px;
+  color: #ebe8fa;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 12px 18px;
+}
+
+.title-action.primary {
+  background: linear-gradient(90deg, rgba(124, 66, 183, 0.62), rgba(42, 132, 179, 0.45));
+  border-color: rgba(188, 137, 255, 0.62);
+}
+
+.title-action:not(:disabled):hover,
+.screen-back:hover {
+  background: rgba(108, 67, 160, 0.44);
+  border-color: rgba(188, 137, 255, 0.58);
+}
+
+.title-action:disabled {
+  color: #686982;
+  cursor: not-allowed;
+}
+
+.quit-notice {
+  color: var(--cyan);
+  font-size: 12px;
+  margin: 18px 0 0;
+}
+
+.title-version {
+  bottom: 28px;
+  color: #716d8b;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  position: absolute;
+}
+
+.screen-surface {
+  padding: 40px;
+}
+
+.settings-card,
+.credits-card {
+  max-width: 570px;
+  padding: 36px;
+  text-align: left;
+  width: 100%;
+}
+
+.settings-card h1,
+.credits-card h1 {
+  font-size: 38px;
+  margin-bottom: 18px;
+}
+
+.settings-copy,
+.credits-card > p:not(.eyebrow) {
+  color: var(--text-soft);
+  font-size: 14px;
+  line-height: 1.65;
+  margin: 0 0 28px;
+}
+
+.credits-list {
+  border-bottom: 1px solid rgba(145, 132, 221, 0.2);
+  border-top: 1px solid rgba(145, 132, 221, 0.2);
+  display: grid;
+  gap: 13px 20px;
+  grid-template-columns: 95px 1fr;
+  margin: 0 0 28px;
+  padding: 20px 0;
+}
+
+.credits-list dt {
+  color: var(--purple);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.credits-list dd {
+  color: var(--text-soft);
+  font-size: 13px;
+  margin: 0;
+}
+
+.screen-back {
+  min-width: 175px;
+}

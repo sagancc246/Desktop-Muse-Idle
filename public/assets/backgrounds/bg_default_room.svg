@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720">
+  <defs>
+    <linearGradient id="night" x2="0" y2="1">
+      <stop stop-color="#111733"/>
+      <stop offset="1" stop-color="#090c20"/>
+    </linearGradient>
+    <linearGradient id="desk" x2="1">
+      <stop stop-color="#171936"/>
+      <stop offset="1" stop-color="#292850"/>
+    </linearGradient>
+    <radialGradient id="lamp">
+      <stop stop-color="#a3defc" stop-opacity=".32"/>
+      <stop offset="1" stop-color="#a3defc" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="720" fill="url(#night)"/>
+  <circle cx="836" cy="190" r="230" fill="url(#lamp)"/>
+  <rect x="84" y="92" width="310" height="270" rx="14" fill="#0c1128" stroke="#353c68" stroke-width="6"/>
+  <path d="M239 98v258M90 225h300" stroke="#353c68" stroke-width="5"/>
+  <circle cx="168" cy="170" r="10" fill="#95cdef"/>
+  <circle cx="306" cy="148" r="6" fill="#cdb6ff"/>
+  <rect x="0" y="530" width="1200" height="190" fill="url(#desk)"/>
+  <path d="M720 538h278l58 182H665z" fill="#10142b"/>
+  <rect x="754" y="417" width="208" height="124" rx="9" fill="#0b1027" stroke="#434d79" stroke-width="5"/>
+  <rect x="770" y="433" width="176" height="91" fill="#172d49"/>
+  <path d="M786 477h66M786 493h116M786 461h92" stroke="#69b8e6" stroke-width="5" opacity=".5"/>
+  <path d="M858 541v27M815 568h88" stroke="#424d77" stroke-width="8"/>
+</svg>
