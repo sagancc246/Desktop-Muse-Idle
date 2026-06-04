@@ -124,7 +124,11 @@ Status: Vite large `index` chunk warning resolved; Wallpaper FPS long-duration h
 Next TODO:
 
 - Consider adding `rollup-plugin-visualizer` as a dev-only bundle analysis tool if chunk size grows again.
-- Release-before manual check: profile Wallpaper Stage and Muse Overlay over a long session on real desktop hardware.
+- Release-before manual check: run Focus Mode for several minutes and confirm character movement remains smooth.
+- Release-before manual check: confirm Wallpaper Stage remains stable at both 30fps and 60fps.
+- Release-before manual check: confirm Muse Overlay remains stable at both 30fps and 60fps.
+- Release-before manual check: confirm Memory, Corner Hit count, and rewards do not change because of the Wallpaper FPS setting.
+- Release-before manual check: profile Focus Mode, Wallpaper Stage, and Muse Overlay over a long session on real desktop hardware.
 - Release-before manual check: confirm the Debug Panel reports approximately 30/s and 60/s on a visible desktop window; hidden Electron regression windows are intentionally stopped by the existing visibility control and cannot measure Wallpaper cadence.
 
 ## Priority 6: Debug Tools

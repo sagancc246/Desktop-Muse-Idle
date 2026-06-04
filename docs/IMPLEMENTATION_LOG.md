@@ -304,3 +304,15 @@ The project also has foundations for Wallpaper Stage Mode, Muse Overlay Mode, an
 - Added a final visibility synchronization immediately after registering the GameCanvas ticker callback.
 - Extended Priority 2 regression checks to assert that a runtime wall collision increments Bounce count and grants Memory.
 - Kept collision rules, reward calculations, Wallpaper Mode coordinates/multipliers, and save formats unchanged.
+
+## Focus And Wallpaper Mode Stutter Fix
+
+- Investigated ticker registration and cleanup, Wallpaper FPS application, React and Zustand updates, HUD and effects work, Debug Panel updates, and Pixi object lifecycle.
+- Confirmed mode switches do not duplicate or leak the GameCanvas ticker, visibility listener, or store subscription.
+- Root cause: a `ResizeObserver` resized the Pixi renderer and rescaled every Muse body when Focus or Wallpaper CSS expanded the canvas host. This sharply increased high-DPI render load and changed internal game coordinates during presentation-mode switches.
+- Removed mode-driven Pixi renderer and Muse-body resizing. CSS still scales the presentation, while Pixi internal dimensions and game coordinates remain stable.
+- Kept Wallpaper ticker `maxFPS` as the render/update cadence control and split simulation work into steps of at most 20 ms, reducing coarse 30fps collision and reward processing without changing configured render cadence.
+- Stopped development Debug Panel status dispatches while the panel is hidden in Focus or Wallpaper modes.
+- Added Priority 1 assertions that Pixi internal canvas dimensions remain stable in Focus Mode, Wallpaper Stage Mode, and Muse Overlay Mode.
+- Kept save formats, reward calculations, balance, Corner Hit rules, and platform adapters unchanged.
+- Verification passed: `npm.cmd run build`, `npm.cmd run verify:priority1`, `npm.cmd run verify:priority2`, and `npm.cmd run verify:priority3`.

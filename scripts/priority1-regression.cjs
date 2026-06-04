@@ -103,6 +103,11 @@ async function main() {
 
   const getStorage = (key) =>
     js(`window.localStorage.getItem(${JSON.stringify(key)})`);
+  const getGameCanvasSize = () =>
+    js(`(() => {
+      const canvas = document.querySelector('.pixi-host canvas');
+      return canvas ? { height: canvas.height, width: canvas.width } : null;
+    })()`);
 
   await win.loadURL(appUrl);
   await waitFor('App loads title screen', async () => (await visibleText()).includes('Desktop Muse Idle'));
@@ -165,6 +170,31 @@ async function main() {
       (label) => labels.includes(label),
     );
   });
+  const normalCanvasSize = await getGameCanvasSize();
+  await clickButton('Toggle Focus Mode');
+  await waitFor('Focus Mode opens', async () => (await visibleText()).includes('Exit Focus'));
+  await assert('Focus Mode keeps Pixi internal canvas size stable', async () => {
+    const focusCanvasSize = await getGameCanvasSize();
+    return JSON.stringify(focusCanvasSize) === JSON.stringify(normalCanvasSize);
+  });
+  await clickButton('Exit Focus');
+  await clickButton('Toggle Wallpaper Stage Mode');
+  await waitFor('Wallpaper Stage Mode opens', async () => (await visibleText()).includes('Exit Wallpaper'));
+  await assert('Wallpaper Stage Mode keeps Pixi internal canvas size stable', async () => {
+    const wallpaperCanvasSize = await getGameCanvasSize();
+    return JSON.stringify(wallpaperCanvasSize) === JSON.stringify(normalCanvasSize);
+  });
+  await clickButton('Exit Wallpaper');
+  await js(`import('/src/store/useAppStore.ts').then(({ useAppStore }) =>
+    useAppStore.getState().toggleMuseOverlayMode()
+  )`);
+  await assert('Muse Overlay Mode keeps Pixi internal canvas size stable', async () => {
+    const overlayCanvasSize = await getGameCanvasSize();
+    return JSON.stringify(overlayCanvasSize) === JSON.stringify(normalCanvasSize);
+  });
+  await js(`import('/src/store/useAppStore.ts').then(({ useAppStore }) =>
+    useAppStore.getState().exitWallpaperMode()
+  )`);
 
   await clickButton('+1K Memory');
   await clickButton('+1 Fragment');

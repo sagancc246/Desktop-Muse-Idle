@@ -91,7 +91,6 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
     let unsubscribeStore: (() => void) | undefined;
     let removeDebugListeners: (() => void) | undefined;
     let removeVisibilityListener: (() => void) | undefined;
-    let disconnectResizeObserver: (() => void) | undefined;
     let destroyEffectManager: (() => void) | undefined;
     const cleanupAudio = prepareAudioSystem();
 
@@ -262,6 +261,11 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
 
       const publishDebugCollisionStatus = (eventLabel?: string) => {
         if (!import.meta.env.DEV) {
+          return;
+        }
+
+        const { isFocusMode, wallpaperMode } = useAppStore.getState();
+        if (isFocusMode || wallpaperMode !== 'off') {
           return;
         }
 
@@ -460,37 +464,6 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
         }
         grid.stroke({ color: 0x44436f, alpha: 0.08, width: 1 });
 
-      };
-
-      const resizePixiToHost = () => {
-        const nextWidth = Math.max(1, Math.floor(host.clientWidth));
-        const nextHeight = Math.max(1, Math.floor(host.clientHeight));
-
-        if (nextWidth === app.screen.width && nextHeight === app.screen.height) {
-          return;
-        }
-
-        const previousWidth = app.screen.width || nextWidth;
-        const previousHeight = app.screen.height || nextHeight;
-        const scaleX = nextWidth / previousWidth;
-        const scaleY = nextHeight / previousHeight;
-
-        app.renderer.resize(nextWidth, nextHeight);
-
-        for (const runtime of activeMuses.values()) {
-          runtime.body.x = Math.min(
-            nextWidth - inset - runtime.body.radius,
-            Math.max(inset + runtime.body.radius, runtime.body.x * scaleX),
-          );
-          runtime.body.y = Math.min(
-            nextHeight - inset - runtime.body.radius,
-            Math.max(inset + runtime.body.radius, runtime.body.y * scaleY),
-          );
-        }
-
-        skillNotice.position.set(nextWidth / 2, nextHeight * 0.29);
-        drawArena();
-        drawMuses(pulseTime);
       };
 
       const updateBackground = async (backgroundId: string | null) => {
@@ -946,9 +919,6 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
       }
 
       drawArena();
-      const resizeObserver = new ResizeObserver(() => resizePixiToHost());
-      resizeObserver.observe(host);
-      disconnectResizeObserver = () => resizeObserver.disconnect();
       void updateBackground(useGameStore.getState().currentBackgroundId);
       skillNotice.position.set(app.screen.width / 2, app.screen.height * 0.29);
       syncMuseBodies(useGameStore.getState().activeMuseIds);
@@ -1018,7 +988,11 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
           (isMuseOverlayPresentation ? 0.26 : 1) * lowEffectAlphaMultiplier;
         skillNotice.alpha =
           (isMuseOverlayPresentation ? 0.72 : 1) * lowEffectAlphaMultiplier;
-        skillTickAccumulatorMs += deltaMs;
+        const simulationStepCount = Math.max(1, Math.ceil(deltaMs / 20));
+        const simulationDeltaMs = deltaMs / simulationStepCount;
+
+        for (let simulationStep = 0; simulationStep < simulationStepCount; simulationStep += 1) {
+        skillTickAccumulatorMs += simulationDeltaMs;
         if (skillTickAccumulatorMs >= 100) {
           useGameStore.getState().tickSkillStates(skillTickAccumulatorMs);
           useGameStore.getState().tickMuseTapStates(Date.now());
@@ -1062,7 +1036,7 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
           const result = stepBounceBody(
             runtime.body,
             { width: app.screen.width, height: app.screen.height, inset },
-            (deltaMs / 1_000) *
+            (simulationDeltaMs / 1_000) *
               calculateVisualSpeedMultiplier(
                 upgrades,
                 skillSpeedMultiplier,
@@ -1184,6 +1158,7 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
             );
           }
         }
+        }
         const deltaSeconds = deltaMs / 1_000;
         pulseTime += deltaSeconds;
         effectManager.update(deltaSeconds);
@@ -1246,7 +1221,6 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
       unsubscribeStore?.();
       removeDebugListeners?.();
       removeVisibilityListener?.();
-      disconnectResizeObserver?.();
       destroyEffectManager?.();
       if (!isInitialized) {
         return;
