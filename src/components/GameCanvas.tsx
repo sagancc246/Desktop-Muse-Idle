@@ -1235,6 +1235,7 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
         }
         drawMuses(pulseTime);
       });
+      updateTickerVisibility();
     };
 
     void setup();

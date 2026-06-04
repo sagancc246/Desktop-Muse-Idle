@@ -239,6 +239,12 @@ async function main() {
   await clickButton('Force Near Corner');
   await waitFor('Debug Near Corner event observed', async () => (await visibleText()).includes('Near: top_left'));
   const afterNear = await saveAndRead();
+  await assert('Runtime wall collision increments Bounce count', async () =>
+    afterNear.totalBounces > beforeNear.totalBounces,
+  );
+  await assert('Runtime wall collision grants Memory', async () =>
+    afterNear.memory > beforeNear.memory,
+  );
   await assert('Runtime Near Corner does not increment totalCornerHits', async () =>
     afterNear.totalCornerHits === beforeNear.totalCornerHits,
   );

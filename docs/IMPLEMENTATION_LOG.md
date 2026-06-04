@@ -296,3 +296,11 @@ The project also has foundations for Wallpaper Stage Mode, Muse Overlay Mode, an
   - `npm.cmd run verify:priority1`
   - `npm.cmd run verify:priority2`
   - `npm.cmd run verify:priority3`
+
+## Visible Wall Collision Reward Fix
+
+- Fixed visible gameplay failing to advance wall collisions, Bounce count, and Memory in all presentation modes while hidden-time offline Memory still accrued.
+- Root cause: GameCanvas synchronized ticker visibility before registering its gameplay update callback. If the ticker became stopped during async setup, there was no final visible-state synchronization after the callback was registered.
+- Added a final visibility synchronization immediately after registering the GameCanvas ticker callback.
+- Extended Priority 2 regression checks to assert that a runtime wall collision increments Bounce count and grants Memory.
+- Kept collision rules, reward calculations, Wallpaper Mode coordinates/multipliers, and save formats unchanged.
