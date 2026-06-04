@@ -170,6 +170,7 @@ async function main() {
       (label) => labels.includes(label),
     );
   });
+  await waitFor('Pixi canvas initializes', async () => (await getGameCanvasSize()) !== null);
   const normalCanvasSize = await getGameCanvasSize();
   await clickButton('Toggle Focus Mode');
   await waitFor('Focus Mode opens', async () => (await visibleText()).includes('Exit Focus'));

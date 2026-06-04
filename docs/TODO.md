@@ -2,6 +2,30 @@
 
 This TODO focuses on the next practical work after the current `codex/desktop-muse-features` implementation pass.
 
+## Automated Verification Foundation
+
+Status: `npm run build`, `npm run verify:e2e`, and `npm run verify:all` passed on 2026-06-05.
+
+- [x] Add `npm run verify:all` for build, Priority 1, Priority 2, E2E smoke, and Priority 3/save migration verification.
+- [x] Make `verify:priority1`, `verify:priority2`, and `verify:e2e` start and stop their own Vite dev server.
+- [x] Use dedicated verification port `4174` so the automated suite does not interfere with the normal port `5173` dev server.
+- [x] Add Electron E2E smoke coverage for Title, Start, Settings, Gallery, Stats, Save, Continue reload, Focus Mode, and Wallpaper Mode.
+- [x] Add `.github/workflows/ci.yml` to run `npm ci` and `xvfb-run --auto-servernum npm run verify:all`.
+- [x] Stabilize the Priority 1 canvas-size check by waiting for Pixi canvas initialization.
+
+Next automation candidates:
+
+- Add viewport-size E2E coverage for 1920x1080, 1280x720, 1366x768, and a narrow viewport.
+- Add keyboard/Escape and focus-trap E2E coverage for major screens and modals.
+- Add visible-window Wallpaper 30fps/60fps cadence checks on suitable CI or desktop hardware.
+- Add Electron platform-adapter E2E when transparent window, always-on-top, click-through, and quit behavior are implemented.
+
+Still requires manual verification:
+
+- Long-duration Focus Mode, Wallpaper Stage Mode, and Muse Overlay Mode performance on real desktop hardware.
+- Visual quality, animation smoothness, and effect readability.
+- OS-level Electron window behavior that is not implemented yet.
+
 ## Priority 1: Regression Checks
 
 Status: verified with `npm run verify:priority1` after `npm.cmd run build`.

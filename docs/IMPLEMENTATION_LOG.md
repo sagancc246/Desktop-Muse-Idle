@@ -316,3 +316,39 @@ The project also has foundations for Wallpaper Stage Mode, Muse Overlay Mode, an
 - Added Priority 1 assertions that Pixi internal canvas dimensions remain stable in Focus Mode, Wallpaper Stage Mode, and Muse Overlay Mode.
 - Kept save formats, reward calculations, balance, Corner Hit rules, and platform adapters unchanged.
 - Verification passed: `npm.cmd run build`, `npm.cmd run verify:priority1`, `npm.cmd run verify:priority2`, and `npm.cmd run verify:priority3`.
+
+## Automated Verification And CI Foundation
+
+- Added `scripts/run-verifications.cjs` to start a dedicated Vite dev server on port `4174`, wait for readiness, run Electron verification suites, and stop the server.
+- Updated `verify:priority1` and `verify:priority2` so they no longer require a manually started Vite server.
+- Added `npm run verify:e2e` and `scripts/e2e-smoke.cjs` with smoke coverage for:
+  - Title display.
+  - Settings.
+  - Gallery.
+  - Stats.
+  - Start.
+  - Save.
+  - Continue after reload.
+  - Focus Mode enter/exit without renderer crash.
+  - Wallpaper Stage Mode enter/exit without renderer crash.
+- Added `npm run verify:all`, which runs:
+  - `npm run build`.
+  - Priority 1 regression verification.
+  - Priority 2 collision/reward verification.
+  - E2E smoke verification.
+  - Priority 3/save migration verification.
+- `verify:priority3` and `verify:save-migrations` intentionally remain aliases for the same migration suite, so `verify:all` runs that suite once.
+- Added `.github/workflows/ci.yml` for Ubuntu GitHub Actions using `npm ci` and `xvfb-run --auto-servernum npm run verify:all`.
+- Stabilized the existing Priority 1 Pixi canvas-size assertions by waiting for canvas initialization before capturing the normal-mode baseline.
+- No game logic, collision, reward, save format, `GameCanvas.tsx`, or `useGameStore.ts` behavior was changed.
+
+Verification results on 2026-06-05:
+
+- `npm.cmd run build`: passed.
+- `npm.cmd run verify:e2e`: passed.
+- `npm.cmd run verify:all`: passed.
+- The first sandboxed build attempt failed because the environment denied access while Vite loaded its config; rerunning with the required workspace permission passed.
+- The initial automation run detected and fixed two verification-infrastructure issues:
+  - Windows `npm.cmd` child-process startup needed a Windows-compatible command invocation.
+  - The existing Priority 1 canvas-size assertion could capture `null` before Pixi initialization.
+- Port `5173` was already used by an existing development server, so verification was isolated on port `4174` rather than stopping or reusing the developer server.
