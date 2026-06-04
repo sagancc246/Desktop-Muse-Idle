@@ -1,7 +1,10 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { calculateRebootFragments, rebootMemoryRequirement } from '../data/balance';
 import { useGameStore } from '../store/useGameStore';
-import { SkillTreePanel } from './SkillTreePanel';
+
+const SkillTreePanel = lazy(() =>
+  import('./SkillTreePanel').then(({ SkillTreePanel }) => ({ default: SkillTreePanel })),
+);
 
 export function RebootPanel() {
   const [isSkillTreeOpen, setIsSkillTreeOpen] = useState(false);
@@ -53,7 +56,19 @@ export function RebootPanel() {
           </button>
         </div>
       </footer>
-      {isSkillTreeOpen && <SkillTreePanel onClose={() => setIsSkillTreeOpen(false)} />}
+      {isSkillTreeOpen ? (
+        <Suspense
+          fallback={
+            <div className="skill-tree-backdrop">
+              <div className="lazy-panel-loading panel" role="status">
+                Loading Skill Tree...
+              </div>
+            </div>
+          }
+        >
+          <SkillTreePanel onClose={() => setIsSkillTreeOpen(false)} />
+        </Suspense>
+      ) : null}
     </>
   );
 }

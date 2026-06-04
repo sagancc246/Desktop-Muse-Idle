@@ -10,9 +10,10 @@ import { FallbackImage } from './FallbackImage';
 interface GalleryPanelProps {
   mode?: 'panel' | 'screen';
   onBack?: () => void;
+  openRequestKey?: number;
 }
 
-export function GalleryPanel({ mode = 'panel', onBack }: GalleryPanelProps) {
+export function GalleryPanel({ mode = 'panel', onBack, openRequestKey = 0 }: GalleryPanelProps) {
   const unlockedBackgrounds = useGameStore((state) => state.unlockedBackgrounds);
   const currentBackgroundId = useGameStore((state) => state.currentBackgroundId);
   const selectBackground = useGameStore((state) => state.selectBackground);
@@ -24,6 +25,12 @@ export function GalleryPanel({ mode = 'panel', onBack }: GalleryPanelProps) {
   const currentBackground = backgrounds.find((background) => background.id === currentBackgroundId);
   const isScreen = mode === 'screen';
   const isGalleryVisible = isScreen || isOpen;
+
+  useEffect(() => {
+    if (!isScreen && openRequestKey > 0) {
+      setIsOpen(true);
+    }
+  }, [isScreen, openRequestKey]);
 
   useFocusTrap(galleryModalRef, isGalleryVisible && !previewBackground);
 

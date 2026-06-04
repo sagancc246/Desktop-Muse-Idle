@@ -81,6 +81,7 @@ assert.deepEqual(coreState.activeMuseIds, ['lumi']);
 assert.deepEqual(coreState.unlockedSkinIds, skins.initialUnlockedSkinIds);
 assert.deepEqual(coreState.equippedSkinByMuseId, skins.createInitialEquippedSkinByMuseId());
 assert.equal(coreState.fragments, 0);
+assert.equal(coreState.capsuleCount, 0);
 assert.equal(coreState.rebootCount, 0);
 assert.equal(coreState.pendingOfflineReward, null);
 
@@ -99,6 +100,7 @@ assert.equal(expandedState.currentBackgroundId, 'bg_cozy_room');
 assert.deepEqual(expandedState.unlockedMuseIds, ['lumi']);
 assert.deepEqual(expandedState.activeMuseIds, ['lumi']);
 assert.equal(expandedState.fragments, 5);
+assert.equal(expandedState.capsuleCount, 0);
 assert.equal(expandedState.unlockedSkillNodes.bounce_memory_1, 1);
 assert.equal(expandedState.unlockedSkillNodes.passive_cache, 1);
 assert.equal(expandedState.unlockedSkillNodes.removed_skill, undefined);
@@ -185,7 +187,10 @@ assert.equal(storage.getItem(saveStorageKey), null);
 
 const resetBoundaryState = saveSystem.createNewGameState();
 resetBoundaryState.memory = 999;
+resetBoundaryState.capsuleCount = 3;
 saveSystem.saveGameState(resetBoundaryState);
+const capsuleState = saveSystem.loadGameState();
+assert.equal(capsuleState.capsuleCount, 3);
 storeJson(storage, settingsStorageKey, savedSettings);
 storeJson(storage, wallpaperSettingsStorageKey, {
   ...settingsStorage.defaultWallpaperSettings,

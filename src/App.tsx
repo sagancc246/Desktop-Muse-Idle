@@ -11,7 +11,7 @@ import { RebootPanel } from './components/RebootPanel';
 import { ResourceBar } from './components/ResourceBar';
 import { SaveStatusToast } from './components/SaveStatusToast';
 import { SkinUnlockToast } from './components/SkinUnlockToast';
-import { StageClearOverlay } from './components/StageClearOverlay';
+import { StageClearModal } from './components/StageClearModal';
 import { StagePanel } from './components/StagePanel';
 import { TitleScreen } from './components/TitleScreen';
 import { UpgradePanel } from './components/UpgradePanel';
@@ -42,6 +42,14 @@ const SettingsModal = lazy(() =>
 const StatsPanel = lazy(() =>
   import('./components/StatsPanel').then(({ StatsPanel }) => ({ default: StatsPanel })),
 );
+
+function LazyStageFallback() {
+  return (
+    <div className="lazy-screen-loading" role="status">
+      Loading...
+    </div>
+  );
+}
 
 export default function App() {
   const currentScreen = useAppStore((state) => state.currentScreen);
@@ -76,6 +84,7 @@ export default function App() {
   const dismissSkinUnlock = useGameStore((state) => state.dismissSkinUnlock);
   const lastCornerHitFlash = useGameStore((state) => state.lastCornerHitFlash);
   const [pinballCornerHit, setPinballCornerHit] = useState<CornerHitPosition | null>(null);
+  const [galleryOpenRequestKey, setGalleryOpenRequestKey] = useState(0);
   const stageScale = useStageScale();
   const showDebugPanel = import.meta.env.DEV;
   const isWallpaperStageMode = wallpaperMode === 'stage';
@@ -300,7 +309,7 @@ export default function App() {
           <div className="side-panel-stack">
             <StagePanel />
             <WallpaperModePanel />
-            <GalleryPanel />
+            <GalleryPanel openRequestKey={galleryOpenRequestKey} />
             <MusePanel />
             {showDebugPanel ? <DebugPanel /> : null}
           </div>
@@ -318,12 +327,19 @@ export default function App() {
           <OfflineRewardModal onClose={dismissOfflineReward} reward={pendingOfflineReward} />
         ) : null}
         {!isMuseOverlayMode && pendingStageClear ? (
-          <StageClearOverlay onClose={dismissStageClear} summary={pendingStageClear} />
+          <StageClearModal
+            onContinue={dismissStageClear}
+            onOpenGallery={() => {
+              dismissStageClear();
+              setGalleryOpenRequestKey((requestKey) => requestKey + 1);
+            }}
+            summary={pendingStageClear}
+          />
         ) : null}
-        {!isMuseOverlayMode && newlyUnlockedMuseIds[0] ? (
+        {!isMuseOverlayMode && !pendingStageClear && newlyUnlockedMuseIds[0] ? (
           <MuseUnlockModal museId={newlyUnlockedMuseIds[0]} onClose={dismissMuseUnlock} />
         ) : null}
-        {!isMuseOverlayMode && newlyUnlockedSkinIds[0] ? (
+        {!isMuseOverlayMode && !pendingStageClear && newlyUnlockedSkinIds[0] ? (
           <SkinUnlockToast skinId={newlyUnlockedSkinIds[0]} onClose={dismissSkinUnlock} />
         ) : null}
         {shouldShowTutorial ? (
@@ -343,7 +359,7 @@ export default function App() {
           width: STAGE_WIDTH,
         }}
       >
-        <Suspense fallback={null}>{screenContent}</Suspense>
+        <Suspense fallback={<LazyStageFallback />}>{screenContent}</Suspense>
       </div>
     </div>
   );

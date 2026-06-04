@@ -42,6 +42,18 @@ export interface UpgradeProgress extends UpgradeDefinition {
 
 export type UpgradeCollection = Record<UpgradeId, UpgradeProgress>;
 
+export type StageRewardType = 'skin' | 'background' | 'muse' | 'memory' | 'capsule';
+
+export interface StageReward {
+  type: StageRewardType;
+  id?: string;
+  amount?: number;
+}
+
+export interface GrantedStageReward extends StageReward {
+  alreadyOwned: boolean;
+}
+
 export interface Stage {
   id: string;
   name: string;
@@ -49,6 +61,7 @@ export interface Stage {
   cornerHitGoal: number;
   rewardBackgroundId: string;
   skinRewardIds?: string[];
+  rewards: StageReward[];
 }
 
 export interface Background {
@@ -199,8 +212,7 @@ export interface OfflineRewardSummary {
 export interface StageClearSummary {
   stageId: string;
   stageName: string;
-  rewardBackgroundId: string;
-  rewardBackgroundName: string;
+  rewards: GrantedStageReward[];
   nextStageId: string | null;
   nextStageName: string | null;
 }
@@ -239,6 +251,7 @@ export interface GameState {
   skillStates: Record<string, MuseSkillState>;
   museTapStates: Record<string, MuseTapState>;
   fragments: number;
+  capsuleCount: number;
   unlockedSkillNodes: Record<string, number>;
   rebootCount: number;
   saveStatus: SaveStatus;
@@ -267,6 +280,7 @@ export interface SaveData {
   unlockedSkinIds: string[];
   equippedSkinByMuseId: Record<string, string>;
   fragments: number;
+  capsuleCount?: number;
   unlockedSkillNodes: Record<string, number>;
   rebootCount: number;
   lastSavedAt: number;

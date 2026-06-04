@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { muses } from '../data/muses';
 import { getEquippedSkinForMuse } from '../data/skins';
 import { getMuseUnlockConditionLabel } from '../game/unlockChecker';
 import { useGameStore } from '../store/useGameStore';
-import { SkinSelectorModal } from './SkinSelectorModal';
+
+const SkinSelectorModal = lazy(() =>
+  import('./SkinSelectorModal').then(({ SkinSelectorModal }) => ({ default: SkinSelectorModal })),
+);
 
 export function MusePanel() {
   const [skinModalMuseId, setSkinModalMuseId] = useState<string | null>(null);
@@ -130,7 +133,17 @@ export function MusePanel() {
         })}
       </div>
       {skinModalMuseId ? (
-        <SkinSelectorModal museId={skinModalMuseId} onClose={() => setSkinModalMuseId(null)} />
+        <Suspense
+          fallback={
+            <div className="skin-selector-backdrop">
+              <div className="lazy-panel-loading panel" role="status">
+                Loading Skin Selector...
+              </div>
+            </div>
+          }
+        >
+          <SkinSelectorModal museId={skinModalMuseId} onClose={() => setSkinModalMuseId(null)} />
+        </Suspense>
       ) : null}
     </aside>
   );

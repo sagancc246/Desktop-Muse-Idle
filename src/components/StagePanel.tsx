@@ -1,4 +1,6 @@
 import { getSkinById } from '../data/skins';
+import { getBackgroundById } from '../data/backgrounds';
+import { getMuseById } from '../data/muses';
 import { getNextStage, getStageById, initialStageId, stages } from '../data/stages';
 import { useGameStore } from '../store/useGameStore';
 
@@ -16,9 +18,16 @@ export function StagePanel() {
   const completionPercent = Math.min((progress / currentStage.cornerHitGoal) * 100, 100);
   const isComplete = clearedStages.includes(currentStage.id);
   const isFinalStageCleared = isComplete && !getNextStage(currentStage.id);
-  const skinRewards = (currentStage.skinRewardIds ?? [])
-    .map((skinId) => getSkinById(skinId))
-    .filter((skin) => skin !== undefined);
+  const rewardLabels = currentStage.rewards
+    .map((reward) => {
+      if (reward.type === 'skin' && reward.id) return getSkinById(reward.id)?.name;
+      if (reward.type === 'background' && reward.id) return getBackgroundById(reward.id)?.name;
+      if (reward.type === 'muse' && reward.id) return getMuseById(reward.id)?.name;
+      if (reward.type === 'memory') return `${(reward.amount ?? 0).toLocaleString()} Memory`;
+      if (reward.type === 'capsule') return `${(reward.amount ?? 0).toLocaleString()} Capsule`;
+      return undefined;
+    })
+    .filter((label) => label !== undefined);
 
   return (
     <section className="stage-panel panel">
@@ -53,9 +62,9 @@ export function StagePanel() {
         Stage progress counts only true Corner Hits. Near Corners are guidance and do not advance
         this goal.
       </p>
-      {skinRewards.length > 0 ? (
+      {rewardLabels.length > 0 ? (
         <p className="stage-skin-reward">
-          Skin reward: {skinRewards.map((skin) => skin.name).join(', ')}
+          Clear rewards: {rewardLabels.join(', ')}
         </p>
       ) : null}
     </section>

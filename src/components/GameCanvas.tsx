@@ -222,6 +222,13 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
       let debugLastEvent = 'GameCanvas ready';
       let debugLastEventAt: number | null = null;
       let debugStatusElapsedMs = 0;
+      let currentWallpaperFps = 0;
+      let lastUpdateDeltaMs = 0;
+      let measuredUpdatesPerSecond = 0;
+      let updateSampleCount = 0;
+      let updateSampleStartedAt = performance.now();
+      let updateIntervalMs = 0;
+      let appliedTickerMaxFps = app.ticker.maxFPS;
       const museColors: Record<string, { fill: number; outline: number; figure: number; glow: number }> = {
         'lumi-orchid': { fill: 0x3d3568, outline: 0xb38cff, figure: 0xdbcef9, glow: 0x8ad9ff },
         'astra-cyan': { fill: 0x17455d, outline: 0x65dcff, figure: 0xd0f4ff, glow: 0x66e7ff },
@@ -269,8 +276,12 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
               activeRuntimeIds: Array.from(activeMuses.keys()),
               cloneCount: Array.from(activeMuses.values()).filter((runtime) => runtime.isClone)
                 .length,
+              currentWallpaperFps,
               lastEvent: debugLastEvent,
               lastEventAt: debugLastEventAt,
+              lastUpdateDeltaMs,
+              measuredUpdatesPerSecond,
+              updateIntervalMs,
             },
           }),
         );
@@ -960,7 +971,7 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
           return;
         }
 
-        const deltaMs = Math.min(ticker.deltaMS, 100);
+        const rawDeltaMs = Math.min(ticker.deltaMS, 100);
         const isMuseOverlayPresentation =
           presentationModeRef.current === 'muse_overlay';
         const {
@@ -968,7 +979,23 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
           isWallpaperMode,
           wallpaperFps,
         } = getWallpaperRuntimeSettings();
-        app.ticker.maxFPS = isWallpaperMode ? wallpaperFps : 0;
+        const targetTickerMaxFps = isWallpaperMode ? wallpaperFps : 0;
+        if (appliedTickerMaxFps !== targetTickerMaxFps) {
+          app.ticker.maxFPS = targetTickerMaxFps;
+          appliedTickerMaxFps = targetTickerMaxFps;
+        }
+        currentWallpaperFps = isWallpaperMode ? wallpaperFps : 0;
+        updateIntervalMs = isWallpaperMode ? 1_000 / wallpaperFps : 0;
+        const deltaMs = rawDeltaMs;
+        lastUpdateDeltaMs = deltaMs;
+        updateSampleCount += 1;
+        const updateSampleElapsedMs = performance.now() - updateSampleStartedAt;
+        if (updateSampleElapsedMs >= 1_000) {
+          measuredUpdatesPerSecond = (updateSampleCount * 1_000) / updateSampleElapsedMs;
+          updateSampleCount = 0;
+          updateSampleStartedAt = performance.now();
+        }
+
         const lowEffectAlphaMultiplier = isWallpaperLowEffects
           ? wallpaperLowEffectLayerAlphaMultiplier
           : 1;

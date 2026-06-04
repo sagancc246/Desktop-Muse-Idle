@@ -73,7 +73,8 @@ async function main() {
       return true;
     })()`);
     if (!clicked) {
-      throw new Error(`Button not clickable: ${label}`);
+      const availableButtons = await buttons();
+      throw new Error(`Button not clickable: ${label}; available=${JSON.stringify(availableButtons)}`);
     }
   };
 
@@ -167,18 +168,65 @@ async function main() {
 
   await clickButton('+1K Memory');
   await clickButton('+1 Fragment');
-  await clickButton('Unlock All Skins');
   await clickButton('Clear Stage');
-  if ((await visibleText()).includes('Stage Clear!')) {
-    await clickButton('Continue');
-    await waitFor('Stage clear overlay continues', async () => !(await visibleText()).includes('Stage Clear!'));
-  }
+  await waitFor('Stage 1 clear modal shows its background reward', async () => {
+    const text = await visibleText();
+    return text.includes('STAGE CLEAR!') && text.includes('Default Room');
+  });
+  await clickButton('Open Gallery');
+  await waitFor('Stage reward card opens Gallery', async () =>
+    js(`Boolean(document.querySelector('.gallery-backdrop'))`),
+  );
+  await clickButton('Close Gallery');
+  await waitFor('Stage reward Gallery closes', async () =>
+    js(`!document.querySelector('.gallery-backdrop')`),
+  );
+
+  await clickButton('Clear Stage');
+  await waitFor('Stage 2 clear modal opens', async () => (await visibleText()).includes('STAGE CLEAR!'));
+  await assert('Stage 2 clear modal names the cleared stage', async () =>
+    (await visibleText()).includes('Stage 2'),
+  );
+  await assert('Stage 2 clear modal announces a new skin', async () =>
+    (await visibleText()).includes('NEW SKIN UNLOCKED!'),
+  );
+  await assert('Stage 2 clear modal shows Lumi Pastel reward', async () =>
+    (await visibleText()).includes('Lumi Pastel'),
+  );
+  await assert('Stage 2 clear modal shows Cozy Room reward', async () =>
+    (await visibleText()).includes('Cozy Room'),
+  );
+  await assert('Stage 2 clear modal shows Astra reward', async () =>
+    (await visibleText()).includes('Astra'),
+  );
+  await clickButton('Set Background');
+  await waitFor('Stage 2 reward card sets Cozy Room', async () =>
+    (await visibleText()).includes('In Use'),
+  );
+  await clickButton('Equip');
+  await waitFor('Stage 2 reward card equips Lumi Pastel', async () =>
+    (await visibleText()).includes('Equipped'),
+  );
+  await clickButton('Continue');
+  await waitFor('Stage 2 clear modal continues', async () => !(await visibleText()).includes('STAGE CLEAR!'));
 
   await clickButton('Skill Tree');
   await waitFor('Skill Tree opens', async () => (await visibleText()).includes('Bounce Memory I'));
   await clickButton('Unlock - 1 Fragment');
   await waitFor('Skill Tree unlock consumes Fragment', async () => (await visibleText()).includes('Unlocked'));
   await clickButton('Close');
+
+  await clickButton('Change Skin');
+  await waitFor('Skin selector opens', async () =>
+    js(`Boolean(document.querySelector('.skin-selector-modal'))`),
+  );
+  await waitFor('Skin selector shows the Stage 2 reward as equipped', async () =>
+    (await visibleText()).includes('Currently equipped'),
+  );
+  await clickButton('Close');
+  await waitFor('Skin selector closes with equipped skin visible', async () =>
+    (await visibleText()).includes('Lumi Pastel'),
+  );
 
   await clickButton('Save Game');
   await waitFor('Manual Save from ResourceBar shows Saved toast', async () =>
@@ -231,6 +279,14 @@ async function main() {
     savedBeforeReload.stats &&
     savedBeforeReload.unlockedSkillNodes?.bounce_memory_1 === 1,
   );
+  await assert('Stage 2 rewards persist once in the saved game', async () =>
+    savedBeforeReload.clearedStages.includes('stage-2') &&
+    savedBeforeReload.unlockedBackgrounds.includes('bg_cozy_room') &&
+    savedBeforeReload.unlockedMuseIds.includes('astra') &&
+    savedBeforeReload.unlockedSkinIds.filter((skinId) => skinId === 'lumi_pastel').length === 1 &&
+    savedBeforeReload.currentBackgroundId === 'bg_cozy_room' &&
+    savedBeforeReload.equippedSkinByMuseId.lumi === 'lumi_pastel',
+  );
   await assert('Continue reload keeps saved Memory and Skill Tree state', async () =>
     savedAfterContinue.memory >= 1000 &&
     savedAfterContinue.unlockedSkillNodes?.bounce_memory_1 === 1,
@@ -258,6 +314,7 @@ async function main() {
     !gameSaveRaw.includes('wallpaperSettings'),
   );
 
+  await selectByLabel('Wallpaper FPS', '60');
   await selectByLabel('Wallpaper Mode', 'stage');
   await win.reload();
   await waitFor('Reload after Wallpaper Stage mode returns to title', async () =>

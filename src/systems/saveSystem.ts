@@ -53,6 +53,7 @@ type CompatibleSaveData = Pick<
       | 'unlockedSkinIds'
       | 'equippedSkinByMuseId'
       | 'fragments'
+      | 'capsuleCount'
       | 'unlockedSkillNodes'
       | 'rebootCount'
       | 'lastSavedAt'
@@ -284,6 +285,7 @@ export function createNewGameState(motionIntensity: MotionIntensity = 'medium'):
     skillStates: createInitialSkillStates(),
     museTapStates: createInitialMuseTapStates(),
     fragments: 0,
+    capsuleCount: 0,
     unlockedSkillNodes: createInitialSkillNodes(),
     rebootCount: 0,
     saveStatus: 'idle',
@@ -378,6 +380,9 @@ export function loadGameState({
       skillStates: createInitialSkillStates(),
       museTapStates: createInitialMuseTapStates(),
       ...restoreSkillTreeState(parsedData),
+      capsuleCount: isNonNegativeNumber(parsedData.capsuleCount)
+        ? Math.floor(parsedData.capsuleCount)
+        : 0,
       saveStatus: 'idle',
       lastSavedAt: isNonNegativeNumber(parsedData.lastSavedAt) ? parsedData.lastSavedAt : null,
       lastSaveError: null,
@@ -460,6 +465,7 @@ export function saveGameState(
     unlockedSkinIds: state.unlockedSkinIds,
     equippedSkinByMuseId: state.equippedSkinByMuseId,
     fragments: state.fragments,
+    capsuleCount: state.capsuleCount,
     unlockedSkillNodes: state.unlockedSkillNodes,
     rebootCount: state.rebootCount,
     lastSavedAt: savedAt,

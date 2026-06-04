@@ -7,6 +7,7 @@ export const stages: Stage[] = [
     description: 'Find the rhythm of the first corners.',
     cornerHitGoal: 100,
     rewardBackgroundId: 'bg_default_room',
+    rewards: [{ type: 'background', id: 'bg_default_room' }],
   },
   {
     id: 'stage-2',
@@ -15,6 +16,11 @@ export const stages: Stage[] = [
     cornerHitGoal: 300,
     rewardBackgroundId: 'bg_cozy_room',
     skinRewardIds: ['lumi_pastel'],
+    rewards: [
+      { type: 'background', id: 'bg_cozy_room' },
+      { type: 'skin', id: 'lumi_pastel' },
+      { type: 'muse', id: 'astra' },
+    ],
   },
   {
     id: 'stage-3',
@@ -22,6 +28,10 @@ export const stages: Stage[] = [
     description: 'Reach the neon rhythm and prepare for the final unlock.',
     cornerHitGoal: 500,
     rewardBackgroundId: 'bg_neon_room',
+    rewards: [
+      { type: 'background', id: 'bg_neon_room' },
+      { type: 'muse', id: 'vega' },
+    ],
   },
   {
     id: 'stage-4',
@@ -29,6 +39,10 @@ export const stages: Stage[] = [
     description: 'Master the pinball field and unlock the late-game Muse.',
     cornerHitGoal: 700,
     rewardBackgroundId: 'bg_pinball_neon',
+    rewards: [
+      { type: 'background', id: 'bg_pinball_neon' },
+      { type: 'muse', id: 'noir' },
+    ],
   },
 ];
 

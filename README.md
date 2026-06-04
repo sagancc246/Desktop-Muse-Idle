@@ -1056,6 +1056,51 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 8. Reload the page, reopen Settings, and confirm the Wallpaper Settings values persist.
 9. Run `npm run build` and confirm TypeScript and Vite build successfully.
 
+## Stage Clear Rewards
+
+- Clearing a stage now opens a dedicated Stage Clear modal with the cleared stage name and reward cards.
+- Reward cards support skins, backgrounds, Muses, Memory, and Capsules.
+- Stage 2 grants and displays Cozy Room, Lumi Pastel, and Astra.
+- Skin reward cards can Equip immediately, background cards can Set Background or Open Gallery, and Muse cards can Set Active.
+- Rewards are granted once when the stage is newly cleared and are saved before the modal is dismissed.
+- Stage Clear uses a soft flash, small sparkles, a short jingle stub, and a reduced presentation when Motion Intensity is Low.
+
+### Stage Clear Reward Verification
+
+1. Run `npm run dev` and start a new game.
+2. In the development Debug Panel, use `Clear Stage` to complete Stage 1.
+3. Confirm the Stage Clear modal shows Default Room and that `Open Gallery` opens the Gallery.
+4. Complete Stage 2 and confirm Cozy Room, Lumi Pastel, and Astra appear as reward cards.
+5. Use `Set Background` and `Equip`, then press `Continue`.
+6. Save and reload, then confirm Cozy Room remains selected, Lumi Pastel remains equipped, and Astra remains unlocked.
+7. Confirm clearing or reloading does not duplicate owned rewards.
+
+## Bundle Splitting And Wallpaper FPS Verification
+
+- Non-initial UI panels use `React.lazy` and `Suspense` so the title screen does not load every heavy panel up front.
+- Lazy-loaded panels include Settings, Gallery, Credits, Stats, Debug Panel, Skill Tree, Skin Selector, and GameCanvas.
+- Vite manual chunks split React, Zustand, and other vendor code without raising `build.chunkSizeWarningLimit`.
+- PixiJS stays on Vite/Rollup automatic splitting because aggressive manual Pixi chunking produced circular chunk warnings.
+- Current `npm run build` output has no 500 kB chunk warning. The largest chunks are GameCanvas/Pixi runtime code, React vendor code, and the small main index chunk.
+- If the bundle grows again, consider adding `rollup-plugin-visualizer` as a dev-only dependency to inspect exact module weight before changing chunk strategy.
+- Wallpaper FPS limits the Pixi ticker in Wallpaper Stage and Muse Overlay modes. This reduces both GameCanvas update callbacks and Pixi render cadence while preserving delta-time-based game speed.
+- Normal gameplay keeps the existing unrestricted ticker behavior.
+- The development Debug Panel shows `Wallpaper FPS`, `Update interval`, `Last delta`, and measured updates per second from GameCanvas while `import.meta.env.DEV` is true.
+- Cadence must be checked in a visible window. The existing hidden-tab control stops the Pixi ticker, so a hidden Electron regression window cannot provide a meaningful 30/60fps measurement.
+
+### Bundle And Wallpaper FPS Verification
+
+1. Run `npm run dev` and enter the game screen.
+2. Open Skill Tree and confirm it appears after the lightweight loading fallback.
+3. Open Change Skin, equip an unlocked skin, and confirm the selected skin appears in the Muse panel.
+4. Open Settings, Gallery, Stats, and Credits and confirm each opens and closes normally.
+5. In Settings, set Wallpaper FPS to `30`.
+6. Enter Wallpaper Stage Mode and confirm the Debug Panel reports `Wallpaper FPS 30`, an update interval near `33.3ms`, and measured updates near `30/s`.
+7. Set Wallpaper FPS to `60` and confirm measured updates return near `60/s`.
+8. Repeat the FPS check in Muse Overlay Mode.
+9. Confirm Wall Hits, strict Corner Hits, Near Corners, Muse Tap, Memory gain, and stage progress still behave normally.
+10. Run `npm run build` and confirm no 500 kB chunk warning appears.
+
 ## Wallpaper Mode Settings Persistence
 
 - Wallpaper settings are now saved separately from game progress and normal app settings.

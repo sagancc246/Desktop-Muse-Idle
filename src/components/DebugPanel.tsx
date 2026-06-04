@@ -8,15 +8,23 @@ import { useGameStore } from '../store/useGameStore';
 interface DebugCollisionStatus {
   activeRuntimeIds: string[];
   cloneCount: number;
+  currentWallpaperFps: number;
   lastEvent: string;
   lastEventAt: number | null;
+  lastUpdateDeltaMs: number;
+  measuredUpdatesPerSecond: number;
+  updateIntervalMs: number;
 }
 
 const defaultCollisionStatus: DebugCollisionStatus = {
   activeRuntimeIds: [],
   cloneCount: 0,
+  currentWallpaperFps: 0,
   lastEvent: 'Waiting for GameCanvas',
   lastEventAt: null,
+  lastUpdateDeltaMs: 0,
+  measuredUpdatesPerSecond: 0,
+  updateIntervalMs: 0,
 };
 
 const formatRemaining = (milliseconds: number) =>
@@ -135,6 +143,15 @@ export function DebugPanel() {
           <span>Active Bodies {collisionStatus.activeRuntimeIds.join(', ') || 'none'}</span>
           <span>Clones {collisionStatus.cloneCount}</span>
           <span>Vega Bumper {vegaStatus}</span>
+          <span>
+            Wallpaper FPS{' '}
+            {collisionStatus.currentWallpaperFps > 0
+              ? collisionStatus.currentWallpaperFps
+              : 'off'}
+          </span>
+          <span>Update interval {collisionStatus.updateIntervalMs.toFixed(1)}ms</span>
+          <span>Last delta {collisionStatus.lastUpdateDeltaMs.toFixed(1)}ms</span>
+          <span>Measured updates {collisionStatus.measuredUpdatesPerSecond.toFixed(1)}/s</span>
           <span>Last {collisionStatus.lastEvent}</span>
           <span>At {lastEventTime}</span>
         </div>

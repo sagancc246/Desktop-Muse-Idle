@@ -25,7 +25,7 @@ import {
   saveGame,
   saveGameState,
 } from '../systems/saveSystem';
-import type { GameState, GameStore } from '../types/game';
+import type { GameState, GameStore, GrantedStageReward, StageReward } from '../types/game';
 import type { MotionIntensity } from '../types/game';
 
 const initialState = loadGameState();
@@ -95,13 +95,18 @@ function withMuseUnlocks(state: GameState, updates: Partial<GameState>): Partial
 function applyCornerHitProgress(state: GameState, hitCount = 1): Partial<GameState> {
   let currentStageId = state.currentStageId;
   let currentBackgroundId = state.currentBackgroundId;
+  let memory = state.memory;
+  let capsuleCount = state.capsuleCount;
   let totalCornerHits = state.totalCornerHits;
   let pendingStageClear = state.pendingStageClear;
   const stageCornerHits = { ...state.stageCornerHits };
   const clearedStages = [...state.clearedStages];
   const unlockedBackgrounds = [...state.unlockedBackgrounds];
+  const unlockedMuseIds = [...state.unlockedMuseIds];
+  const newlyUnlockedMuseIds = [...state.newlyUnlockedMuseIds];
   const unlockedSkinIds = [...state.unlockedSkinIds];
   const newlyUnlockedSkinIds = [...state.newlyUnlockedSkinIds];
+  let stageRewardMemoryEarned = 0;
   const safeHitCount = Math.max(0, Math.floor(hitCount));
 
   for (let hitIndex = 0; hitIndex < safeHitCount; hitIndex += 1) {
@@ -127,27 +132,60 @@ function applyCornerHitProgress(state: GameState, hitCount = 1): Partial<GameSta
 
     clearedStages.push(currentStage.id);
 
-    const stageBackgrounds = backgrounds.filter(
-      (background) =>
-        background.id === currentStage.rewardBackgroundId ||
-        background.unlockStageId === currentStage.id,
-    );
-    const rewardBackground = getBackgroundById(currentStage.rewardBackgroundId);
-
-    for (const stageBackground of stageBackgrounds) {
-      if (!unlockedBackgrounds.includes(stageBackground.id)) {
-        unlockedBackgrounds.push(stageBackground.id);
+    const stageRewards: StageReward[] = [...currentStage.rewards];
+    const addLegacyReward = (reward: StageReward) => {
+      if (
+        !stageRewards.some(
+          (candidate) => candidate.type === reward.type && candidate.id === reward.id,
+        )
+      ) {
+        stageRewards.push(reward);
       }
-
-      if (currentBackgroundId === null) {
-        currentBackgroundId = stageBackground.id;
-      }
+    };
+    addLegacyReward({ type: 'background', id: currentStage.rewardBackgroundId });
+    for (const background of backgrounds.filter(
+      (candidate) => candidate.unlockStageId === currentStage.id,
+    )) {
+      addLegacyReward({ type: 'background', id: background.id });
+    }
+    for (const skinId of currentStage.skinRewardIds ?? []) {
+      addLegacyReward({ type: 'skin', id: skinId });
     }
 
-    for (const skinId of currentStage.skinRewardIds ?? []) {
-      if (getSkinById(skinId) && !unlockedSkinIds.includes(skinId)) {
-        unlockedSkinIds.push(skinId);
-        newlyUnlockedSkinIds.push(skinId);
+    const grantedRewards: GrantedStageReward[] = [];
+    for (const reward of stageRewards) {
+      if (reward.type === 'background' && reward.id && getBackgroundById(reward.id)) {
+        const alreadyOwned = unlockedBackgrounds.includes(reward.id);
+        if (!alreadyOwned) {
+          unlockedBackgrounds.push(reward.id);
+        }
+        if (currentBackgroundId === null) {
+          currentBackgroundId = reward.id;
+        }
+        grantedRewards.push({ ...reward, alreadyOwned });
+      } else if (reward.type === 'skin' && reward.id && getSkinById(reward.id)) {
+        const alreadyOwned = unlockedSkinIds.includes(reward.id);
+        if (!alreadyOwned) {
+          unlockedSkinIds.push(reward.id);
+          newlyUnlockedSkinIds.push(reward.id);
+        }
+        grantedRewards.push({ ...reward, alreadyOwned });
+      } else if (reward.type === 'muse' && reward.id && getMuseById(reward.id)) {
+        const alreadyOwned = unlockedMuseIds.includes(reward.id);
+        if (!alreadyOwned) {
+          unlockedMuseIds.push(reward.id);
+          newlyUnlockedMuseIds.push(reward.id);
+        }
+        grantedRewards.push({ ...reward, alreadyOwned });
+      } else if (reward.type === 'memory' && (reward.amount ?? 0) > 0) {
+        const amount = Math.floor(reward.amount ?? 0);
+        memory += amount;
+        stageRewardMemoryEarned += amount;
+        grantedRewards.push({ ...reward, amount, alreadyOwned: false });
+      } else if (reward.type === 'capsule' && (reward.amount ?? 0) > 0) {
+        const amount = Math.floor(reward.amount ?? 0);
+        capsuleCount += amount;
+        grantedRewards.push({ ...reward, amount, alreadyOwned: false });
       }
     }
 
@@ -155,8 +193,7 @@ function applyCornerHitProgress(state: GameState, hitCount = 1): Partial<GameSta
     pendingStageClear = {
       stageId: currentStage.id,
       stageName: currentStage.name,
-      rewardBackgroundId: currentStage.rewardBackgroundId,
-      rewardBackgroundName: rewardBackground?.name ?? 'New Background',
+      rewards: grantedRewards,
       nextStageId: nextStage?.id ?? null,
       nextStageName: nextStage?.name ?? null,
     };
@@ -168,17 +205,22 @@ function applyCornerHitProgress(state: GameState, hitCount = 1): Partial<GameSta
 
   return {
     totalCornerHits,
+    memory,
+    capsuleCount,
     stats: {
       ...state.stats,
       highestStageReached: Math.max(state.stats.highestStageReached, getStageNumber(currentStageId)),
       totalCornerHits: state.stats.totalCornerHits + safeHitCount,
       unlockedBackgroundCount: unlockedBackgrounds.length,
+      totalMemoryEarned: state.stats.totalMemoryEarned + stageRewardMemoryEarned,
     },
     currentStageId,
     stageCornerHits,
     clearedStages,
     unlockedBackgrounds,
     currentBackgroundId,
+    unlockedMuseIds,
+    newlyUnlockedMuseIds,
     unlockedSkinIds,
     newlyUnlockedSkinIds,
     pendingStageClear,
@@ -237,7 +279,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   incrementCornerHit: () => {
+    const previousStageClearId = get().pendingStageClear?.stageId;
     set((state) => withMuseUnlocks(state, applyCornerHitProgress(state)));
+    if (get().pendingStageClear?.stageId !== previousStageClearId) {
+      saveGameState(get(), getCurrentMotionIntensity());
+    }
   },
 
   recordWallHit: (memoryEarned) => {
@@ -261,19 +307,23 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return;
     }
 
+    const previousStageClearId = get().pendingStageClear?.stageId;
     set((state) => {
       const progress = applyCornerHitProgress(state);
       const progressStats = progress.stats ?? state.stats;
 
       return withMuseUnlocks(state, {
         ...progress,
-        memory: state.memory + memoryEarned,
+        memory: (progress.memory ?? state.memory) + memoryEarned,
         stats: {
           ...progressStats,
           totalMemoryEarned: progressStats.totalMemoryEarned + memoryEarned,
         },
       });
     });
+    if (get().pendingStageClear?.stageId !== previousStageClearId) {
+      saveGameState(get(), getCurrentMotionIntensity());
+    }
   },
 
   recordNearCorner: () => {
@@ -689,7 +739,29 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   dismissStageClear: () => {
-    set({ pendingStageClear: null });
+    set((state) => {
+      const skinRewardIds = new Set(
+        state.pendingStageClear?.rewards
+          .filter((reward) => reward.type === 'skin' && reward.id)
+          .map((reward) => reward.id as string) ?? [],
+      );
+      const museRewardIds = new Set(
+        state.pendingStageClear?.rewards
+          .filter((reward) => reward.type === 'muse' && reward.id)
+          .map((reward) => reward.id as string) ?? [],
+      );
+
+      return {
+        pendingStageClear: null,
+        newlyUnlockedSkinIds: state.newlyUnlockedSkinIds.filter(
+          (skinId) => !skinRewardIds.has(skinId),
+        ),
+        newlyUnlockedMuseIds: state.newlyUnlockedMuseIds.filter(
+          (museId) => !museRewardIds.has(museId),
+        ),
+      };
+    });
+    saveGameState(get(), getCurrentMotionIntensity());
   },
 
   triggerCornerHitFlash: (corner) => {
@@ -729,6 +801,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return;
     }
 
+    const previousStageClearId = get().pendingStageClear?.stageId;
     set((state) => {
       const motionIntensity = getCurrentMotionIntensity();
       const bounceReward = calculateBounceReward(
@@ -747,7 +820,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
       return withMuseUnlocks(state, {
         ...progress,
-        memory: state.memory + bounceReward + cornerReward,
+        memory: (progress.memory ?? state.memory) + bounceReward + cornerReward,
         totalBounces: state.totalBounces + 1,
         stats: {
           ...progressStats,
@@ -758,6 +831,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
         lastCornerHitFlash: { corner: 'top_left', occurredAt: Date.now() },
       });
     });
+    if (get().pendingStageClear?.stageId !== previousStageClearId) {
+      saveGameState(get(), getCurrentMotionIntensity());
+    }
   },
 
   debugCompleteCurrentStage: () => {
@@ -765,6 +841,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return;
     }
 
+    const previousStageClearId = get().pendingStageClear?.stageId;
     set((state) => {
       const currentStage = getStageById(state.currentStageId);
 
@@ -781,6 +858,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
       return withMuseUnlocks(state, applyCornerHitProgress(state, Math.max(1, remainingHits)));
     });
+    if (get().pendingStageClear?.stageId !== previousStageClearId) {
+      saveGameState(get(), getCurrentMotionIntensity());
+    }
   },
 
   debugActivateMuseSkill: (museId) => {

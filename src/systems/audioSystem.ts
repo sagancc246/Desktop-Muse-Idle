@@ -66,6 +66,33 @@ export function playCornerHitSound(seVolume: number): void {
   }
 }
 
+export function playStageClearJingle(seVolume: number): void {
+  if (!audioContext || audioContext.state !== 'running') {
+    return;
+  }
+
+  const now = audioContext.currentTime;
+  const gain = audioContext.createGain();
+  const normalizedVolume = Math.min(Math.max(seVolume, 0), 100) / 100;
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, 0.08 * normalizedVolume), now + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.72);
+  gain.connect(audioContext.destination);
+
+  for (const [frequency, delay] of [
+    [523.25, 0],
+    [659.25, 0.12],
+    [783.99, 0.25],
+  ] as const) {
+    const oscillator = audioContext.createOscillator();
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(frequency, now + delay);
+    oscillator.connect(gain);
+    oscillator.start(now + delay);
+    oscillator.stop(now + delay + 0.34);
+  }
+}
+
 export function playMuseTapVoice(tapVoice: TapVoice, seVolume: number): void {
   if (
     typeof window === 'undefined' ||

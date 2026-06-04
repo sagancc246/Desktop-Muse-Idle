@@ -245,3 +245,54 @@ The project also has foundations for Wallpaper Stage Mode, Muse Overlay Mode, an
   - `react-vendor`: about 142.92 kB.
   - `index`: about 76.47 kB.
 - Re-ran `npm.cmd run verify:priority1`, `npm.cmd run verify:priority2`, and `npm.cmd run verify:priority3`; all passed.
+
+## Priority 5-A Lazy UI Loading
+
+- Lazy-loaded the remaining heavy on-demand UI:
+  - `SkillTreePanel`
+  - `SkinSelectorModal`
+- Added lightweight fixed-stage loading fallbacks for lazy-loaded screens and modal panels.
+- Updated the Priority 1 regression script to verify the lazy-loaded Skin Selector opens and can equip an unlocked skin.
+- Build comparison for the lazy UI pass:
+  - Before: main `index` about 76.47 kB, with Skill Tree and Skin Selector included in parent chunks.
+  - After: main `index` about 73.64 kB, `SkillTreePanel` about 1.90 kB, and `SkinSelectorModal` about 2.23 kB.
+- Title, Settings, Gallery, Credits, Stats, Skill Tree, and Skin Selector navigation passed the Priority 1 regression flow.
+
+## Priority 5-B Wallpaper FPS Follow-Up
+
+- Confirmed `wallpaperSettings.fps` supports 30 and 60 through the existing wallpaper settings storage.
+- Confirmed `GameCanvas` applies the selected Wallpaper FPS through Pixi ticker `maxFPS`, which limits both the game update callback and Pixi render cadence in Wallpaper Stage and Muse Overlay modes.
+- Removed a redundant manual update accumulator after review found it could double-throttle the already-limited Pixi ticker.
+- Updated the ticker limit only when the requested Wallpaper FPS changes instead of invoking the Pixi `maxFPS` setter every callback.
+- Game updates continue using Pixi ticker delta time, so 30fps does not intentionally change internal speed, rewards, coordinates, or collision rules.
+- Normal gameplay remains unrestricted.
+- Added development-only Debug Panel readout for Wallpaper FPS, expected update interval, last update delta, and wall-clock measured updates per second.
+- Attempted automated cadence measurement in the Electron regression runner. The runner's hidden document is intentionally stopped by the existing visibility control, so visible-window 30/s and 60/s cadence remains a manual Debug Panel check instead of a misleading automated assertion.
+- Regression result: `verify:priority1`, `verify:priority2`, and `verify:priority3` passed after the ticker change.
+- `npm.cmd run build` now completes without a 500 kB chunk warning; `SkillTreePanel` and `SkinSelectorModal` are emitted as separate lazy chunks.
+
+## Skin Selector Equip Feedback
+
+- Selected the Skin Selector Equip feedback task as the next player-facing improvement because skin unlock notifications already existed and this change could improve a frequent interaction without touching game, collision, reward, or save behavior.
+- Added an always-visible current equipment state to the selected skin card.
+- Added a polite live status message after Equip so the player can confirm the new skin before closing the modal.
+- Added a focused equipped-card visual treatment while keeping locked skins and locked Muses unequippable.
+- Extended the Priority 1 regression flow to confirm the Equip completion message appears.
+- Verification: `npm.cmd run build` and `npm.cmd run verify:priority1` passed.
+
+## Stage Clear Reward Presentation
+
+- Replaced the single-background Stage Clear overlay with `StageClearModal` and reusable `RewardCard` components.
+- Added typed stage `rewards` for skin, background, Muse, Memory, and Capsule rewards while preserving legacy background and skin reward fields.
+- Stage 2 now explicitly presents and grants Cozy Room, Lumi Pastel, and Astra.
+- Stage rewards are granted atomically only on a new stage clear, then saved immediately before the modal is dismissed.
+- Added reward-card actions for immediate skin Equip, background selection, Gallery opening, and Muse activation.
+- Added Capsule inventory persistence with a safe `0` fallback for older saves.
+- Added a soft Stage Clear flash, small sparkles, low-motion presentation, and a short audio jingle stub.
+- Stage-reward skin and Muse notifications are removed from their follow-up queues when the Stage Clear modal closes, avoiding duplicate unlock presentation.
+- Extended Priority 1 verification to cover Stage 1/2 reward display, Gallery opening, Cozy Room selection, Lumi Pastel Equip, save persistence, and single ownership.
+- Verification passed:
+  - `npm.cmd run build`
+  - `npm.cmd run verify:priority1`
+  - `npm.cmd run verify:priority2`
+  - `npm.cmd run verify:priority3`

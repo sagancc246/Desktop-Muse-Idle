@@ -90,26 +90,42 @@ Status: verified with `npm run verify:priority3`.
   - Skin selector.
 - Review Japanese/English labels for consistency.
 
+### Player Experience Improvements
+
+- [x] Improve Skin Selector Equip confirmation and equipped-state visibility.
+- [x] Improve Stage Clear rewards with reward cards, immediate reward actions, and clear feedback.
+
 ## Priority 5: Performance And Bundle Size
 
-Status: Vite large `index` chunk warning resolved with screen lazy loading and vendor chunk splitting.
+Status: Vite large `index` chunk warning resolved; Wallpaper FPS long-duration hardware profiling deferred to release-before checks.
 
-- Investigate Vite chunk warning for large `index` chunk. Done: `index` is about 76.47 kB after splitting.
-- Consider dynamic imports for heavy panels:
-  - Gallery. Done.
-  - Stats.
-  - Settings. Done.
-  - Credits. Done.
-  - Skill Tree.
-  - Debug Panel. Done.
-  - Skin selector.
+### Priority 5-A: Lazy UI Loading
+
+- [x] Investigate Vite chunk warning for large `index` chunk. Done: `index` is about 73.64 kB after splitting.
+- [x] Consider dynamic imports for heavy panels:
+  - [x] Gallery.
+  - [x] Stats.
+  - [x] Settings.
+  - [x] Credits.
+  - [x] Skill Tree.
+  - [x] Debug Panel.
+  - [x] Skin selector.
+
+### Priority 5-B: Runtime Performance
+
 - Profile GameCanvas under:
   - Normal gameplay.
   - Focus Mode.
   - Wallpaper Stage Mode.
   - Muse Overlay Mode.
-- Verify Wallpaper FPS setting actually reduces ticker/update load.
+- [x] Verify Wallpaper FPS setting is applied to ticker/update/render load through Pixi ticker `maxFPS`; the development Debug Panel exposes real-time cadence for visible Wallpaper modes.
 - Tune low effects mode for long-running display.
+
+Next TODO:
+
+- Consider adding `rollup-plugin-visualizer` as a dev-only bundle analysis tool if chunk size grows again.
+- Release-before manual check: profile Wallpaper Stage and Muse Overlay over a long session on real desktop hardware.
+- Release-before manual check: confirm the Debug Panel reports approximately 30/s and 60/s on a visible desktop window; hidden Electron regression windows are intentionally stopped by the existing visibility control and cannot measure Wallpaper cadence.
 
 ## Priority 6: Debug Tools
 
