@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { FocusHud } from './components/FocusHud';
+import { BackfillRewardsModal } from './components/BackfillRewardsModal';
 import { FirstRunTutorial } from './components/FirstRunTutorial';
 import { MusePanel } from './components/MusePanel';
 import { MuseOverlayHud } from './components/MuseOverlayHud';
@@ -78,6 +79,8 @@ export default function App() {
   const dismissOfflineReward = useGameStore((state) => state.dismissOfflineReward);
   const pendingStageClear = useGameStore((state) => state.pendingStageClear);
   const dismissStageClear = useGameStore((state) => state.dismissStageClear);
+  const pendingBackfillRewards = useGameStore((state) => state.pendingBackfillRewards);
+  const dismissBackfillRewards = useGameStore((state) => state.dismissBackfillRewards);
   const newlyUnlockedMuseIds = useGameStore((state) => state.newlyUnlockedMuseIds);
   const dismissMuseUnlock = useGameStore((state) => state.dismissMuseUnlock);
   const newlyUnlockedSkinIds = useGameStore((state) => state.newlyUnlockedSkinIds);
@@ -95,6 +98,7 @@ export default function App() {
     !hasSeenTutorial &&
     !pendingOfflineReward &&
     !pendingStageClear &&
+    !pendingBackfillRewards &&
     !newlyUnlockedMuseIds[0];
 
   useEffect(() => {
@@ -336,10 +340,20 @@ export default function App() {
             summary={pendingStageClear}
           />
         ) : null}
-        {!isMuseOverlayMode && !pendingStageClear && newlyUnlockedMuseIds[0] ? (
+        {!isMuseOverlayMode && !pendingOfflineReward && !pendingStageClear && pendingBackfillRewards ? (
+          <BackfillRewardsModal
+            groups={pendingBackfillRewards}
+            onContinue={dismissBackfillRewards}
+            onOpenGallery={() => {
+              dismissBackfillRewards();
+              setGalleryOpenRequestKey((requestKey) => requestKey + 1);
+            }}
+          />
+        ) : null}
+        {!isMuseOverlayMode && !pendingStageClear && !pendingBackfillRewards && newlyUnlockedMuseIds[0] ? (
           <MuseUnlockModal museId={newlyUnlockedMuseIds[0]} onClose={dismissMuseUnlock} />
         ) : null}
-        {!isMuseOverlayMode && !pendingStageClear && newlyUnlockedSkinIds[0] ? (
+        {!isMuseOverlayMode && !pendingStageClear && !pendingBackfillRewards && newlyUnlockedSkinIds[0] ? (
           <SkinUnlockToast skinId={newlyUnlockedSkinIds[0]} onClose={dismissSkinUnlock} />
         ) : null}
         {shouldShowTutorial ? (

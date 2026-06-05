@@ -1,4 +1,15 @@
 import type { UpgradeCollection, UpgradeDefinition, UpgradeId } from '../types/game';
+import {
+  bounceBoostBaseCost,
+  bounceBoostCostRate,
+  bounceBoostRewardMultiplier,
+  cornerSensorBaseCost,
+  cornerSensorCostRate,
+  cornerSensorRewardMultiplier,
+  speedTuneBaseCost,
+  speedTuneCostRate,
+  speedTuneMultiplier,
+} from './balance';
 
 export const upgradeIds: UpgradeId[] = ['bounce_boost', 'speed_tune', 'corner_sensor'];
 
@@ -7,28 +18,28 @@ export const upgradeDefinitions: Record<UpgradeId, UpgradeDefinition> = {
     id: 'bounce_boost',
     name: 'Bounce Boost',
     description: 'Wall hit Memory x2.00',
-    baseCost: 15,
-    costRate: 1.8,
+    baseCost: bounceBoostBaseCost,
+    costRate: bounceBoostCostRate,
     effectType: 'bounce_reward',
-    effectValue: 2,
+    effectValue: bounceBoostRewardMultiplier,
   },
   speed_tune: {
     id: 'speed_tune',
     name: 'Speed Tune',
     description: 'Muse speed x1.20',
-    baseCost: 30,
-    costRate: 1.8,
+    baseCost: speedTuneBaseCost,
+    costRate: speedTuneCostRate,
     effectType: 'speed',
-    effectValue: 1.2,
+    effectValue: speedTuneMultiplier,
   },
   corner_sensor: {
     id: 'corner_sensor',
     name: 'Corner Sensor',
-    description: 'Corner reward x1.50',
-    baseCost: 50,
-    costRate: 1.8,
+    description: 'Improves Near Corner guidance and Corner support rewards.',
+    baseCost: cornerSensorBaseCost,
+    costRate: cornerSensorCostRate,
     effectType: 'corner_reward',
-    effectValue: 1.5,
+    effectValue: cornerSensorRewardMultiplier,
   },
 };
 

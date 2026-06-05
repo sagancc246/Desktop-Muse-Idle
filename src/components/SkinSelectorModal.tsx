@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { getMuseById } from '../data/muses';
-import { getSkinUnlockMethodLabel, getSkinsByMuseId } from '../data/skins';
+import { getSkinsByMuseId } from '../data/skins';
+import { getUnlockConditionLabel } from '../game/unlockChecker';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { useGameStore } from '../store/useGameStore';
 import { FallbackImage } from './FallbackImage';
@@ -111,7 +112,7 @@ export function SkinSelectorModal({ museId, onClose }: SkinSelectorModalProps) {
                     <span>{skin.rarity}</span>
                   </div>
                   <p>{skin.description}</p>
-                  <small>{getSkinUnlockMethodLabel(skin.unlockMethod)}</small>
+                  <small>{getUnlockConditionLabel(skin.unlockCondition)}</small>
                 </div>
                 <div className="skin-card-footer">
                   <strong className={isUnlocked ? 'owned' : 'locked'}>

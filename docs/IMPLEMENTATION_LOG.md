@@ -352,3 +352,46 @@ Verification results on 2026-06-05:
   - Windows `npm.cmd` child-process startup needed a Windows-compatible command invocation.
   - The existing Priority 1 canvas-size assertion could capture `null` before Pixi initialization.
 - Port `5173` was already used by an existing development server, so verification was isolated on port `4174` rather than stopping or reusing the developer server.
+
+## Reward And Unlock Master Foundation
+
+- Added the shared `Reward` union for skin, background, Muse, Memory, Capsule, Shard, and Conversation rewards.
+- Added `rewardApplier.ts` to centralize reward validation, ownership checks, granting, and unsupported reward results.
+- Replaced Stage-specific reward types and legacy Stage reward fields with the shared `Reward` type.
+- Added the shared `UnlockCondition` union and applied it to Muse, skin, and background master data.
+- Added persistent `claimedStageRewardIds` so Stage rewards are granted once independently from Stage Clear modal presentation.
+- Kept Stage 2 Cozy Room, Lumi Pastel, and Astra rewards and their existing immediate actions.
+- Added safe Unknown Reward presentation for missing master IDs and deferred reward types.
+- Kept `saveVersion = 1`; older saves fill missing `claimedStageRewardIds` with an empty array.
+- Verification passed: `npm.cmd run typecheck`, `npm.cmd run build`, `npm.cmd run verify:priority1`, `npm.cmd run verify:priority3`, `npm.cmd run verify:all`, and standalone `npm.cmd run dev` startup.
+
+## V1.0 Master Data Pass
+
+- Organized the v1.0 master set for 4 Muses, 8 skins, 6 backgrounds, 10 stages, 4 Muse skills, and 3 upgrades.
+- Kept all existing Muse, skin, background, Stage 1-4, and upgrade IDs; retained `bg_pinball_neon` as an additional Stage 7 background reward.
+- Added Muse `defaultSkinId` and centralized skill definitions with `durationMs`, `cooldownMs`, and `trigger`.
+- Made `bg_default_room` the initial background and added background thumbnails and shared unlock conditions.
+- Preserved Stage 2 Lumi Pastel and Astra unlocks while moving Vega to the v1.0 Stage 5 condition.
+- Moved upgrade costs and multipliers into `balance.ts`; Corner Sensor copy now describes Near Corner guidance instead of widening true Corner Hit detection.
+- Verification passed: `npm.cmd run typecheck`, `npm.cmd run verify:priority1`, `npm.cmd run verify:priority3`, `npm.cmd run verify:all`, and standalone `npm.cmd run dev` startup.
+
+## Reward-Level Stage Claims
+
+- Replaced Stage-level reward decisions with persistent Reward-level `claimedRewardIds`.
+- Added stable Stage reward `rewardId` values and claim keys in the `${stageId}:${rewardId}` format, with a type/value fallback for rewards without `rewardId`.
+- Stage clears now check and claim each reward independently; unsupported rewards remain unclaimed for future implementations.
+- Continue/load reconciliation checks cleared Stages and grants only newly added, unclaimed rewards.
+- Existing `claimedStageRewardIds` remains readable for compatibility and migrates through a fixed legacy Reward ID snapshot, so future Stage rewards are not incorrectly marked claimed.
+- Stage Clear reward cards can distinguish `Already Claimed` from owned or newly granted rewards.
+- Added regression coverage that removes one Reward claim from an already-cleared Stage and verifies only that reward is granted and claimed again.
+- Verification passed: `npm.cmd run typecheck`, `npm.cmd run build`, `npm.cmd run verify:priority1`, `npm.cmd run verify:priority3`, `npm.cmd run verify:all`, and standalone `npm.cmd run dev` startup.
+
+## Backfill Reward Summary
+
+- Added transient `pendingBackfillRewards` state so rewards added to multiple already-cleared Stages are retained as Stage-grouped results.
+- Added `BackfillRewardsModal` with all affected Stage groups, shared Reward cards, Gallery access, and a single Continue action.
+- Kept normal Stage Clear presentation on `StageClearModal`; backfill reconciliation no longer overwrites `pendingStageClear`.
+- Dismissing the backfill summary does not alter granted rewards or Reward-level claim state.
+- Expanded Priority 1 regression coverage to verify two already-cleared Stage groups appear together and both claim keys remain unique.
+- Verification passed: `npm.cmd run typecheck`, `npm.cmd run build`, `npm.cmd run verify:priority1`, `npm.cmd run verify:all`, and standalone `npm.cmd run dev` startup.
+- In-app Browser inspection was attempted twice but its Windows sandbox runtime failed to start; the Electron Priority 1 UI regression verified the rendered backfill modal content instead.

@@ -179,6 +179,33 @@ npm run electron:build
 
 `npm run electron:build` は `release/win-unpacked/` に Windows 向けの展開済みアプリを生成します。
 
+## v1.0マスタデータと報酬追加
+
+- 共通報酬型は `src/data/rewards.ts` の `Reward` に定義します。
+- Stage報酬は `src/data/stages.ts` の各Stageにある `rewards` 配列へ追加します。
+- 報酬付与は `src/game/rewardApplier.ts` が担当し、StageデータやUIコンポーネントには解放処理を書きません。
+- 解放条件は `src/types/game.ts` の `UnlockCondition` を使用します。
+- Museは `muses.ts` で `defaultSkinId`、`skillId`、`unlockCondition` を参照し、スキル本体は `skills.ts` に定義します。
+- スキンは `skins.ts`、背景は `backgrounds.ts` に定義し、性能値を持たせません。
+- Upgradeのコスト・倍率は `balance.ts` に置き、`upgrades.ts` は表示用マスタとして参照します。
+- Stage報酬の付与済み状態はReward単位の `claimedRewardIds` へ保存され、同じ報酬は再付与されません。
+- Stage報酬には安定した `rewardId` を設定し、claim keyは `${stageId}:${rewardId}` になります。`rewardId`がない場合はStage ID、Reward type、IDまたはamountから生成されます。
+- クリア済みStageへ後から報酬を追加した場合、Continue時に未claimの報酬だけが付与されます。
+- 旧セーブの `claimedStageRewardIds` は移行時点の既存Reward IDだけへ変換されます。今後Stageへ報酬を追加するとき、`legacyClaimedRewardIdsByStageId` は更新しません。
+- `capsule`、`shard`、`conversation` は共通型で予約済みです。未実装アクションの報酬は安全に `unsupported` として処理されます。
+
+Stage報酬追加例:
+
+```ts
+rewards: [
+  { rewardId: 'cozy_room', type: 'background', id: 'bg_cozy_room' },
+  { rewardId: 'lumi_pastel', type: 'skin', id: 'lumi_pastel' },
+  { rewardId: 'memory_1000', type: 'memory', amount: 1_000 },
+]
+```
+
+報酬IDを追加する場合は、対応する `skins.ts`、`backgrounds.ts`、`muses.ts` などのマスタにも同じIDを定義してください。存在しないIDは付与されず、報酬カードでは `Unknown Reward` として表示されます。v1.0ではStage 1〜10、4 Muse、8 Skin、6 Background、4 Skillを定義しています。
+
 ## 現在の実装状態
 
 ### Prompt 01: プロジェクト初期化
@@ -262,13 +289,13 @@ npm run electron:build
 
 ### ステージクリア機能
 
-- `src/data/stages.ts` に Stage 1 から Stage 3 の Corner Hit 目標を定義
+- `src/data/stages.ts` に v1.0向けStage 1からStage 10のCorner Hit目標と報酬を定義
 - `currentStageId`、`stageCornerHits`、`clearedStages` を Zustand とセーブデータへ追加
 - Corner Hit の累計 `totalCornerHits` は維持しつつ、ステージクリア判定には現在ステージ専用の進捗だけを使用
 - 右側の `StagePanel` に現在ステージ名、進捗、必要 Corner Hit 数、クリア済み数を表示
 - 目標達成時はクリア記録を追加し、次のステージへ自動的に移行
 
-現在はステージ目標による進行確認に加え、`rewardBackgroundId` に対応する背景の解放、Gallery での閲覧、現在背景の選択にも対応しています。追加のスチルカテゴリや大量の背景コンテンツはまだ実装していません。
+現在はステージ目標による進行確認に加え、共通 `rewards` に定義した背景の解放、Gallery での閲覧、現在背景の選択にも対応しています。追加のスチルカテゴリや大量の背景コンテンツはまだ実装していません。
 
 ### ステージクリア演出
 
@@ -536,10 +563,10 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 
 ## Non-Default Skin Unlock Flow
 
-- `Stage` can now define `skinRewardIds`.
+- `Stage` can define skin rewards through the shared `rewards` array.
 - Stage 2 now rewards `lumi_pastel` when cleared.
 - `unlockSkin()` prevents duplicate unlocks, saves the updated skin ownership, and queues a skin unlock notification.
-- Stage rewards and Debug Panel skin unlocks both use the same unlock flow.
+- Stage rewards use the shared reward applier, while Debug Panel skin unlocks continue to use the store unlock action.
 - `SkinUnlockToast` shows `New Skin Unlocked!`, skin name, Muse name, and rarity.
 - The development `DebugPanel` can unlock `lumi_pastel`, `astra_cyber`, `noir_gothic`, or all non-default skins.
 - `DebugPanel` also displays the current `unlockedSkinIds` for quick save/load checks.
@@ -663,7 +690,7 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 
 ### Cozy Room Background Verification
 
-1. Run `npm run dev`, clear Stage 2 or use a save where `bg_cozy_room` is unlocked, then select `Cozy Room` from Gallery.
+1. Run `npm run dev`, clear Stage 1 or use a save where `bg_cozy_room` is unlocked, then select `Cozy Room` from Gallery.
 2. Confirm the warm room appears in GameCanvas and remains readable behind Muse icons and HUD text.
 3. Open the Gallery preview and confirm the image, name, and description render without the fallback placeholder.
 4. Reload the page and confirm the selected background is restored from the save data.
@@ -680,7 +707,7 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 
 ### Pinball Neon Background Verification
 
-1. Run `npm run dev`, clear Stage 3 or use a save where `bg_pinball_neon` is unlocked, then select `Pinball Neon` from Gallery.
+1. Run `npm run dev`, clear Stage 7 or use a save where `bg_pinball_neon` is unlocked, then select `Pinball Neon` from Gallery.
 2. Confirm normal mode shows subtle neon pulse, scanlines, floor reflection, and a readable center area for Muse/HUD.
 3. Press `F` or the `Focus` button and confirm Focus Mode strengthens the glow and scanline motion.
 4. Trigger a Corner Hit, or use the development `Debug Panel` `Trigger Corner` button, and confirm only the relevant corner flashes.
@@ -750,10 +777,10 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 ## Muse Unlocks
 
 - Museデータに `defaultUnlocked` と `unlockCondition` を追加し、初期状態ではLumiだけが解放済みになります。
-- AstraはStage 2クリア、NoirはStage 4クリアで解放されます。Stage 4はPinball Neon背景報酬のステージとして追加しました。
+- AstraはStage 2クリア、NoirはStage 4クリア、VegaはStage 5クリアで解放されます。
 - `unlockedMuseIds` と `activeMuseIds` はセーブ/ロード対象です。旧セーブはLumiのみを初期解放し、既に条件を満たしている場合はロード時に解放状態を補完します。
 - 解放条件達成時は `MuseUnlockModal` で `NEW MUSE UNLOCKED!`、キャラ名、説明、スキル名を表示します。
-- `MusePanel` は解放済みキャラをDeploy/Recallでき、未解放キャラには `Clear Stage 2` / `Clear Stage 4` の条件を表示します。
+- `MusePanel` は解放済みキャラをDeploy/Recallでき、未解放キャラには共通UnlockConditionの条件を表示します。
 
 ### Muse Unlock Verification
 
@@ -884,7 +911,7 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 
 ## Vega Muse Bumper
 
-- Added Vega as a Stage 3 unlockable Muse with the `Muse Bumper` skill.
+- Vega is a Stage 5 unlockable Muse with the `Muse Bumper` skill.
 - Vega's skill state uses the existing Muse skill timer flow, so MusePanel shows Ready, Active, and Cooldown status.
 - While `Muse Bumper` is active, only collisions between Vega and non-Vega active Muses or clones are resolved.
 - Vega acts as a moving bumper: hit Muses are pushed outward from Vega and their velocity is redirected with a capped boost.
@@ -897,7 +924,7 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 
 ### Vega Muse Bumper Verification
 
-1. Run `npm run dev`, unlock Vega by clearing Stage 3 or using development stage tools, and deploy Vega with at least one other Muse.
+1. Run `npm run dev`, unlock Vega by clearing Stage 5 or using development stage tools, and deploy Vega with at least one other Muse.
 2. Trigger Vega's Corner Hit and confirm `Muse Bumper` becomes Active in MusePanel.
 3. Confirm only Muses or clones that touch Vega bounce outward; non-Vega Muses should pass through each other.
 4. Confirm bumper collisions add a small amount of Memory but do not increase Corner Hits or stage progress.
@@ -1064,6 +1091,9 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 - Skin reward cards can Equip immediately, background cards can Set Background or Open Gallery, and Muse cards can Set Active.
 - Rewards are granted once when the stage is newly cleared and are saved before the modal is dismissed.
 - Stage Clear uses a soft flash, small sparkles, a short jingle stub, and a reduced presentation when Motion Intensity is Low.
+- When updates add unclaimed rewards to multiple already-cleared Stages, Continue grants every eligible reward and opens a Backfill Rewards modal grouped by Stage.
+- Backfill reward groups use the same Reward cards and immediate Equip, Set Background, and Open Gallery actions as normal Stage Clear rewards.
+- Closing the Backfill Rewards modal only dismisses the transient summary; granted rewards and `claimedRewardIds` remain saved.
 
 ### Stage Clear Reward Verification
 

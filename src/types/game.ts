@@ -1,3 +1,5 @@
+import type { PresentedReward, Reward } from '../data/rewards';
+
 export type UpgradeId = 'bounce_boost' | 'speed_tune' | 'corner_sensor';
 
 export type UpgradeEffectType = 'bounce_reward' | 'speed' | 'corner_reward';
@@ -42,26 +44,12 @@ export interface UpgradeProgress extends UpgradeDefinition {
 
 export type UpgradeCollection = Record<UpgradeId, UpgradeProgress>;
 
-export type StageRewardType = 'skin' | 'background' | 'muse' | 'memory' | 'capsule';
-
-export interface StageReward {
-  type: StageRewardType;
-  id?: string;
-  amount?: number;
-}
-
-export interface GrantedStageReward extends StageReward {
-  alreadyOwned: boolean;
-}
-
 export interface Stage {
   id: string;
   name: string;
   description: string;
   cornerHitGoal: number;
-  rewardBackgroundId: string;
-  skinRewardIds?: string[];
-  rewards: StageReward[];
+  rewards: Reward[];
 }
 
 export interface Background {
@@ -69,7 +57,8 @@ export interface Background {
   name: string;
   description: string;
   imagePath: string;
-  unlockStageId: string;
+  thumbnailAsset: string;
+  unlockCondition: UnlockCondition;
 }
 
 export type CornerHitPosition = 'top_left' | 'top_right' | 'bottom_left' | 'bottom_right';
@@ -81,22 +70,19 @@ export interface CornerHitFlashEvent {
 
 export type SkillType = 'clone' | 'grow' | 'speed_up' | 'bumper';
 
-export type MuseSkillId = 'clone' | 'speed_up' | 'giant' | 'bumper';
+export type MuseSkillId = 'clone' | 'speed_up' | 'giant' | 'muse_bumper';
 
-export type MuseUnlockConditionType =
-  | 'initial'
-  | 'stage_clear'
-  | 'total_corner_hits'
-  | 'jackpot_count'
-  | 'reboot_count'
-  | 'capsule'
-  | 'shard_exchange';
+export type MuseSkillTrigger = 'corner_hit';
 
-export interface MuseUnlockCondition {
-  type: MuseUnlockConditionType;
-  targetId?: string;
-  value?: number;
-}
+export type UnlockCondition =
+  | { type: 'initial' }
+  | { type: 'stage_clear'; targetId: string }
+  | { type: 'total_corner_hits'; value: number }
+  | { type: 'jackpot_count'; value: number }
+  | { type: 'reboot_count'; value: number }
+  | { type: 'capsule'; targetId?: string }
+  | { type: 'shard_exchange'; value?: number }
+  | { type: 'dlc'; targetId: string };
 
 export interface MuseSkill {
   id: string;
@@ -105,6 +91,7 @@ export interface MuseSkill {
   description: string;
   durationMs: number;
   cooldownMs: number;
+  trigger: MuseSkillTrigger;
   power: number;
 }
 
@@ -134,6 +121,7 @@ export interface MuseSkin {
   thumbnailAsset: string;
   defaultUnlocked: boolean;
   unlockMethod: SkinUnlockMethod;
+  unlockCondition: UnlockCondition;
 }
 
 export interface MuseTapState {
@@ -148,9 +136,10 @@ export interface Muse {
   name: string;
   description: string;
   iconAsset: string;
+  defaultSkinId: string;
   skillId: MuseSkillId;
   defaultUnlocked: boolean;
-  unlockCondition: MuseUnlockCondition;
+  unlockCondition: UnlockCondition;
   baseSpeed: number;
   memoryMultiplier: number;
   cornerMultiplier: number;
@@ -212,9 +201,15 @@ export interface OfflineRewardSummary {
 export interface StageClearSummary {
   stageId: string;
   stageName: string;
-  rewards: GrantedStageReward[];
+  rewards: PresentedReward[];
   nextStageId: string | null;
   nextStageName: string | null;
+}
+
+export interface BackfillRewardGroup {
+  stageId: string;
+  stageName: string;
+  rewards: PresentedReward[];
 }
 
 export interface GameStats {
@@ -240,6 +235,8 @@ export interface GameState {
   currentStageId: string;
   stageCornerHits: Record<string, number>;
   clearedStages: string[];
+  claimedRewardIds: string[];
+  claimedStageRewardIds: string[];
   unlockedBackgrounds: string[];
   currentBackgroundId: string | null;
   unlockedMuseIds: string[];
@@ -260,6 +257,7 @@ export interface GameState {
   lastSaveSource: SaveSource | null;
   pendingOfflineReward: OfflineRewardSummary | null;
   pendingStageClear: StageClearSummary | null;
+  pendingBackfillRewards: BackfillRewardGroup[] | null;
   lastCornerHitFlash: CornerHitFlashEvent | null;
 }
 
@@ -273,6 +271,8 @@ export interface SaveData {
   currentStageId: string;
   stageCornerHits: Record<string, number>;
   clearedStages: string[];
+  claimedRewardIds?: string[];
+  claimedStageRewardIds?: string[];
   unlockedBackgrounds: string[];
   currentBackgroundId: string | null;
   unlockedMuseIds: string[];
@@ -327,6 +327,7 @@ export interface GameActions {
   dismissMuseUnlock: () => void;
   dismissSkinUnlock: () => void;
   dismissStageClear: () => void;
+  dismissBackfillRewards: () => void;
   triggerCornerHitFlash: (corner: CornerHitPosition) => void;
   refreshMemoryPerSecond: (motionIntensity: MotionIntensity) => void;
   debugAddMemory: (amount: number) => void;

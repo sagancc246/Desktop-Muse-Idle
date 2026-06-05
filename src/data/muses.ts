@@ -1,4 +1,4 @@
-import { vegaBumperSkill } from './skills';
+import { getSkillById } from './skills';
 import type { Muse } from '../types/game';
 
 export const muses: Muse[] = [
@@ -7,21 +7,14 @@ export const muses: Muse[] = [
     name: 'Lumi',
     description: 'A gentle starter Muse who creates short-lived echoes on Corner Hit.',
     iconAsset: 'lumi-orchid',
+    defaultSkinId: 'lumi_default',
     skillId: 'clone',
     defaultUnlocked: true,
     unlockCondition: { type: 'initial' },
     baseSpeed: 180,
     memoryMultiplier: 1,
     cornerMultiplier: 1,
-    skill: {
-      id: 'mirror_echo',
-      name: 'Mirror Echo',
-      type: 'clone',
-      description: 'Creates a temporary echo with 50% rewards.',
-      durationMs: 6_000,
-      cooldownMs: 14_000,
-      power: 0.5,
-    },
+    skill: getSkillById('clone'),
     tapVoices: [
       {
         id: 'tap_lumi_01',
@@ -48,21 +41,14 @@ export const muses: Muse[] = [
     name: 'Astra',
     description: 'A high-tempo Muse who accelerates the whole field for a short burst.',
     iconAsset: 'astra-cyan',
+    defaultSkinId: 'astra_default',
     skillId: 'speed_up',
     defaultUnlocked: false,
     unlockCondition: { type: 'stage_clear', targetId: 'stage-2' },
     baseSpeed: 205,
     memoryMultiplier: 1.2,
     cornerMultiplier: 0.9,
-    skill: {
-      id: 'star_accel',
-      name: 'Star Accel',
-      type: 'speed_up',
-      description: 'Raises all Muse speed by 30%.',
-      durationMs: 5_500,
-      cooldownMs: 13_000,
-      power: 0.3,
-    },
+    skill: getSkillById('speed_up'),
     tapVoices: [
       {
         id: 'tap_astra_01',
@@ -89,21 +75,14 @@ export const muses: Muse[] = [
     name: 'Noir',
     description: 'A late-game Muse who grows larger and turns precise corners into big rewards.',
     iconAsset: 'noir-rose',
+    defaultSkinId: 'noir_default',
     skillId: 'giant',
     defaultUnlocked: false,
     unlockCondition: { type: 'stage_clear', targetId: 'stage-4' },
     baseSpeed: 165,
     memoryMultiplier: 0.85,
     cornerMultiplier: 1.45,
-    skill: {
-      id: 'night_bloom',
-      name: 'Night Bloom',
-      type: 'grow',
-      description: 'Grows to 1.5x size.',
-      durationMs: 6_500,
-      cooldownMs: 14_000,
-      power: 0.5,
-    },
+    skill: getSkillById('giant'),
     tapVoices: [
       {
         id: 'tap_noir_01',
@@ -130,13 +109,14 @@ export const muses: Muse[] = [
     name: 'Vega',
     description: 'A kinetic Muse who becomes a moving bumper and redirects nearby trajectories.',
     iconAsset: 'vega-gold',
-    skillId: 'bumper',
+    defaultSkinId: 'vega_default',
+    skillId: 'muse_bumper',
     defaultUnlocked: false,
-    unlockCondition: { type: 'stage_clear', targetId: 'stage-3' },
+    unlockCondition: { type: 'stage_clear', targetId: 'stage-5' },
     baseSpeed: 188,
     memoryMultiplier: 1,
     cornerMultiplier: 1.1,
-    skill: vegaBumperSkill,
+    skill: getSkillById('muse_bumper'),
     tapVoices: [
       {
         id: 'tap_vega_01',

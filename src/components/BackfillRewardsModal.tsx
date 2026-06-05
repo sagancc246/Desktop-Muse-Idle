@@ -2,16 +2,20 @@ import { useEffect, useRef } from 'react';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { useAppStore } from '../store/useAppStore';
 import { playStageClearJingle } from '../systems/audioSystem';
-import type { StageClearSummary } from '../types/game';
+import type { BackfillRewardGroup } from '../types/game';
 import { RewardCard } from './RewardCard';
 
-interface StageClearModalProps {
+interface BackfillRewardsModalProps {
+  groups: BackfillRewardGroup[];
   onContinue: () => void;
   onOpenGallery: () => void;
-  summary: StageClearSummary;
 }
 
-export function StageClearModal({ onContinue, onOpenGallery, summary }: StageClearModalProps) {
+export function BackfillRewardsModal({
+  groups,
+  onContinue,
+  onOpenGallery,
+}: BackfillRewardsModalProps) {
   const modalRef = useRef<HTMLElement>(null);
   const continueButtonRef = useRef<HTMLButtonElement>(null);
   const motionIntensity = useAppStore((state) => state.settings.motionIntensity);
@@ -34,7 +38,7 @@ export function StageClearModal({ onContinue, onOpenGallery, summary }: StageCle
       window.clearTimeout(timerId);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [onContinue, seVolume, summary.stageId]);
+  }, [onContinue, seVolume]);
 
   return (
     <div
@@ -42,42 +46,36 @@ export function StageClearModal({ onContinue, onOpenGallery, summary }: StageCle
       className={`stage-clear-backdrop${motionIntensity === 'low' ? ' low-motion' : ''}`}
       role="presentation"
     >
-      <div className="stage-clear-flash" aria-hidden="true" />
-      <div className="stage-clear-sparkles" aria-hidden="true">
-        <span />
-        <span />
-        <span />
-        <span />
-        <span />
-        <span />
-      </div>
       <section
-        aria-label="Stage clear rewards"
+        aria-label="New rewards unlocked"
         aria-modal="true"
-        className="stage-clear-modal panel"
+        className="backfill-rewards-modal panel"
         ref={modalRef}
         role="dialog"
       >
         <header className="stage-clear-header">
-          <p className="eyebrow">MISSION COMPLETE</p>
-          <h1>STAGE CLEAR!</h1>
-          <p>{summary.stageName}</p>
+          <p className="eyebrow">REWARD UPDATE</p>
+          <h1>NEW REWARDS UNLOCKED!</h1>
+          <p>New rewards were added to stages you already cleared.</p>
         </header>
-        <div className="stage-clear-reward-grid">
-          {summary.rewards.map((reward) => (
-            <RewardCard
-              key={reward.claimKey}
-              onOpenGallery={onOpenGallery}
-              reward={reward}
-            />
+        <div className="backfill-reward-groups">
+          {groups.map((group) => (
+            <section className="backfill-reward-group" key={group.stageId}>
+              <h2>{group.stageName} Rewards</h2>
+              <div className="stage-clear-reward-grid">
+                {group.rewards.map((reward) => (
+                  <RewardCard
+                    key={reward.claimKey}
+                    onOpenGallery={onOpenGallery}
+                    reward={reward}
+                  />
+                ))}
+              </div>
+            </section>
           ))}
         </div>
         <footer className="stage-clear-footer">
-          <p>
-            {summary.nextStageName
-              ? `Next mission unlocked: ${summary.nextStageName}`
-              : 'All current stages cleared. More worlds can be added later.'}
-          </p>
+          <p>All listed rewards have been added to your save.</p>
           <button
             className="stage-clear-action"
             onClick={onContinue}

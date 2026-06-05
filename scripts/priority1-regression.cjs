@@ -202,8 +202,12 @@ async function main() {
   await clickButton('Clear Stage');
   await waitFor('Stage 1 clear modal shows its background reward', async () => {
     const text = await visibleText();
-    return text.includes('STAGE CLEAR!') && text.includes('Default Room');
+    return text.includes('STAGE CLEAR!') && text.includes('Cozy Room');
   });
+  await clickButton('Set Background');
+  await waitFor('Stage 1 reward card sets Cozy Room', async () =>
+    (await visibleText()).includes('In Use'),
+  );
   await clickButton('Open Gallery');
   await waitFor('Stage reward card opens Gallery', async () =>
     js(`Boolean(document.querySelector('.gallery-backdrop'))`),
@@ -224,15 +228,8 @@ async function main() {
   await assert('Stage 2 clear modal shows Lumi Pastel reward', async () =>
     (await visibleText()).includes('Lumi Pastel'),
   );
-  await assert('Stage 2 clear modal shows Cozy Room reward', async () =>
-    (await visibleText()).includes('Cozy Room'),
-  );
   await assert('Stage 2 clear modal shows Astra reward', async () =>
     (await visibleText()).includes('Astra'),
-  );
-  await clickButton('Set Background');
-  await waitFor('Stage 2 reward card sets Cozy Room', async () =>
-    (await visibleText()).includes('In Use'),
   );
   await clickButton('Equip');
   await waitFor('Stage 2 reward card equips Lumi Pastel', async () =>
@@ -292,14 +289,43 @@ async function main() {
   await js(`Storage.prototype.setItem = window.__originalSetItem; delete window.__originalSetItem; undefined;`);
 
   const savedBeforeReload = JSON.parse(await getStorage('desktop-muse-idle-save'));
+  const stage1MemoryClaimKey = 'stage-1:memory_500';
+  const stage2AstraClaimKey = 'stage-2:astra';
+  const memoryBeforeAddedRewardReconcile = savedBeforeReload.memory;
+  savedBeforeReload.claimedRewardIds = savedBeforeReload.claimedRewardIds.filter(
+    (claimId) => claimId !== stage1MemoryClaimKey && claimId !== stage2AstraClaimKey,
+  );
   await win.reload();
   await waitFor('Reload after save returns to title', async () => (await visibleText()).includes('Desktop Muse Idle'));
+  await js(`window.localStorage.setItem(
+    'desktop-muse-idle-save',
+    ${JSON.stringify(JSON.stringify(savedBeforeReload))}
+  )`);
   await assert('Continue is enabled after save exists', async () => {
     const button = (await buttons()).find((candidate) => candidate.text === 'Continue');
     return button?.disabled === false;
   });
   await clickButton('Continue');
   await waitFor('Continue opens saved game', async () => (await visibleText()).includes('Idle Observatory'));
+  const collectButton = (await buttons()).find((candidate) => candidate.text === 'Collect');
+  if (collectButton) {
+    await clickButton('Collect');
+  }
+  await waitFor('Backfill modal shows every Stage reward group', async () => {
+    const text = await visibleText();
+    return text.includes('NEW REWARDS UNLOCKED!') &&
+      text.includes('Stage 1 Rewards') &&
+      text.includes('Stage 2 Rewards') &&
+      text.toLowerCase().includes('memory acquired') &&
+      text.includes('Astra');
+  });
+  await waitFor('Cleared Stage receives newly unclaimed reward', async () => {
+    const saved = JSON.parse(await getStorage('desktop-muse-idle-save'));
+    return saved.memory >= memoryBeforeAddedRewardReconcile + 500 &&
+      saved.claimedRewardIds.filter((claimId) => claimId === stage1MemoryClaimKey).length === 1 &&
+      saved.claimedRewardIds.filter((claimId) => claimId === stage2AstraClaimKey).length === 1;
+  });
+  await clickButton('Continue');
   const savedAfterContinue = JSON.parse(await getStorage('desktop-muse-idle-save'));
   await assert('Saved game contains Memory/Stage/background/Muse/skin/stats/Skill Tree fields', async () =>
     savedBeforeReload.memory >= 1000 &&
@@ -315,11 +341,15 @@ async function main() {
     savedBeforeReload.unlockedBackgrounds.includes('bg_cozy_room') &&
     savedBeforeReload.unlockedMuseIds.includes('astra') &&
     savedBeforeReload.unlockedSkinIds.filter((skinId) => skinId === 'lumi_pastel').length === 1 &&
+    savedBeforeReload.claimedRewardIds.filter((claimId) => claimId === 'stage-2:lumi_pastel').length === 1 &&
     savedBeforeReload.currentBackgroundId === 'bg_cozy_room' &&
     savedBeforeReload.equippedSkinByMuseId.lumi === 'lumi_pastel',
   );
   await assert('Continue reload keeps saved Memory and Skill Tree state', async () =>
     savedAfterContinue.memory >= 1000 &&
+    savedAfterContinue.memory >= memoryBeforeAddedRewardReconcile + 500 &&
+    savedAfterContinue.claimedRewardIds.filter((claimId) => claimId === stage1MemoryClaimKey).length === 1 &&
+    savedAfterContinue.claimedRewardIds.filter((claimId) => claimId === stage2AstraClaimKey).length === 1 &&
     savedAfterContinue.unlockedSkillNodes?.bounce_memory_1 === 1,
   );
 

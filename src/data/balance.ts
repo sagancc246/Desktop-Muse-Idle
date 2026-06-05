@@ -55,6 +55,21 @@ export const wallpaperLowEffectParticleMultiplier = 0.45;
 export const wallpaperLowEffectFlashAlphaMultiplier = 0.5;
 export const wallpaperLowEffectLayerAlphaMultiplier = 0.65;
 export const wallpaperModeDefaultFps = 30;
+export const bounceBoostBaseCost = 15;
+export const bounceBoostCostRate = 1.8;
+export const bounceBoostRewardMultiplier = 2;
+export const speedTuneBaseCost = 30;
+export const speedTuneCostRate = 1.8;
+export const speedTuneMultiplier = 1.2;
+export const cornerSensorBaseCost = 50;
+export const cornerSensorCostRate = 1.8;
+export const cornerSensorRewardMultiplier = 1.5;
+export const cloneSkillDurationMs = 6_000;
+export const cloneSkillCooldownMs = 14_000;
+export const speedUpSkillDurationMs = 5_500;
+export const speedUpSkillCooldownMs = 13_000;
+export const giantSkillDurationMs = 6_500;
+export const giantSkillCooldownMs = 14_000;
 
 export function calculateRebootFragments(memory: number): number {
   if (memory < rebootMemoryRequirement) {

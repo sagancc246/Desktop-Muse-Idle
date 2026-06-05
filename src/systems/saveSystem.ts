@@ -1,4 +1,8 @@
-import { backgrounds, getBackgroundById } from '../data/backgrounds';
+import {
+  getBackgroundById,
+  initialBackgroundId,
+  initialUnlockedBackgroundIds,
+} from '../data/backgrounds';
 import {
   createInitialMuseTapStates,
   getMuseById,
@@ -8,6 +12,7 @@ import {
   createInitialStageCornerHits,
   getStageById,
   initialStageId,
+  legacyClaimedRewardIdsByStageId,
   stages,
 } from '../data/stages';
 import {
@@ -46,6 +51,8 @@ type CompatibleSaveData = Pick<
       | 'currentStageId'
       | 'stageCornerHits'
       | 'clearedStages'
+      | 'claimedRewardIds'
+      | 'claimedStageRewardIds'
       | 'unlockedBackgrounds'
       | 'currentBackgroundId'
       | 'unlockedMuseIds'
@@ -95,7 +102,11 @@ function isSaveData(value: unknown): value is CompatibleSaveData {
 
 function restoreStageState(data: CompatibleSaveData): Pick<
   GameState,
-  'currentStageId' | 'stageCornerHits' | 'clearedStages'
+  | 'currentStageId'
+  | 'stageCornerHits'
+  | 'clearedStages'
+  | 'claimedRewardIds'
+  | 'claimedStageRewardIds'
 > {
   const defaultStageHits = createInitialStageCornerHits();
   const storedHits =
@@ -125,11 +136,34 @@ function restoreStageState(data: CompatibleSaveData): Pick<
     typeof data.currentStageId === 'string' && getStageById(data.currentStageId)
       ? data.currentStageId
       : initialStageId;
+  const claimedStageRewardIds = Array.isArray(data.claimedStageRewardIds)
+    ? data.claimedStageRewardIds.filter(
+        (stageId): stageId is string =>
+          typeof stageId === 'string' && getStageById(stageId) !== undefined,
+      )
+    : [];
+  const rawClaimedRewardIds = data.claimedRewardIds;
+  const hasStoredClaimedRewardIds = Array.isArray(rawClaimedRewardIds);
+  const storedClaimedRewardIds = hasStoredClaimedRewardIds
+    ? rawClaimedRewardIds.filter(
+        (claimId): claimId is string => typeof claimId === 'string' && claimId.length > 0,
+      )
+    : [];
+  const migratedClaimedRewardIds =
+    hasStoredClaimedRewardIds
+      ? storedClaimedRewardIds
+      : claimedStageRewardIds.flatMap((stageId) =>
+          (legacyClaimedRewardIdsByStageId[stageId] ?? []).map(
+            (rewardId) => `${stageId}:${rewardId}`,
+          ),
+        );
 
   return {
     currentStageId,
     stageCornerHits,
     clearedStages: [...new Set(clearedStages)],
+    claimedRewardIds: [...new Set(migratedClaimedRewardIds)],
+    claimedStageRewardIds: [...new Set(claimedStageRewardIds)],
   };
 }
 
@@ -149,12 +183,11 @@ function restoreBackgroundState(
 ): Pick<GameState, 'unlockedBackgrounds' | 'currentBackgroundId'> {
   const clearedRewards = stages
     .filter((stage) => clearedStages.includes(stage.id))
-    .flatMap((stage) => [
-      stage.rewardBackgroundId,
-      ...backgrounds
-        .filter((background) => background.unlockStageId === stage.id)
-        .map((background) => background.id),
-    ])
+    .flatMap((stage) =>
+      stage.rewards
+        .filter((reward) => reward.type === 'background')
+        .map((reward) => reward.id),
+    )
     .filter((backgroundId) => getBackgroundById(backgroundId) !== undefined);
   const savedBackgrounds = Array.isArray(data.unlockedBackgrounds)
     ? data.unlockedBackgrounds.filter(
@@ -162,12 +195,14 @@ function restoreBackgroundState(
           typeof backgroundId === 'string' && getBackgroundById(backgroundId) !== undefined,
       )
     : [];
-  const unlockedBackgrounds = [...new Set([...clearedRewards, ...savedBackgrounds])];
+  const unlockedBackgrounds = [
+    ...new Set([...initialUnlockedBackgroundIds, ...clearedRewards, ...savedBackgrounds]),
+  ];
   const currentBackgroundId =
     typeof data.currentBackgroundId === 'string' &&
     unlockedBackgrounds.includes(data.currentBackgroundId)
       ? data.currentBackgroundId
-      : (unlockedBackgrounds[0] ?? null);
+      : (initialBackgroundId ?? unlockedBackgrounds[0] ?? null);
 
   return { unlockedBackgrounds, currentBackgroundId };
 }
@@ -274,8 +309,10 @@ export function createNewGameState(motionIntensity: MotionIntensity = 'medium'):
     currentStageId: initialStageId,
     stageCornerHits: createInitialStageCornerHits(),
     clearedStages: [],
-    unlockedBackgrounds: [],
-    currentBackgroundId: null,
+    claimedRewardIds: [],
+    claimedStageRewardIds: [],
+    unlockedBackgrounds: initialUnlockedBackgroundIds,
+    currentBackgroundId: initialBackgroundId,
     unlockedMuseIds: getInitialUnlockedMuseIds(),
     activeMuseIds: initialActiveMuseIds,
     newlyUnlockedMuseIds: [],
@@ -294,6 +331,7 @@ export function createNewGameState(motionIntensity: MotionIntensity = 'medium'):
     lastSaveSource: null,
     pendingOfflineReward: null,
     pendingStageClear: null,
+    pendingBackfillRewards: null,
     lastCornerHitFlash: null,
   };
   state.stats.unlockedBackgroundCount = state.unlockedBackgrounds.length;
@@ -389,6 +427,7 @@ export function loadGameState({
       lastSaveSource: null,
       pendingOfflineReward: null,
       pendingStageClear: null,
+      pendingBackfillRewards: null,
       lastCornerHitFlash: null,
     };
     restoredState.stats.unlockedBackgroundCount = restoredState.unlockedBackgrounds.length;
@@ -458,6 +497,8 @@ export function saveGameState(
     currentStageId: state.currentStageId,
     stageCornerHits: state.stageCornerHits,
     clearedStages: state.clearedStages,
+    claimedRewardIds: state.claimedRewardIds,
+    claimedStageRewardIds: state.claimedStageRewardIds,
     unlockedBackgrounds: state.unlockedBackgrounds,
     currentBackgroundId: state.currentBackgroundId,
     unlockedMuseIds: state.unlockedMuseIds,

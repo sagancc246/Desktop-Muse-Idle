@@ -1,3 +1,4 @@
+import { getMuseById } from './muses';
 import type { MuseSkin, SkinUnlockMethod } from '../types/game';
 
 export const museSkins: MuseSkin[] = [
@@ -11,6 +12,7 @@ export const museSkins: MuseSkin[] = [
     thumbnailAsset: '/assets/muses/lumi/lumi_default.png',
     defaultUnlocked: true,
     unlockMethod: 'default',
+    unlockCondition: { type: 'initial' },
   },
   {
     id: 'astra_default',
@@ -22,6 +24,7 @@ export const museSkins: MuseSkin[] = [
     thumbnailAsset: '/assets/muses/astra/astra_default.png',
     defaultUnlocked: true,
     unlockMethod: 'default',
+    unlockCondition: { type: 'initial' },
   },
   {
     id: 'noir_default',
@@ -33,6 +36,7 @@ export const museSkins: MuseSkin[] = [
     thumbnailAsset: '/assets/muses/noir/noir_default.png',
     defaultUnlocked: true,
     unlockMethod: 'default',
+    unlockCondition: { type: 'initial' },
   },
   {
     id: 'vega_default',
@@ -44,6 +48,7 @@ export const museSkins: MuseSkin[] = [
     thumbnailAsset: '/assets/muses/vega/vega_default.png',
     defaultUnlocked: true,
     unlockMethod: 'default',
+    unlockCondition: { type: 'initial' },
   },
   {
     id: 'lumi_pastel',
@@ -55,17 +60,19 @@ export const museSkins: MuseSkin[] = [
     thumbnailAsset: '/assets/muses/lumi/lumi_pastel.png',
     defaultUnlocked: false,
     unlockMethod: 'stage',
+    unlockCondition: { type: 'stage_clear', targetId: 'stage-2' },
   },
   {
     id: 'astra_cyber',
     museId: 'astra',
     name: 'Astra Cyber',
-    description: 'A sharper neon-blue style reserved for capsules.',
+    description: 'A sharper neon-blue style earned from Stage 7.',
     rarity: 'rare',
     iconAsset: 'astra-cyber',
     thumbnailAsset: '/assets/muses/astra/astra_cyber.png',
     defaultUnlocked: false,
-    unlockMethod: 'capsule',
+    unlockMethod: 'stage',
+    unlockCondition: { type: 'stage_clear', targetId: 'stage-7' },
   },
   {
     id: 'noir_gothic',
@@ -77,6 +84,19 @@ export const museSkins: MuseSkin[] = [
     thumbnailAsset: '/assets/muses/noir/noir_gothic.png',
     defaultUnlocked: false,
     unlockMethod: 'capsule',
+    unlockCondition: { type: 'capsule', targetId: 'noir_gothic' },
+  },
+  {
+    id: 'vega_bumper',
+    museId: 'vega',
+    name: 'Vega Bumper',
+    description: 'A bold bumper-focused look for Vega.',
+    rarity: 'rare',
+    iconAsset: 'vega-bumper',
+    thumbnailAsset: '/assets/muses/vega/vega_bumper.png',
+    defaultUnlocked: false,
+    unlockMethod: 'capsule',
+    unlockCondition: { type: 'capsule', targetId: 'vega_bumper' },
   },
 ];
 
@@ -93,7 +113,8 @@ export function getSkinsByMuseId(museId: string): MuseSkin[] {
 }
 
 export function getDefaultSkinForMuse(museId: string): MuseSkin | undefined {
-  return museSkins.find((skin) => skin.museId === museId && skin.defaultUnlocked);
+  const defaultSkinId = getMuseById(museId)?.defaultSkinId;
+  return museSkins.find((skin) => skin.id === defaultSkinId && skin.museId === museId);
 }
 
 export function createInitialEquippedSkinByMuseId(): Record<string, string> {

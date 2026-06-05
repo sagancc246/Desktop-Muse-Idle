@@ -182,6 +182,7 @@ Next TODO:
 - Add missing voice files or keep subtitle fallback clearly documented.
 - Review effect readability on bright backgrounds.
 - Review Gallery thumbnail consistency.
+- Manually verify Backfill Rewards modal scrolling and RewardCard actions with many Stage groups at once.
 
 ## Priority 8: Electron Preparation
 

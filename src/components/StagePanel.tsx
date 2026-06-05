@@ -20,11 +20,13 @@ export function StagePanel() {
   const isFinalStageCleared = isComplete && !getNextStage(currentStage.id);
   const rewardLabels = currentStage.rewards
     .map((reward) => {
-      if (reward.type === 'skin' && reward.id) return getSkinById(reward.id)?.name;
-      if (reward.type === 'background' && reward.id) return getBackgroundById(reward.id)?.name;
-      if (reward.type === 'muse' && reward.id) return getMuseById(reward.id)?.name;
-      if (reward.type === 'memory') return `${(reward.amount ?? 0).toLocaleString()} Memory`;
-      if (reward.type === 'capsule') return `${(reward.amount ?? 0).toLocaleString()} Capsule`;
+      if (reward.type === 'skin') return getSkinById(reward.id)?.name;
+      if (reward.type === 'background') return getBackgroundById(reward.id)?.name;
+      if (reward.type === 'muse') return getMuseById(reward.id)?.name;
+      if (reward.type === 'memory') return `${reward.amount.toLocaleString()} Memory`;
+      if (reward.type === 'capsule') return `${reward.amount.toLocaleString()} Capsule`;
+      if (reward.type === 'shard') return `${reward.amount.toLocaleString()} Shard`;
+      if (reward.type === 'conversation') return `Conversation: ${reward.id}`;
       return undefined;
     })
     .filter((label) => label !== undefined);

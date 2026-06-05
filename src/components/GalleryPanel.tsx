@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { backgrounds } from '../data/backgrounds';
-import { getStageById } from '../data/stages';
+import { getUnlockConditionLabel } from '../game/unlockChecker';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { useGameStore } from '../store/useGameStore';
 import type { Background } from '../types/game';
@@ -128,8 +128,6 @@ export function GalleryPanel({ mode = 'panel', onBack, openRequestKey = 0 }: Gal
             <div className="gallery-grid">
               {backgrounds.map((background) => {
                 const isUnlocked = unlockedBackgrounds.includes(background.id);
-                const unlockStage = getStageById(background.unlockStageId);
-
                 if (!isUnlocked) {
                   return (
                     <article
@@ -141,7 +139,7 @@ export function GalleryPanel({ mode = 'panel', onBack, openRequestKey = 0 }: Gal
                         <span>LOCKED</span>
                       </div>
                       <h3>???</h3>
-                      <p>Unlock by clearing {unlockStage?.name ?? background.unlockStageId}</p>
+                      <p>{getUnlockConditionLabel(background.unlockCondition)}</p>
                     </article>
                   );
                 }
@@ -159,7 +157,7 @@ export function GalleryPanel({ mode = 'panel', onBack, openRequestKey = 0 }: Gal
                     <FallbackImage
                       alt={`${background.name} thumbnail`}
                       assetLabel={`${background.id} thumbnail`}
-                      src={background.imagePath}
+                      src={background.thumbnailAsset}
                     />
                     <h3>{background.name}</h3>
                     <p>{background.description}</p>
