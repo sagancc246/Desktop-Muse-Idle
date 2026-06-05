@@ -71,6 +71,12 @@ async function main() {
       throw new Error(`Button not clickable: ${label}`);
     }
   };
+  const openDebugPanel = async (name) => {
+    if (!(await js(`Boolean(document.querySelector('.debug-panel'))`))) {
+      await clickButton('Toggle Debug Panel');
+    }
+    await waitFor(name, async () => js(`Boolean(document.querySelector('.debug-panel'))`));
+  };
   const saveAndRead = async () => {
     await waitFor('Save button ready', async () => {
       const button = (await buttons()).find((candidate) => candidate.aria === 'Save Game');
@@ -234,6 +240,7 @@ async function main() {
 
   await clickButton('Start');
   await waitFor('Game screen opens', async () => (await visibleText()).includes('Idle Observatory'));
+  await openDebugPanel('Debug Panel opens for collision checks');
 
   const beforeNear = await saveAndRead();
   await clickButton('Force Near Corner');

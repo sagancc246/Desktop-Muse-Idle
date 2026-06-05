@@ -22,6 +22,7 @@ interface AppStore {
   hasSeenTutorial: boolean;
   isAlwaysOnTopEnabled: boolean;
   isClickThroughEnabled: boolean;
+  isDebugPanelOpen: boolean;
   isFocusMode: boolean;
   isTransparentWindowEnabled: boolean;
   wallpaperMode: WallpaperMode;
@@ -48,6 +49,8 @@ interface AppStore {
   updateWallpaperSettings: (settings: Partial<WallpaperSettings>) => void;
   toggleWallpaperStageMode: () => void;
   toggleMuseOverlayMode: () => void;
+  toggleDebugPanel: () => void;
+  setDebugPanelOpen: (open: boolean) => void;
   toggleFocusMode: () => void;
   exitFocusMode: () => void;
   updateSettings: (settings: Partial<AppSettings>) => void;
@@ -61,6 +64,7 @@ export const useAppStore = create<AppStore>((set) => ({
   hasSeenTutorial: loadTutorialSeen(),
   isAlwaysOnTopEnabled: initialWallpaperSettings.alwaysOnTopPreferred,
   isClickThroughEnabled: initialWallpaperSettings.clickThroughPreferred,
+  isDebugPanelOpen: false,
   isFocusMode: false,
   isTransparentWindowEnabled: false,
   wallpaperMode: 'off',
@@ -68,15 +72,26 @@ export const useAppStore = create<AppStore>((set) => ({
   settingsReturnScreen: 'title',
   statsReturnScreen: 'title',
   settings: initialSettings,
-  setScreen: (screen) => set({ currentScreen: screen, isFocusMode: false }),
+  setScreen: (screen) =>
+    set({ currentScreen: screen, isDebugPanelOpen: false, isFocusMode: false }),
   openSettings: (from) =>
-    set({ currentScreen: 'settings', isFocusMode: false, settingsReturnScreen: from }),
+    set({
+      currentScreen: 'settings',
+      isDebugPanelOpen: false,
+      isFocusMode: false,
+      settingsReturnScreen: from,
+    }),
   closeSettings: () =>
     set((state) => ({
       currentScreen: state.settingsReturnScreen,
     })),
   openStats: (from) =>
-    set({ currentScreen: 'stats', isFocusMode: false, statsReturnScreen: from }),
+    set({
+      currentScreen: 'stats',
+      isDebugPanelOpen: false,
+      isFocusMode: false,
+      statsReturnScreen: from,
+    }),
   closeStats: () =>
     set((state) => ({
       currentScreen: state.statsReturnScreen,
@@ -87,11 +102,17 @@ export const useAppStore = create<AppStore>((set) => ({
   },
   replayTutorial: () => {
     clearTutorialSeen();
-    set({ currentScreen: 'game', hasSeenTutorial: false, isFocusMode: false });
+    set({
+      currentScreen: 'game',
+      hasSeenTutorial: false,
+      isDebugPanelOpen: false,
+      isFocusMode: false,
+    });
   },
   setWallpaperMode: (mode) => {
     void (mode === 'muse_overlay' ? enterPlatformOverlayMode() : exitPlatformOverlayMode());
     set((state) => ({
+      isDebugPanelOpen: false,
       isFocusMode: mode === 'off' ? state.isFocusMode : false,
       wallpaperMode: mode,
     }));
@@ -157,6 +178,7 @@ export const useAppStore = create<AppStore>((set) => ({
   toggleWallpaperStageMode: () => {
     void exitPlatformOverlayMode();
     set((state) => ({
+      isDebugPanelOpen: false,
       isFocusMode: state.wallpaperMode === 'stage' ? state.isFocusMode : false,
       wallpaperMode: state.wallpaperMode === 'stage' ? 'off' : 'stage',
     }));
@@ -169,13 +191,24 @@ export const useAppStore = create<AppStore>((set) => ({
         : exitPlatformOverlayMode());
 
       return {
+        isDebugPanelOpen: false,
         isFocusMode: wallpaperMode === 'muse_overlay' ? false : state.isFocusMode,
         wallpaperMode,
       };
     }),
+  toggleDebugPanel: () => {
+    if (!import.meta.env.DEV) {
+      return;
+    }
+
+    set((state) => ({ isDebugPanelOpen: !state.isDebugPanelOpen }));
+  },
+  setDebugPanelOpen: (open) =>
+    set({ isDebugPanelOpen: import.meta.env.DEV ? open : false }),
   toggleFocusMode: () => {
     void exitPlatformOverlayMode();
     set((state) => ({
+      isDebugPanelOpen: false,
       isFocusMode: !state.isFocusMode,
       wallpaperMode: !state.isFocusMode ? 'off' : state.wallpaperMode,
     }));

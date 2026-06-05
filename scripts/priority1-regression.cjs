@@ -77,6 +77,12 @@ async function main() {
       throw new Error(`Button not clickable: ${label}; available=${JSON.stringify(availableButtons)}`);
     }
   };
+  const openDebugPanel = async (name) => {
+    if (!(await js(`Boolean(document.querySelector('.debug-panel'))`))) {
+      await clickButton('Toggle Debug Panel');
+    }
+    await waitFor(name, async () => js(`Boolean(document.querySelector('.debug-panel'))`));
+  };
 
   const selectByLabel = async (label, value) => {
     const selected = await js(`(() => {
@@ -164,6 +170,31 @@ async function main() {
 
   await clickButton('Start');
   await waitFor('Start opens game screen', async () => (await visibleText()).includes('Idle Observatory'));
+  await assert('Debug Panel starts closed', async () =>
+    !(await visibleText()).includes('Debug Panel'),
+  );
+  await js(`window.dispatchEvent(new KeyboardEvent('keydown', {
+    bubbles: true,
+    ctrlKey: true,
+    key: 'd',
+    shiftKey: true
+  }))`);
+  await waitFor('Ctrl+Shift+D opens Debug Panel', async () =>
+    (await visibleText()).includes('Debug Panel'),
+  );
+  await js(`window.dispatchEvent(new KeyboardEvent('keydown', {
+    bubbles: true,
+    key: 'Escape'
+  }))`);
+  await waitFor('Escape closes Debug Panel', async () =>
+    !(await visibleText()).includes('Debug Panel'),
+  );
+  await openDebugPanel('Debug toggle opens Debug Panel');
+  await clickButton('Close Debug Panel');
+  await waitFor('Close button closes Debug Panel', async () =>
+    !(await visibleText()).includes('Debug Panel'),
+  );
+  await openDebugPanel('Debug Panel reopens after Close button check');
   await assert('ResourceBar exposes Save/Settings/Stats/Wallpaper', async () => {
     const labels = (await buttons()).map((button) => button.aria || button.text);
     return ['Save Game', 'Open Settings', 'Open Statistics', 'Toggle Wallpaper Stage Mode'].every(
@@ -174,6 +205,11 @@ async function main() {
   const normalCanvasSize = await getGameCanvasSize();
   await clickButton('Toggle Focus Mode');
   await waitFor('Focus Mode opens', async () => (await visibleText()).includes('Exit Focus'));
+  await assert('Focus Mode closes and hides Debug Panel', async () => {
+    const text = await visibleText();
+    const labels = (await buttons()).map((button) => button.aria || button.text);
+    return !text.includes('Debug Panel') && !labels.includes('Toggle Debug Panel');
+  });
   await assert('Focus Mode keeps Pixi internal canvas size stable', async () => {
     const focusCanvasSize = await getGameCanvasSize();
     return JSON.stringify(focusCanvasSize) === JSON.stringify(normalCanvasSize);
@@ -196,6 +232,7 @@ async function main() {
   await js(`import('/src/store/useAppStore.ts').then(({ useAppStore }) =>
     useAppStore.getState().exitWallpaperMode()
   )`);
+  await openDebugPanel('Debug Panel reopens after presentation mode checks');
 
   await clickButton('+1K Memory');
   await clickButton('+1 Fragment');
@@ -354,6 +391,7 @@ async function main() {
   );
 
   const memoryBeforeAutoSave = savedAfterContinue.memory;
+  await openDebugPanel('Debug Panel reopens for auto-save resource check');
   await clickButton('+1K Memory');
   await sleep(11_500);
   const autoSaved = JSON.parse(await getStorage('desktop-muse-idle-save'));

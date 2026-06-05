@@ -34,7 +34,11 @@ const dispatchCanvasDebugEvent = (eventName: string, detail?: Record<string, unk
   window.dispatchEvent(new CustomEvent(eventName, { detail }));
 };
 
-export function DebugPanel() {
+interface DebugPanelProps {
+  onClose: () => void;
+}
+
+export function DebugPanel({ onClose }: DebugPanelProps) {
   const memory = useGameStore((state) => state.memory);
   const fragments = useGameStore((state) => state.fragments);
   const currentStageId = useGameStore((state) => state.currentStageId);
@@ -124,7 +128,12 @@ export function DebugPanel() {
           <p className="eyebrow">DEV ONLY</p>
           <h2>Debug Panel</h2>
         </div>
-        <span>Vite dev</span>
+        <div className="debug-heading-actions">
+          <span>Vite dev</span>
+          <button aria-label="Close Debug Panel" onClick={onClose} type="button">
+            Close
+          </button>
+        </div>
       </div>
 
       <div className="debug-status">

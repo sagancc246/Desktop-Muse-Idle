@@ -405,3 +405,12 @@ Verification results on 2026-06-05:
 - Added `verify:masters` once at the end of `verify:all`.
 - Confirmed the validator fails for a temporary missing Skin Reward target and duplicate `rewardId`, reporting the missing reference, Stage/global Reward ID duplication, and generated claim-key duplication before the test data was restored.
 - Verification passed: `npm.cmd run typecheck`, `npm.cmd run verify:masters`, `npm.cmd run build`, and `npm.cmd run verify:all`.
+
+## Development Debug Panel Visibility
+
+- Removed the development Debug Panel from the permanent normal-game side panel stack.
+- Added transient DEV-only open state with a subtle `Debug` button and `Ctrl + Shift + D` shortcut.
+- Added `Esc` and Close-button dismissal; screen, Focus Mode, Wallpaper Stage Mode, and Muse Overlay transitions close the panel.
+- Kept all existing debug actions inside a fixed-stage right-side overlay with internal scrolling.
+- Production builds do not render the Debug button or Debug Panel because access remains guarded by `import.meta.env.DEV`.
+- Verification passed: `npm.cmd run typecheck`, `npm.cmd run build`, `npm.cmd run verify:priority1`, `npm.cmd run verify:priority2`, and `npm.cmd run verify:all`.

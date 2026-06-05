@@ -158,6 +158,8 @@ Next TODO:
 
 ## Priority 6: Debug Tools
 
+- [x] Hide Debug Panel from normal UI; expose it only in development through the small Debug toggle or `Ctrl + Shift + D`, with `Esc`/Close support.
+- [x] Keep Debug Panel closed in Focus Mode, Wallpaper Stage Mode, Muse Overlay Mode, and production builds.
 - Expand Debug Panel with explicit test controls for:
   - Force true Corner Hit.
   - Force Near Corner.

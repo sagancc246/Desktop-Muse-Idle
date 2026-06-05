@@ -602,19 +602,26 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 
 ## Development Debug Panel
 
-- `src/components/DebugPanel.tsx` is rendered only when `import.meta.env.DEV` is true, so it appears in `npm run dev` and stays hidden in production builds.
+- The Debug Panel is available only while `import.meta.env.DEV` is true and starts closed.
+- On the normal game screen, open or close it with the small `Debug` button or `Ctrl + Shift + D`.
+- Close it with its `Close` button or `Esc`.
+- Entering Focus Mode, Wallpaper Stage Mode, Muse Overlay Mode, or another screen closes the panel. The Debug button and panel are not rendered in production builds.
+
+- `src/components/DebugPanel.tsx` is rendered only when `import.meta.env.DEV` is true, so it can be opened in `npm run dev` and stays hidden in production builds.
 - The panel provides direct test controls for Memory, Fragment, Corner Hit progress, current stage completion/background unlock, Reboot readiness, Muse skill activation, and Muse Tap activation.
 - Debug Corner Hit uses the normal stage-progress/background-unlock path, while adding the current bounce and corner reward to make reward and progression checks fast.
 - The store-side debug actions are guarded by `import.meta.env.DEV` so accidental production calls do nothing.
 
 ### Development Debug Panel Verification
 
-1. Run `npm run dev`, start or continue into the game screen, and confirm the right-side `Debug Panel` appears under the normal Muse panels.
-2. Click `+1K Memory`, `+10K Memory`, and `+1 Fragment` and confirm ResourceBar/Reboot values update.
-3. Click `Trigger Corner` and confirm Memory, Bounce count, Corner Hit count, and Stage progress increase.
-4. Click `Clear Stage` and confirm the current stage reaches its goal, the next stage unlocks when available, and the reward background is added.
-5. Click each Muse `Skill` and `Tap` button and confirm MusePanel state changes to active/cooldown.
-6. Run `npm run build` and confirm the TypeScript and Vite build completes.
+1. Run `npm run dev`, start or continue into the game screen, and confirm the Debug Panel starts closed.
+2. Use the small `Debug` button or `Ctrl + Shift + D` and confirm the right-side overlay opens without changing the normal panel layout.
+3. Use `Esc` or `Close` and confirm the panel closes.
+4. Reopen it, click `+1K Memory`, `+10K Memory`, and `+1 Fragment`, and confirm ResourceBar/Reboot values update.
+5. Click `Trigger Corner` and confirm Memory, Bounce count, Corner Hit count, and Stage progress increase.
+6. Click `Clear Stage` and confirm the current stage reaches its goal, the next stage unlocks when available, and the reward background is added.
+7. Click each Muse `Skill` and `Tap` button and confirm MusePanel state changes to active/cooldown.
+8. Run `npm run build` and confirm the TypeScript and Vite build completes.
 
 ## Hidden Tab Rendering Control
 

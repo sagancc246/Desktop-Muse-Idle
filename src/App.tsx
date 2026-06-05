@@ -61,10 +61,13 @@ export default function App() {
   const closeStats = useAppStore((state) => state.closeStats);
   const hasSeenTutorial = useAppStore((state) => state.hasSeenTutorial);
   const completeTutorial = useAppStore((state) => state.completeTutorial);
+  const isDebugPanelOpen = useAppStore((state) => state.isDebugPanelOpen);
   const isFocusMode = useAppStore((state) => state.isFocusMode);
   const wallpaperMode = useAppStore((state) => state.wallpaperMode);
   const wallpaperSettings = useAppStore((state) => state.wallpaperSettings);
   const toggleFocusMode = useAppStore((state) => state.toggleFocusMode);
+  const toggleDebugPanel = useAppStore((state) => state.toggleDebugPanel);
+  const setDebugPanelOpen = useAppStore((state) => state.setDebugPanelOpen);
   const exitFocusMode = useAppStore((state) => state.exitFocusMode);
   const exitWallpaperMode = useAppStore((state) => state.exitWallpaperMode);
   const toggleWallpaperStageMode = useAppStore((state) => state.toggleWallpaperStageMode);
@@ -89,9 +92,13 @@ export default function App() {
   const [pinballCornerHit, setPinballCornerHit] = useState<CornerHitPosition | null>(null);
   const [galleryOpenRequestKey, setGalleryOpenRequestKey] = useState(0);
   const stageScale = useStageScale();
-  const showDebugPanel = import.meta.env.DEV;
   const isWallpaperStageMode = wallpaperMode === 'stage';
   const isMuseOverlayMode = wallpaperMode === 'muse_overlay';
+  const canShowDebugPanel =
+    import.meta.env.DEV &&
+    currentScreen === 'game' &&
+    !isFocusMode &&
+    wallpaperMode === 'off';
   const shouldShowTutorial =
     currentScreen === 'game' &&
     !isMuseOverlayMode &&
@@ -237,7 +244,20 @@ export default function App() {
         return;
       }
 
-      if (event.key.toLowerCase() === 'f') {
+      if (
+        import.meta.env.DEV &&
+        event.ctrlKey &&
+        event.shiftKey &&
+        event.key.toLowerCase() === 'd' &&
+        !isFocusMode &&
+        wallpaperMode === 'off'
+      ) {
+        event.preventDefault();
+        toggleDebugPanel();
+      } else if (event.key === 'Escape' && isDebugPanelOpen) {
+        event.preventDefault();
+        setDebugPanelOpen(false);
+      } else if (event.key.toLowerCase() === 'f') {
         event.preventDefault();
         toggleFocusMode();
       } else if (event.key === 'Escape' && wallpaperMode !== 'off') {
@@ -256,7 +276,10 @@ export default function App() {
     currentScreen,
     exitFocusMode,
     exitWallpaperMode,
+    isDebugPanelOpen,
     isFocusMode,
+    setDebugPanelOpen,
+    toggleDebugPanel,
     toggleFocusMode,
     wallpaperMode,
   ]);
@@ -315,10 +338,22 @@ export default function App() {
             <WallpaperModePanel />
             <GalleryPanel openRequestKey={galleryOpenRequestKey} />
             <MusePanel />
-            {showDebugPanel ? <DebugPanel /> : null}
           </div>
         </main>
         <RebootPanel />
+        {canShowDebugPanel ? (
+          <button
+            aria-label="Toggle Debug Panel"
+            className="debug-toggle"
+            onClick={toggleDebugPanel}
+            type="button"
+          >
+            Debug
+          </button>
+        ) : null}
+        {canShowDebugPanel && isDebugPanelOpen ? (
+          <DebugPanel onClose={() => setDebugPanelOpen(false)} />
+        ) : null}
         {!isMuseOverlayMode ? <SaveStatusToast /> : null}
         {isFocusMode ? <FocusHud onExit={exitFocusMode} /> : null}
         {isWallpaperStageMode && wallpaperSettings.showStageHud ? (
