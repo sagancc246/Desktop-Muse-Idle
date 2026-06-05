@@ -148,6 +148,7 @@ async function main() {
     await withVite(['verify:priority1:app', 'verify:priority2:app', 'verify:e2e:app']);
     // priority3 and verify:save-migrations intentionally point to the same migration suite.
     await runNpm('verify:priority3');
+    await runNpm('verify:masters');
     return;
   }
 

@@ -15,6 +15,7 @@
     "verify:priority2": "node scripts/run-verifications.cjs priority2",
     "verify:priority2:app": "electron scripts/priority2-collision-reward.cjs",
     "verify:priority3": "node scripts/verify-save-migrations.mjs",
+    "verify:masters": "node scripts/run-master-validation.mjs",
     "verify:save-migrations": "node scripts/verify-save-migrations.mjs",
     "verify:e2e": "node scripts/run-verifications.cjs e2e",
     "verify:e2e:app": "electron scripts/e2e-smoke.cjs",

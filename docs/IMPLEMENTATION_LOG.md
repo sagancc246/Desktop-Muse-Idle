@@ -395,3 +395,13 @@ Verification results on 2026-06-05:
 - Expanded Priority 1 regression coverage to verify two already-cleared Stage groups appear together and both claim keys remain unique.
 - Verification passed: `npm.cmd run typecheck`, `npm.cmd run build`, `npm.cmd run verify:priority1`, `npm.cmd run verify:all`, and standalone `npm.cmd run dev` startup.
 - In-app Browser inspection was attempted twice but its Windows sandbox runtime failed to start; the Electron Priority 1 UI regression verified the rendered backfill modal content instead.
+
+## Master Data Validation
+
+- Added `npm run verify:masters`, implemented as a Node-only TypeScript validator bundled with the existing esbuild dependency.
+- Added validation for master IDs, Stage numbers/goals, Reward shapes and references, global Reward IDs, generated claim keys, Muse/Skin/Background relationships, UnlockConditions, Skills, Upgrades, and initial unlock/equipment state.
+- Extracted the legacy Stage-claim migration into a shared pure function and added `masterClaimMigration.snapshot.json` coverage.
+- Missing image files and not-yet-implemented Capsule, Conversation, and DLC masters remain warnings rather than errors.
+- Added `verify:masters` once at the end of `verify:all`.
+- Confirmed the validator fails for a temporary missing Skin Reward target and duplicate `rewardId`, reporting the missing reference, Stage/global Reward ID duplication, and generated claim-key duplication before the test data was restored.
+- Verification passed: `npm.cmd run typecheck`, `npm.cmd run verify:masters`, `npm.cmd run build`, and `npm.cmd run verify:all`.

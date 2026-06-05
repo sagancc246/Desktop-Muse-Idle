@@ -15,6 +15,7 @@ import {
   legacyClaimedRewardIdsByStageId,
   stages,
 } from '../data/stages';
+import { migrateLegacyStageRewardClaims } from '../data/rewards';
 import {
   createInitialEquippedSkinByMuseId,
   getDefaultSkinForMuse,
@@ -152,11 +153,7 @@ function restoreStageState(data: CompatibleSaveData): Pick<
   const migratedClaimedRewardIds =
     hasStoredClaimedRewardIds
       ? storedClaimedRewardIds
-      : claimedStageRewardIds.flatMap((stageId) =>
-          (legacyClaimedRewardIdsByStageId[stageId] ?? []).map(
-            (rewardId) => `${stageId}:${rewardId}`,
-          ),
-        );
+      : migrateLegacyStageRewardClaims(claimedStageRewardIds, legacyClaimedRewardIdsByStageId);
 
   return {
     currentStageId,

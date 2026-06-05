@@ -15,6 +15,7 @@ Status: `npm run build`, `npm run verify:e2e`, and `npm run verify:all` passed o
 
 Next automation candidates:
 
+- [x] Add `npm run verify:masters` for master ID, Reward reference, claim key, initial-state, and legacy claim migration validation.
 - Add viewport-size E2E coverage for 1920x1080, 1280x720, 1366x768, and a narrow viewport.
 - Add keyboard/Escape and focus-trap E2E coverage for major screens and modals.
 - Add visible-window Wallpaper 30fps/60fps cadence checks on suitable CI or desktop hardware.
@@ -177,6 +178,7 @@ Next TODO:
 
 - Replace placeholder Muse icon assets with final transparent PNG/WebP assets.
 - Add final background assets for each stage reward.
+- Resolve current `verify:masters` asset warnings for Muse thumbnails and `bg_night_room` / `bg_star_room`.
 - Confirm all background runtime paths use `public/assets/backgrounds`.
 - Keep editable/source assets documented in `docs/ASSET_LEDGER.md`.
 - Add missing voice files or keep subtitle fallback clearly documented.

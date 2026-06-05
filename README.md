@@ -1095,6 +1095,14 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 - Backfill reward groups use the same Reward cards and immediate Equip, Set Background, and Open Gallery actions as normal Stage Clear rewards.
 - Closing the Backfill Rewards modal only dismisses the transient summary; granted rewards and `claimedRewardIds` remain saved.
 
+## Master Data Validation
+
+- Run `npm run verify:masters` whenever Stage, Reward, Muse, Skin, Background, Skill, Upgrade, or initial-state master data changes.
+- The validator checks duplicate IDs, Reward references, generated claim keys, UnlockCondition references, initial unlock/equipment state, and the legacy Stage-claim migration snapshot.
+- Missing image assets and not-yet-implemented Capsule, Conversation, or DLC masters are reported as warnings without failing validation.
+- `npm run verify:all` runs `verify:masters` once after save migration verification.
+- See `docs/MASTER_VALIDATION.md` for the full validation scope and snapshot policy.
+
 ### Stage Clear Reward Verification
 
 1. Run `npm run dev` and start a new game.

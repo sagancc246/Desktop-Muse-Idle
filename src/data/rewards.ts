@@ -73,3 +73,16 @@ export function getStageRewardClaimKey(stageId: string, reward: Reward, index: n
 export function getStageRewardClaimKeys(stageId: string, rewards: Reward[]): string[] {
   return rewards.map((reward, index) => getStageRewardClaimKey(stageId, reward, index));
 }
+
+export function migrateLegacyStageRewardClaims(
+  claimedStageRewardIds: string[],
+  legacyRewardIdsByStageId: Record<string, string[]>,
+): string[] {
+  return [
+    ...new Set(
+      claimedStageRewardIds.flatMap((stageId) =>
+        (legacyRewardIdsByStageId[stageId] ?? []).map((rewardId) => `${stageId}:${rewardId}`),
+      ),
+    ),
+  ];
+}
