@@ -312,6 +312,19 @@ async function main() {
   await js(`import('/src/store/useAppStore.ts').then(({ useAppStore }) =>
     useAppStore.getState().toggleMuseOverlayMode()
   )`);
+  await waitFor('Muse Overlay Mode opens as transparent overlay surface', async () =>
+    js(`document.querySelector('.appViewport')?.classList.contains('muse-overlay-viewport') &&
+      getComputedStyle(document.querySelector('.appViewport')).backgroundColor === 'rgba(0, 0, 0, 0)'`),
+  );
+  await js(`import('/src/store/useAppStore.ts').then(({ useAppStore }) =>
+    useAppStore.getState().setClickThroughEnabled(true)
+  )`);
+  await waitFor('Overlay status reports Click Through ON', async () =>
+    js(`import('/src/store/useAppStore.ts').then(({ useAppStore }) =>
+      useAppStore.getState().isClickThroughEnabled === true &&
+      !useAppStore.getState().overlayLastError
+    )`),
+  );
   await assert('Muse Overlay Mode keeps Pixi internal canvas size stable', async () => {
     const overlayCanvasSize = await getGameCanvasSize();
     return JSON.stringify(overlayCanvasSize) === JSON.stringify(normalCanvasSize);
@@ -319,6 +332,11 @@ async function main() {
   await js(`import('/src/store/useAppStore.ts').then(({ useAppStore }) =>
     useAppStore.getState().exitWallpaperMode()
   )`);
+  await assert('Exiting Muse Overlay clears transient Click Through state', async () =>
+    js(`import('/src/store/useAppStore.ts').then(({ useAppStore }) =>
+      useAppStore.getState().isClickThroughEnabled === false
+    )`),
+  );
   await openDebugPanel('Debug Panel reopens after presentation mode checks');
 
   await clickButton('+1K Memory');

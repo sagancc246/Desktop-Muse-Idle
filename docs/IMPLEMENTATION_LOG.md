@@ -432,3 +432,29 @@ Verification results on 2026-06-05:
 - Confirmed Electron creates one normal framed 1280x820 `BrowserWindow`; preload exposes no desktop APIs.
 - Found no WorkerW, Progman, SetParent, native window handle, or other Windows desktop-layer attachment code.
 - Classified the packaged implementation as `electron_window`, the web implementation as `browser_only`, and native desktop wallpaper / transparent overlay as not implemented.
+
+## Electron Muse Transparent Overlay
+
+- Added a context-isolated preload IPC bridge and Electron platform adapter for Muse Overlay window control.
+- Electron now creates a transparent-capable window while normal screens remain visually opaque.
+- Muse Overlay switches the existing window to fullscreen, always-on-top, skip-taskbar transparent presentation and restores previous window state on exit.
+- Added real click-through through `setIgnoreMouseEvents`, with Overlay-only global `Ctrl + Shift + M` and `Esc` recovery shortcuts.
+- Added renderer synchronization for actual Overlay window state and truthful Electron Overlay / Web Preview HUD labels.
+- Kept Wallpaper Stage as a normal Electron window and did not add WorkerW/Progman/native desktop wallpaper behavior.
+- Verification passed: `npm.cmd run typecheck`, `node --check electron/main.cjs`, `node --check electron/preload.cjs`, `npm.cmd run verify:priority1`, `npm.cmd run electron:build`, and `npm.cmd run verify:all`.
+- Packaged Windows visual/input verification remains pending because the Windows Computer Use runtime failed twice with `windows sandbox failed: spawn setup refresh`.
+
+## Electron Muse Click Through Fix
+
+- Added `overlay:get-status` / `overlay:set-click-through` IPC status flow with `lastError` reporting.
+- Click Through ON now applies `setIgnoreMouseEvents(true, { forward: true })` on Windows/macOS, falls back safely where needed, and makes the Overlay window non-focusable while pass-through is active.
+- Click Through OFF restores mouse handling, focusability, and Muse Tap interaction.
+- Muse Tap is explicitly blocked in GameCanvas while Muse Overlay Click Through is ON, including the web fallback path.
+- Muse Overlay HUD now shows Overlay Active, Transparent, Always On Top, Click Through priority, and Last Error.
+
+## Electron Muse Click Through Safety Guide
+
+- Muse Overlay now always starts with Click Through OFF, even when the saved preference is ON.
+- If the saved preference is ON, Click Through is applied after a 3-second safety delay.
+- The Overlay HUD is mounted during Muse Overlay so the startup safety guide can appear even when the normal Overlay HUD preference is OFF.
+- The safety guide explains that Overlay buttons are unavailable while Click Through is ON and that `Ctrl + Shift + M` returns to operation mode; `Esc` exits Overlay.

@@ -1,7 +1,11 @@
+import { electronAdapter } from './electronAdapter';
 import { localAdapter } from './localAdapter';
-import type { PlatformAdapter } from './platformAdapter';
+import type { OverlayStatus, PlatformAdapter } from './platformAdapter';
 
-export const platformAdapter: PlatformAdapter = localAdapter;
+export const platformAdapter: PlatformAdapter =
+  typeof window !== 'undefined' && window.desktopMusePlatform ? electronAdapter : localAdapter;
+
+export const isElectronOverlayAvailable = () => platformAdapter.platformId === 'electron';
 
 export async function enterPlatformOverlayMode() {
   await platformAdapter.enterOverlayMode?.();
@@ -9,6 +13,10 @@ export async function enterPlatformOverlayMode() {
 
 export async function exitPlatformOverlayMode() {
   await platformAdapter.exitOverlayMode?.();
+}
+
+export async function getPlatformOverlayStatus() {
+  return platformAdapter.getOverlayStatus?.();
 }
 
 export async function setPlatformAlwaysOnTop(enabled: boolean) {
@@ -21,4 +29,12 @@ export async function setPlatformClickThrough(enabled: boolean) {
 
 export async function setPlatformTransparentWindow(enabled: boolean) {
   await platformAdapter.setTransparentWindow?.(enabled);
+}
+
+export function onPlatformOverlayExitRequested(callback: () => void) {
+  return platformAdapter.onOverlayExitRequested?.(callback) ?? (() => undefined);
+}
+
+export function onPlatformOverlayState(callback: (state: OverlayStatus) => void) {
+  return platformAdapter.onOverlayState?.(callback) ?? (() => undefined);
 }

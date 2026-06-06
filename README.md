@@ -177,7 +177,43 @@ npm run electron:dev
 npm run electron:build
 ```
 
-`npm run electron:build` は `release/win-unpacked/` に Windows 向けの展開済みアプリを生成します。
+`npm run electron:dev` は Vite 開発サーバーと Electron を同時起動します。透明オーバーレイなど、ブラウザ版では確認できない Electron ウィンドウ動作の開発確認に使用します。
+
+`npm run electron:build` は Web ビルド後に `electron-builder --win --x64 --dir` を実行し、Windows 向けの展開済みアプリを生成します。インストーラーは作成せず、想定される実行ファイルは次です。
+
+```text
+release\win-unpacked\Desktop Muse Idle.exe
+```
+
+### Windows Electron 実機確認
+
+開発版で確認する場合:
+
+```powershell
+npm run electron:dev
+```
+
+パッケージ版で確認する場合:
+
+```powershell
+npm run electron:build
+& ".\release\win-unpacked\Desktop Muse Idle.exe"
+```
+
+Windows Computer Use runtime が `windows sandbox failed: spawn setup refresh` などで起動できない場合は、上記のパッケージ版 `.exe` をローカルWindows環境で直接起動して確認します。
+
+1. ゲーム画面を開き、Wallpaper設定またはモード選択から `Muse Overlay` を起動します。
+2. 通常背景と大型UIが消え、Museだけがデスクトップ上の透明ウィンドウに表示されることを確認します。
+3. 起動直後はClick ThroughがOFFで、操作説明HUDが表示されることを確認します。
+4. `clickThroughPreferred` がONの場合も、開始から約3秒間はOFFのままで、その後ONへ切り替わることを確認します。
+5. Muse Overlayが他アプリより前面に維持され、Always on Topが機能することを確認します。
+6. Click ThroughがOFFの状態でMuseをクリックし、Muse Tapが反応することを確認します。
+7. `Ctrl + Shift + M` でClick ThroughをONにし、背後のデスクトップやアプリをクリックできることを確認します。
+8. Click Through ON中はOverlay上のボタンを押せない前提で、Muse Tapが発動しないことを確認します。
+9. `Ctrl + Shift + M` でもう一度OFFへ戻し、Muse TapとHUDボタン操作が再び反応することを確認します。
+10. `Esc` で通常画面へ戻り、透明化・Always on Top・クリック透過が解除されることを確認します。
+11. Muse Overlayへ入り直し、HUDの `Exit` ボタンでも通常画面へ戻れることを確認します。
+12. HUDに `Overlay Active`、`Transparent`、`Always On Top`、`Click Through` が表示され、`Last Error` が出ていないことを確認します。
 
 ## v1.0マスタデータと報酬追加
 
@@ -1028,75 +1064,83 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 
 ## Muse Overlay Mode
 
-- `wallpaperMode === "muse_overlay"` now enables a web-only Muse Overlay preview mode.
+- `wallpaperMode === "muse_overlay"` enables a web preview and an Electron transparent Overlay mode.
 - The mode hides the selected background image, CSS background effects, ResourceBar, UpgradePanel, StagePanel, GalleryPanel, MusePanel, DebugPanel, RebootPanel, and large blocking reward/unlock UI.
 - GameCanvas keeps the same Pixi coordinate system, movement, Corner Hit detection, Muse Tap, rewards, and stage progress while presenting only the Muse bodies and reduced effects.
-- The stage uses a dark checker-style placeholder backdrop to suggest future transparent-window behavior without adding Electron-specific code.
+- Web preview uses the normal browser surface; Electron Overlay removes the window/background surface so only Muse/Pixi effects remain visible.
 - Added `MuseOverlayHud`, which stays hidden by default and briefly appears on pointer or keyboard activity.
-- The HUD includes an `Exit` button and a Click Through placeholder label for future Electron work.
+- The HUD includes Exit, backend status, and Click Through state/shortcut guidance.
 - `Esc` also exits Muse Overlay Mode by returning `wallpaperMode` to `off`.
 
 ## Current Wallpaper Mode Status
 
-Current implementation status: **`electron_window`** in the packaged Electron app, and **`browser_only`** during web development.
+Current implementation status: **`transparent_overlay`** for Muse Overlay in the packaged Electron app, **`electron_window`** for Wallpaper Stage, and **`browser_only`** during web development.
 
 | Capability | Current status | Evidence |
 | --- | --- | --- |
 | Wallpaper Stage Mode | `browser_only` / `electron_window` | Changes React/CSS layout and Pixi rendering inside the existing app window. |
-| Muse Overlay Mode | `browser_only` / `electron_window` | Uses a transparent-looking in-app presentation, but the OS window itself is not transparent. |
-| Transparent overlay | Not implemented | `localAdapter` and `steamAdapter` window-control methods are no-op stubs. |
+| Muse Overlay Mode | `browser_only` / `transparent_overlay` | Electron switches the existing transparent-capable window to fullscreen, always-on-top Overlay presentation. |
+| Transparent overlay | Implemented for Electron Muse Overlay | IPC controls fullscreen Overlay entry/exit, always-on-top, taskbar hiding, and click-through. |
 | Native desktop wallpaper | Not implemented | No WorkerW, Progman, SetParent, native window handle, or desktop-layer attachment code exists. |
 
-The Electron main process currently creates one normal `BrowserWindow` at 1280x820. It does not configure `transparent`, `alwaysOnTop`, `frame: false`, fullscreen, `skipTaskbar`, click-through, or native desktop attachment. `electron/preload.cjs` exposes no desktop-only APIs, and there is no Electron platform adapter connected to the renderer.
+The Electron main process creates one transparent-capable `BrowserWindow` at 1280x820. Normal screens remain visually opaque. Entering Muse Overlay uses the preload IPC bridge and `electronAdapter` to make the existing window fullscreen, always-on-top, hidden from the taskbar, and visually transparent. Exiting restores the previous bounds/fullscreen/always-on-top state and always disables click-through.
 
-The Always on Top, Click Through, and Transparent Window controls currently update web-safe state/settings only. They do not change the Windows window. Because real click-through is not active, Muse Tap remains clickable and there is currently no click-through/Muse Tap conflict.
+Click Through uses Electron `setIgnoreMouseEvents`. When it is OFF, Muse Tap and HUD buttons remain available. When it is ON, clicks pass to the desktop/application behind the Overlay, so Overlay buttons should be treated as unavailable. Use `Ctrl + Shift + M` to toggle Click Through; Electron registers this shortcut globally while Overlay is active so it remains usable even when the window ignores mouse events. `Esc` is also registered while Overlay is active and safely restores the normal window.
+
+Muse Overlay always starts with Click Through OFF. If the saved Click Through preference is ON, the app keeps Click Through OFF for the first 3 seconds, shows a safety HUD explaining `Ctrl + Shift + M` and `Esc`, and then applies the saved ON preference.
 
 Expected behavior from the current code:
 
-- `Win + D`: the normal Electron window should be hidden with other app windows; it will not remain as the desktop background.
-- `Alt + Tab`: the app should appear as a normal Electron window.
+- `Win + D`: Muse Overlay remains an always-on-top overlay, not a desktop wallpaper behind icons.
+- `Alt + Tab`: normal mode appears as an app window; Overlay is hidden from the taskbar but is still not a WorkerW desktop wallpaper.
 - Desktop icon layering: the game cannot render behind desktop icons.
-- Other applications: the game is not fixed behind them and Always on Top currently has no OS effect.
-- Desktop icon clicks: only possible after moving/minimizing the app; Click Through currently has no OS effect.
-- Taskbar: the Electron app should appear as a normal taskbar application because `skipTaskbar` is not configured.
+- Other applications: Muse Overlay remains above them while always-on-top is active.
+- Desktop icon/application clicks: work through the Overlay only when Click Through is ON.
+- Taskbar: normal mode appears normally; Muse Overlay uses `skipTaskbar`.
 
 ### Wallpaper Backend Verification
 
 1. Run the packaged Electron build and enter Wallpaper Stage Mode and Muse Overlay Mode.
-2. Press `Win + D` and confirm the app is hidden instead of remaining behind desktop icons.
-3. Use `Alt + Tab` and confirm Desktop Muse Idle appears as a normal application window.
-4. Confirm the game is not behind desktop icons and is not fixed behind other applications.
-5. Toggle Always on Top, Click Through, and Transparent Window and confirm they are currently placeholders with no OS-window effect.
-6. After a future native implementation, repeat these checks and update the status to `transparent_overlay` or `native_desktop_wallpaper` only when the OS behavior matches.
+2. Confirm Muse Overlay shows Muse/Pixi effects over the desktop without the normal game background or large UI.
+3. Confirm it remains always-on-top and is hidden from the taskbar.
+4. Confirm the safety HUD appears immediately and Click Through starts OFF even when the saved preference is ON.
+5. With Click Through OFF, confirm Muse Tap works.
+6. Press `Ctrl + Shift + M`, then confirm clicks reach the desktop/application behind the Overlay and Muse Tap no longer fires.
+7. Press `Ctrl + Shift + M` again, then confirm Muse Tap and HUD buttons work again.
+8. Press `Esc` or use the Overlay HUD Exit button and confirm the previous normal window bounds and interaction return.
+9. Confirm the HUD shows Overlay Active, Transparent, Always On Top, Click Through, and no Last Error.
+10. Confirm Wallpaper Stage remains a normal Electron window and that no mode renders behind desktop icons.
 
 ### Muse Overlay Mode Verification
 
-1. Run `npm run dev` and enter the game screen.
+1. Run `npm run electron:dev` or launch `release\win-unpacked\Desktop Muse Idle.exe`, then enter the game screen.
 2. Open Settings or `WallpaperModePanel`, then select `Muse Overlay`.
-3. Confirm the background image and large management UI disappear, leaving only moving Muse bodies on the dark checker placeholder backdrop.
+3. Confirm the background image and large management UI disappear, leaving only moving Muse bodies; Electron should show the desktop behind them.
 4. Move the pointer or press a key and confirm the small Muse Overlay HUD appears briefly.
-5. Confirm Muse movement, Muse Tap, Wall Hits, Corner Hits, Memory gain, and stage progress continue while the mode is active.
-6. Trigger a Corner Hit or Near Corner and confirm the effects are still visible but more subdued than normal.
-7. Press `Esc` or click `Exit` in the overlay HUD and confirm the normal game UI returns.
-8. Run `npm run build` and confirm TypeScript and Vite build successfully.
+5. Confirm Muse movement, Wall Hits, Corner Hits, Memory gain, and stage progress continue while the mode is active.
+6. With Click Through OFF, confirm Muse Tap works. With Click Through ON, confirm Muse Tap does not fire and desktop/application clicks pass through.
+7. Trigger a Corner Hit or Near Corner and confirm the effects are still visible but more subdued than normal.
+8. Press `Esc` or click `Exit` in the overlay HUD and confirm the normal game UI returns.
+9. Run `npm run build` and confirm TypeScript and Vite build successfully.
 
-## Platform Overlay Adapter Stub
+## Platform Overlay Adapter
 
 - Added `src/platform/platformAdapter.ts` as the shared platform boundary for future desktop behavior.
 - Added safe no-op implementations in `localAdapter` and `steamAdapter`.
+- Added `electronAdapter` and a context-isolated Electron preload IPC bridge for real Overlay window control.
 - `platform.ts` exposes overlay-related adapter calls for Always on Top, Click Through, Transparent Window, entering Overlay Mode, and exiting Overlay Mode.
-- `useAppStore` now owns placeholder state for Always on Top, Click Through, and Transparent Window.
+- `useAppStore` owns synchronized state for Always on Top, Click Through, and Transparent Window.
 - Wallpaper Muse Overlay entry/exit now calls the platform adapter boundary instead of leaving React components to know about future Electron APIs.
-- Settings includes web-safe placeholder toggles for `Always on Top`, `Click Through`, and `Transparent Window`.
-- `MuseOverlayHud` displays the current Click Through placeholder state.
-- No Electron main process, native module, or Steam SDK implementation was added in this step.
+- Settings uses the Electron platform adapter when available and remains a web-safe fallback otherwise.
+- `MuseOverlayHud` displays the active backend and current Click Through state.
+- No native desktop wallpaper module or Steam SDK implementation was added in this step.
 
 ### Platform Overlay Adapter Verification
 
 1. Run `npm run dev` and open Settings.
 2. Toggle `Always on Top`, `Click Through`, and `Transparent Window`; confirm the UI state changes without browser errors.
 3. Select `Muse Overlay` and confirm the overlay preview still opens normally.
-4. Move the pointer to reveal `MuseOverlayHud` and confirm the Click Through placeholder reflects the Settings value.
+4. Move the pointer to reveal `MuseOverlayHud` and confirm its backend and Click Through state are accurate.
 5. Press `Esc` or click `Exit` and confirm normal game UI returns.
 6. Run `npm run build` and confirm TypeScript and Vite build successfully.
 

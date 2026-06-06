@@ -23,6 +23,11 @@ import { calculateOfflineReward } from './game/offlineReward';
 import { useAppStore } from './store/useAppStore';
 import { useGameStore } from './store/useGameStore';
 import { setWallpaperBgmMuted } from './systems/audioSystem';
+import {
+  isElectronOverlayAvailable,
+  onPlatformOverlayExitRequested,
+  onPlatformOverlayState,
+} from './platform/platform';
 import type { CornerHitPosition } from './types/game';
 
 const CreditsModal = lazy(() =>
@@ -71,6 +76,9 @@ export default function App() {
   const exitFocusMode = useAppStore((state) => state.exitFocusMode);
   const exitWallpaperMode = useAppStore((state) => state.exitWallpaperMode);
   const toggleWallpaperStageMode = useAppStore((state) => state.toggleWallpaperStageMode);
+  const setClickThroughEnabled = useAppStore((state) => state.setClickThroughEnabled);
+  const applyPlatformOverlayState = useAppStore((state) => state.applyPlatformOverlayState);
+  const isClickThroughEnabled = useAppStore((state) => state.isClickThroughEnabled);
   const autoSaveEnabled = useAppStore((state) => state.settings.autoSaveEnabled);
   const language = useAppStore((state) => state.settings.language);
   const motionIntensity = useAppStore((state) => state.settings.motionIntensity);
@@ -226,6 +234,20 @@ export default function App() {
   }, [wallpaperMode, wallpaperSettings.bgmEnabled]);
 
   useEffect(() => {
+    const unsubscribeExit = onPlatformOverlayExitRequested(() => {
+      useAppStore.getState().exitWallpaperMode();
+    });
+    const unsubscribeState = onPlatformOverlayState((overlayState) => {
+      useAppStore.getState().applyPlatformOverlayState(overlayState);
+    });
+
+    return () => {
+      unsubscribeExit();
+      unsubscribeState();
+    };
+  }, [applyPlatformOverlayState]);
+
+  useEffect(() => {
     if (currentScreen !== 'game') {
       exitFocusMode();
       return undefined;
@@ -254,6 +276,15 @@ export default function App() {
       ) {
         event.preventDefault();
         toggleDebugPanel();
+      } else if (
+        event.ctrlKey &&
+        event.shiftKey &&
+        event.key.toLowerCase() === 'm' &&
+        wallpaperMode === 'muse_overlay' &&
+        !isElectronOverlayAvailable()
+      ) {
+        event.preventDefault();
+        setClickThroughEnabled(!isClickThroughEnabled);
       } else if (event.key === 'Escape' && isDebugPanelOpen) {
         event.preventDefault();
         setDebugPanelOpen(false);
@@ -277,8 +308,10 @@ export default function App() {
     exitFocusMode,
     exitWallpaperMode,
     isDebugPanelOpen,
+    isClickThroughEnabled,
     isFocusMode,
     setDebugPanelOpen,
+    setClickThroughEnabled,
     toggleDebugPanel,
     toggleFocusMode,
     wallpaperMode,
@@ -359,7 +392,7 @@ export default function App() {
         {isWallpaperStageMode && wallpaperSettings.showStageHud ? (
           <WallpaperStageHud onExit={exitWallpaperMode} />
         ) : null}
-        {isMuseOverlayMode && wallpaperSettings.showOverlayHud ? (
+        {isMuseOverlayMode ? (
           <MuseOverlayHud onExit={exitWallpaperMode} />
         ) : null}
         {!isMuseOverlayMode && pendingOfflineReward ? (
@@ -399,7 +432,7 @@ export default function App() {
   }
 
   return (
-    <div className="appViewport">
+    <div className={`appViewport${isMuseOverlayMode ? ' muse-overlay-viewport' : ''}`}>
       <div
         className="gameStage"
         style={{

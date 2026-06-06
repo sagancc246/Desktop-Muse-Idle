@@ -2,10 +2,13 @@ import { create } from 'zustand';
 import {
   enterPlatformOverlayMode,
   exitPlatformOverlayMode,
+  getPlatformOverlayStatus,
+  isElectronOverlayAvailable,
   setPlatformAlwaysOnTop,
   setPlatformClickThrough,
   setPlatformTransparentWindow,
 } from '../platform/platform';
+import type { OverlayStatus } from '../platform/platformAdapter';
 import { loadSettings, saveSettings } from '../systems/settingsSystem';
 import {
   loadWallpaperSettings as loadStoredWallpaperSettings,
@@ -25,6 +28,7 @@ interface AppStore {
   isDebugPanelOpen: boolean;
   isFocusMode: boolean;
   isTransparentWindowEnabled: boolean;
+  overlayLastError?: string;
   wallpaperMode: WallpaperMode;
   wallpaperSettings: WallpaperSettings;
   settingsReturnScreen: 'title' | 'game';
@@ -42,6 +46,8 @@ interface AppStore {
   setAlwaysOnTopEnabled: (enabled: boolean) => void;
   setClickThroughEnabled: (enabled: boolean) => void;
   setTransparentWindowEnabled: (enabled: boolean) => void;
+  applyPlatformOverlayState: (state: OverlayStatus) => void;
+  refreshOverlayStatus: () => Promise<void>;
   loadWallpaperSettings: () => void;
   resetWallpaperSettings: () => void;
   saveWallpaperSettings: () => void;
@@ -58,15 +64,49 @@ interface AppStore {
 
 const initialSettings = loadSettings();
 const initialWallpaperSettings = loadStoredWallpaperSettings();
+let overlayClickThroughDelayId: number | undefined;
+const getOverlayErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : String(error);
+const clearOverlayClickThroughDelay = () => {
+  if (overlayClickThroughDelayId !== undefined) {
+    window.clearTimeout(overlayClickThroughDelayId);
+    overlayClickThroughDelayId = undefined;
+  }
+};
+const applyPlatformClickThrough = (enabled: boolean) => {
+  if (!isElectronOverlayAvailable()) {
+    return;
+  }
+
+  void setPlatformClickThrough(enabled)
+    .then(() => useAppStore.getState().refreshOverlayStatus())
+    .catch((error) => {
+      useAppStore.setState({ overlayLastError: getOverlayErrorMessage(error) });
+    });
+};
+const applyDelayedPreferredClickThrough = () => {
+  clearOverlayClickThroughDelay();
+  overlayClickThroughDelayId = window.setTimeout(() => {
+    overlayClickThroughDelayId = undefined;
+    const state = useAppStore.getState();
+    if (state.wallpaperMode !== 'muse_overlay' || !state.wallpaperSettings.clickThroughPreferred) {
+      return;
+    }
+
+    applyPlatformClickThrough(true);
+    useAppStore.setState({ isClickThroughEnabled: true });
+  }, 3_000);
+};
 
 export const useAppStore = create<AppStore>((set) => ({
   currentScreen: 'title',
   hasSeenTutorial: loadTutorialSeen(),
-  isAlwaysOnTopEnabled: initialWallpaperSettings.alwaysOnTopPreferred,
-  isClickThroughEnabled: initialWallpaperSettings.clickThroughPreferred,
+  isAlwaysOnTopEnabled: false,
+  isClickThroughEnabled: false,
   isDebugPanelOpen: false,
   isFocusMode: false,
   isTransparentWindowEnabled: false,
+  overlayLastError: undefined,
   wallpaperMode: 'off',
   wallpaperSettings: initialWallpaperSettings,
   settingsReturnScreen: 'title',
@@ -110,16 +150,38 @@ export const useAppStore = create<AppStore>((set) => ({
     });
   },
   setWallpaperMode: (mode) => {
-    void (mode === 'muse_overlay' ? enterPlatformOverlayMode() : exitPlatformOverlayMode());
+    clearOverlayClickThroughDelay();
+    if (mode === 'muse_overlay') {
+      void enterPlatformOverlayMode().then(() => {
+        const state = useAppStore.getState();
+        void setPlatformAlwaysOnTop(true);
+        void setPlatformTransparentWindow(true);
+        applyPlatformClickThrough(false);
+        if (state.wallpaperSettings.clickThroughPreferred) {
+          applyDelayedPreferredClickThrough();
+        }
+      });
+    } else {
+      void exitPlatformOverlayMode();
+    }
     set((state) => ({
       isDebugPanelOpen: false,
+      isClickThroughEnabled: false,
       isFocusMode: mode === 'off' ? state.isFocusMode : false,
+      overlayLastError: undefined,
+      isTransparentWindowEnabled: mode === 'muse_overlay',
       wallpaperMode: mode,
     }));
   },
   exitWallpaperMode: () => {
+    clearOverlayClickThroughDelay();
     void exitPlatformOverlayMode();
-    set({ wallpaperMode: 'off' });
+    set({
+      isClickThroughEnabled: false,
+      isTransparentWindowEnabled: false,
+      overlayLastError: undefined,
+      wallpaperMode: 'off',
+    });
   },
   setAlwaysOnTopEnabled: (enabled) => {
     void setPlatformAlwaysOnTop(enabled);
@@ -130,16 +192,33 @@ export const useAppStore = create<AppStore>((set) => ({
     });
   },
   setClickThroughEnabled: (enabled) => {
-    void setPlatformClickThrough(enabled);
     set((state) => {
       const wallpaperSettings = { ...state.wallpaperSettings, clickThroughPreferred: enabled };
       saveStoredWallpaperSettings(wallpaperSettings);
+      if (state.wallpaperMode === 'muse_overlay') {
+        applyPlatformClickThrough(enabled);
+      }
       return { isClickThroughEnabled: enabled, wallpaperSettings };
     });
   },
   setTransparentWindowEnabled: (enabled) => {
-    void setPlatformTransparentWindow(enabled);
+    if (useAppStore.getState().wallpaperMode === 'muse_overlay') {
+      void setPlatformTransparentWindow(enabled);
+    }
     set({ isTransparentWindowEnabled: enabled });
+  },
+  applyPlatformOverlayState: (overlayState) =>
+    set({
+      isAlwaysOnTopEnabled: overlayState.alwaysOnTopEnabled,
+      isClickThroughEnabled: overlayState.clickThroughEnabled,
+      isTransparentWindowEnabled: overlayState.transparentEnabled,
+      overlayLastError: overlayState.lastError,
+    }),
+  refreshOverlayStatus: async () => {
+    const overlayStatus = await getPlatformOverlayStatus();
+    if (overlayStatus) {
+      useAppStore.getState().applyPlatformOverlayState(overlayStatus);
+    }
   },
   loadWallpaperSettings: () =>
     set(() => {
@@ -176,23 +255,41 @@ export const useAppStore = create<AppStore>((set) => ({
     }),
   updateWallpaperSettings: (updates) => useAppStore.getState().setWallpaperSettings(updates),
   toggleWallpaperStageMode: () => {
+    clearOverlayClickThroughDelay();
     void exitPlatformOverlayMode();
     set((state) => ({
       isDebugPanelOpen: false,
+      isClickThroughEnabled: false,
       isFocusMode: state.wallpaperMode === 'stage' ? state.isFocusMode : false,
+      isTransparentWindowEnabled: false,
+      overlayLastError: undefined,
       wallpaperMode: state.wallpaperMode === 'stage' ? 'off' : 'stage',
     }));
   },
   toggleMuseOverlayMode: () =>
     set((state) => {
+      clearOverlayClickThroughDelay();
       const wallpaperMode = state.wallpaperMode === 'muse_overlay' ? 'off' : 'muse_overlay';
-      void (wallpaperMode === 'muse_overlay'
-        ? enterPlatformOverlayMode()
-        : exitPlatformOverlayMode());
+      if (wallpaperMode === 'muse_overlay') {
+        void enterPlatformOverlayMode().then(() => {
+          const currentState = useAppStore.getState();
+          void setPlatformAlwaysOnTop(true);
+          void setPlatformTransparentWindow(true);
+          applyPlatformClickThrough(false);
+          if (currentState.wallpaperSettings.clickThroughPreferred) {
+            applyDelayedPreferredClickThrough();
+          }
+        });
+      } else {
+        void exitPlatformOverlayMode();
+      }
 
       return {
         isDebugPanelOpen: false,
+        isClickThroughEnabled: false,
         isFocusMode: wallpaperMode === 'muse_overlay' ? false : state.isFocusMode,
+        isTransparentWindowEnabled: wallpaperMode === 'muse_overlay',
+        overlayLastError: undefined,
         wallpaperMode,
       };
     }),

@@ -685,7 +685,11 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
           return;
         }
 
-        const { settings } = useAppStore.getState();
+        const { isClickThroughEnabled, settings, wallpaperMode } = useAppStore.getState();
+        if (wallpaperMode === 'muse_overlay' && isClickThroughEnabled) {
+          return;
+        }
+
         const { seVolumeScale } = getWallpaperRuntimeSettings();
         const { activateMuseTap, museTapStates } = useGameStore.getState();
         const previousVoiceId = museTapStates[runtime.muse.id]?.lastTapVoiceId;

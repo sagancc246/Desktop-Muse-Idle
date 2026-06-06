@@ -33,6 +33,10 @@ body {
     var(--background);
 }
 
+body:has(.muse-overlay-viewport) {
+  background: transparent;
+}
+
 button {
   font: inherit;
 }
@@ -55,6 +59,10 @@ select:focus-visible,
   justify-content: center;
   overflow: hidden;
   width: 100%;
+}
+
+.appViewport.muse-overlay-viewport {
+  background: transparent;
 }
 
 .gameStage {
@@ -89,25 +97,7 @@ select:focus-visible,
 }
 
 .app-shell.muse-overlay-mode {
-  background-color: #060815;
-  background-image:
-    linear-gradient(45deg, rgba(255, 255, 255, 0.055) 25%, transparent 25%),
-    linear-gradient(-45deg, rgba(255, 255, 255, 0.055) 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.055) 75%),
-    linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.055) 75%),
-    radial-gradient(circle at 50% 50%, rgba(140, 220, 255, 0.07), transparent 42%);
-  background-position:
-    0 0,
-    0 16px,
-    16px -16px,
-    -16px 0,
-    center;
-  background-size:
-    32px 32px,
-    32px 32px,
-    32px 32px,
-    32px 32px,
-    100% 100%;
+  background: transparent;
   gap: 0;
   padding: 0;
   position: relative;
@@ -747,6 +737,12 @@ select:focus-visible,
 .muse-overlay-hud span {
   color: var(--text-soft);
   font-size: 10px;
+}
+
+.muse-overlay-hud .overlay-safety-guide {
+  color: #ffd681;
+  font-size: 11px;
+  max-width: 360px;
 }
 
 .muse-overlay-hud button {

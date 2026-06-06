@@ -19,13 +19,13 @@ Next automation candidates:
 - Add viewport-size E2E coverage for 1920x1080, 1280x720, 1366x768, and a narrow viewport.
 - Add keyboard/Escape and focus-trap E2E coverage for major screens and modals.
 - Add visible-window Wallpaper 30fps/60fps cadence checks on suitable CI or desktop hardware.
-- Add Electron platform-adapter E2E when transparent window, always-on-top, click-through, and quit behavior are implemented.
+- Add packaged Electron platform-adapter E2E for transparent Overlay, always-on-top, click-through, shortcut recovery, and quit behavior.
 
 Still requires manual verification:
 
 - Long-duration Focus Mode, Wallpaper Stage Mode, and Muse Overlay Mode performance on real desktop hardware.
 - Visual quality, animation smoothness, and effect readability.
-- OS-level Electron window behavior that is not implemented yet.
+- Packaged Windows verification of the newly implemented Electron transparent Overlay window behavior.
 
 ## Priority 1: Regression Checks
 
@@ -197,13 +197,12 @@ Next TODO:
 - Keep Electron-specific calls behind `src/platform/*`.
 - Do not call Electron APIs directly from React components.
 - Native Desktop Wallpaper Mode is not implemented. Add a reviewed Windows desktop-layer integration only after explicitly choosing the WorkerW/Progman/native-window strategy.
-- Add a real Electron platform adapter for transparent window, always-on-top, click-through, frameless/skip-taskbar behavior, and truthful backend status reporting.
-- After Electron window controls exist, verify `Win + D`, `Alt + Tab`, desktop-icon layering/clicks, taskbar presence, click-through, and Muse Tap interaction.
+- [x] Add an Electron platform adapter and IPC bridge for transparent Muse Overlay, always-on-top, click-through, fullscreen Overlay entry/exit, skip-taskbar behavior, and truthful HUD status.
+- Release-before manual check: verify `Win + D`, `Alt + Tab`, desktop-icon layering/clicks, taskbar presence, startup 3-second Click Through safety guide, `Ctrl + Shift + M` recovery, Click Through ON pass-through, Click Through OFF Muse Tap/HUD button interaction, HUD Last Error, and Esc restoration in the packaged Windows build.
+- Windows Computer Use runtime startup currently fails with `windows sandbox failed: spawn setup refresh`; retry the packaged Overlay manual check after the runtime issue is resolved.
+- When Windows Computer Use runtime cannot start, switch to local Windows manual verification by launching `release\win-unpacked\Desktop Muse Idle.exe` and follow the README Electron checklist.
 - Later implement:
-  - Transparent window.
-  - Always on top.
-  - Click through.
-  - Overlay mode enter/exit.
+  - Packaged Electron Overlay regression automation.
   - Quit behavior.
 - Verify Web build remains safe when Electron APIs are unavailable.
 
