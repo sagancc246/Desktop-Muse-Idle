@@ -414,3 +414,13 @@ Verification results on 2026-06-05:
 - Kept all existing debug actions inside a fixed-stage right-side overlay with internal scrolling.
 - Production builds do not render the Debug button or Debug Panel because access remains guarded by `import.meta.env.DEV`.
 - Verification passed: `npm.cmd run typecheck`, `npm.cmd run build`, `npm.cmd run verify:priority1`, `npm.cmd run verify:priority2`, and `npm.cmd run verify:all`.
+
+## Backfill Rewards Responsive Layout
+
+- Changed Backfill Rewards presentation to a fixed-stage bounded grid with a fixed header/footer and an independently scrolling Stage-group list.
+- Added readable scrollbar styling, Stage-group spacing, wrapping RewardCard grids, bounded card widths, wrapping actions, and safe long-name wrapping.
+- Added DEV-only 3/5/10 Stage Backfill fixtures that update only transient `pendingBackfillRewards` without granting or claiming rewards.
+- Expanded Priority 1 regression coverage for 1280x720 and 1920x1080 viewport bounds, fixed header/footer visibility, independent scrolling, RewardCard actions, Continue, and unchanged Reward claims.
+- Verification passed: `npm.cmd run typecheck`, `npm.cmd run verify:priority1`, `npm.cmd run build`, and `npm.cmd run verify:all`.
+- In-app Browser visual inspection was attempted twice, but its Windows sandbox runtime failed to start; the Electron renderer regression verified the requested viewport and interaction behavior instead.
+- Playwright is not installed; real-window visual verification and future Playwright viewport coverage remain tracked in `docs/TODO.md`.

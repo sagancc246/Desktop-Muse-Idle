@@ -114,6 +114,29 @@ async function main() {
       const canvas = document.querySelector('.pixi-host canvas');
       return canvas ? { height: canvas.height, width: canvas.width } : null;
     })()`);
+  const getBackfillLayout = () =>
+    js(`(() => {
+      const modal = document.querySelector('.backfill-rewards-modal');
+      const groups = document.querySelector('.backfill-reward-groups');
+      const header = modal?.querySelector('.stage-clear-header');
+      const footer = modal?.querySelector('.stage-clear-footer');
+      if (!modal || !groups || !header || !footer) return null;
+      const rect = modal.getBoundingClientRect();
+      const headerRect = header.getBoundingClientRect();
+      const footerRect = footer.getBoundingClientRect();
+      return {
+        groupCount: groups.querySelectorAll('.backfill-reward-group').length,
+        groupClientHeight: groups.clientHeight,
+        groupScrollHeight: groups.scrollHeight,
+        headerVisible: headerRect.top >= 0 && headerRect.bottom <= window.innerHeight,
+        footerVisible: footerRect.top >= 0 && footerRect.bottom <= window.innerHeight,
+        modalFitsViewport:
+          rect.left >= 0 &&
+          rect.top >= 0 &&
+          rect.right <= window.innerWidth &&
+          rect.bottom <= window.innerHeight
+      };
+    })()`);
 
   await win.loadURL(appUrl);
   await waitFor('App loads title screen', async () => (await visibleText()).includes('Desktop Muse Idle'));
@@ -195,6 +218,70 @@ async function main() {
     !(await visibleText()).includes('Debug Panel'),
   );
   await openDebugPanel('Debug Panel reopens after Close button check');
+  const claimsBeforeDebugBackfill = await js(`import('/src/store/useGameStore.ts').then(({ useGameStore }) =>
+    JSON.stringify(useGameStore.getState().claimedRewardIds)
+  )`);
+  const unlockNotificationsBeforeDebugBackfill = await js(`import('/src/store/useGameStore.ts').then(({ useGameStore }) => {
+    const state = useGameStore.getState();
+    return JSON.stringify([state.newlyUnlockedMuseIds, state.newlyUnlockedSkinIds]);
+  })`);
+  await clickButton('Show Backfill Rewards: 10 Stages');
+  await waitFor('10-Stage Backfill fixture opens', async () => {
+    const layout = await getBackfillLayout();
+    return layout?.groupCount === 10;
+  });
+  await assert('1280x720 Backfill modal fits viewport with fixed header/footer', async () => {
+    const layout = await getBackfillLayout();
+    return layout?.modalFitsViewport && layout.headerVisible && layout.footerVisible;
+  });
+  await assert('10-Stage Backfill reward list scrolls independently', async () => {
+    const layout = await getBackfillLayout();
+    return layout?.groupScrollHeight > layout?.groupClientHeight;
+  });
+  await assert('Backfill fixture exposes RewardCard actions', async () => {
+    const labels = (await buttons()).map((button) => button.text);
+    return labels.includes('Equip') &&
+      labels.includes('Set Background') &&
+      labels.includes('Open Gallery') &&
+      labels.includes('Continue');
+  });
+  await clickButton('Equip');
+  await clickButton('Set Background');
+  await assert('Backfill Equip and Set Background actions remain operable', async () =>
+    js(`Boolean(document.querySelector('.backfill-rewards-modal'))`),
+  );
+  await assert('Backfill fixture does not alter Reward claims', async () =>
+    claimsBeforeDebugBackfill === await js(`import('/src/store/useGameStore.ts').then(({ useGameStore }) =>
+      JSON.stringify(useGameStore.getState().claimedRewardIds)
+    )`),
+  );
+  await js(`document.querySelector('.backfill-reward-groups').scrollTop = 999999`);
+  await assert('Backfill reward list accepts scrolling', async () =>
+    js(`document.querySelector('.backfill-reward-groups').scrollTop > 0`),
+  );
+  await clickButton('Open Gallery');
+  await waitFor('Backfill Open Gallery action opens Gallery', async () =>
+    js(`Boolean(document.querySelector('.gallery-backdrop'))`),
+  );
+  await clickButton('Close Gallery');
+  await assert('Closing Backfill fixture preserves unlock notifications', async () =>
+    unlockNotificationsBeforeDebugBackfill === await js(`import('/src/store/useGameStore.ts').then(({ useGameStore }) => {
+      const state = useGameStore.getState();
+      return JSON.stringify([state.newlyUnlockedMuseIds, state.newlyUnlockedSkinIds]);
+    })`),
+  );
+  await openDebugPanel('Debug Panel opens for 1920x1080 Backfill check');
+  await clickButton('Show Backfill Rewards: 10 Stages');
+  win.setSize(1920, 1080);
+  await sleep(250);
+  await assert('1920x1080 Backfill modal fits viewport with fixed header/footer', async () => {
+    const layout = await getBackfillLayout();
+    return layout?.modalFitsViewport && layout.headerVisible && layout.footerVisible;
+  });
+  win.setSize(1280, 720);
+  await sleep(250);
+  await clickButton('Continue');
+  await openDebugPanel('Debug Panel reopens after Backfill fixture checks');
   await assert('ResourceBar exposes Save/Settings/Stats/Wallpaper', async () => {
     const labels = (await buttons()).map((button) => button.aria || button.text);
     return ['Save Game', 'Open Settings', 'Open Statistics', 'Toggle Wallpaper Stage Mode'].every(

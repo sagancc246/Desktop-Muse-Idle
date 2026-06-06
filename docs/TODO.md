@@ -186,7 +186,11 @@ Next TODO:
 - Add missing voice files or keep subtitle fallback clearly documented.
 - Review effect readability on bright backgrounds.
 - Review Gallery thumbnail consistency.
-- Manually verify Backfill Rewards modal scrolling and RewardCard actions with many Stage groups at once.
+- [x] Verify Backfill Rewards modal bounds, independent reward-list scrolling, fixed header/footer, and RewardCard actions with a 10-Stage DEV fixture at 1280x720 and 1920x1080.
+- Release-before manual check: visually inspect Backfill Rewards spacing and scrollbar contrast on the final packaged desktop build.
+- After resolving the Windows runtime startup failure, visually inspect BackfillRewardsModal in a real app window.
+- During the real-window inspection, verify BackfillRewardsModal at both 1280x720 and 1920x1080.
+- After Playwright is introduced, add BackfillRewardsModal viewport regression coverage.
 
 ## Priority 8: Electron Preparation
 

@@ -10,7 +10,7 @@ import {
 } from '../data/rewards';
 import { getEquippedSkinForMuse, getSkinById } from '../data/skins';
 import { getSkillNodeById } from '../data/skillTree';
-import { getNextStage, getStageById, initialStageId } from '../data/stages';
+import { getNextStage, getStageById, initialStageId, stages } from '../data/stages';
 import { calculateUpgradeCost } from '../data/upgrades';
 import { createInitialUpgrades } from '../data/upgrades';
 import { createInitialSkillStates } from '../game/skillEffects';
@@ -849,6 +849,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   dismissBackfillRewards: () => {
     set((state) => {
+      const isDebugFixture =
+        import.meta.env.DEV &&
+        state.pendingBackfillRewards?.every((group) => group.stageId.startsWith('debug-'));
+      if (isDebugFixture) {
+        return { pendingBackfillRewards: null };
+      }
+
       const rewards = state.pendingBackfillRewards?.flatMap((group) => group.rewards) ?? [];
       const skinRewardIds = new Set(
         rewards.filter((reward) => reward.type === 'skin').map((reward) => reward.id),
@@ -966,6 +973,26 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (get().pendingStageClear?.stageId !== previousStageClearId) {
       saveGameState(get(), getCurrentMotionIntensity());
     }
+  },
+
+  debugShowBackfillRewards: (stageCount) => {
+    if (!import.meta.env.DEV) {
+      return;
+    }
+
+    const safeStageCount = Math.min(stages.length, Math.max(1, Math.floor(stageCount)));
+    const pendingBackfillRewards = stages.slice(0, safeStageCount).map((stage) => ({
+      stageId: `debug-${stage.id}`,
+      stageName: stage.name,
+      rewards: stage.rewards.map((reward, rewardIndex) =>
+        presentClaimedReward(
+          reward,
+          `debug-backfill:${stage.id}:${reward.rewardId ?? rewardIndex}`,
+        ),
+      ),
+    }));
+
+    set({ pendingBackfillRewards });
   },
 
   debugActivateMuseSkill: (museId) => {

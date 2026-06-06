@@ -58,7 +58,7 @@ export function BackfillRewardsModal({
           <h1>NEW REWARDS UNLOCKED!</h1>
           <p>New rewards were added to stages you already cleared.</p>
         </header>
-        <div className="backfill-reward-groups">
+        <div aria-label="Backfill reward groups" className="backfill-reward-groups">
           {groups.map((group) => (
             <section className="backfill-reward-group" key={group.stageId}>
               <h2>{group.stageName} Rewards</h2>

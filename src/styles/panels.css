@@ -1071,11 +1071,15 @@
 .backfill-rewards-modal {
   background: rgba(12, 16, 39, 0.98);
   border-color: rgba(140, 220, 255, 0.46);
-  max-height: min(940px, calc(100vh - 40px));
-  overflow-y: auto;
-  padding: 30px 34px 26px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: min(940px, calc(100% - 80px));
+  max-height: calc(100% - 80px);
+  max-width: calc(100% - 80px);
+  overflow: hidden;
+  padding: 28px 32px 24px;
   position: relative;
-  width: min(1240px, calc(100vw - 40px));
+  width: 1320px;
   z-index: 2;
 }
 
@@ -1083,7 +1087,27 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
-  margin: 24px 0;
+  margin: 22px 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 12px;
+  scrollbar-color: rgba(140, 220, 255, 0.66) rgba(8, 10, 28, 0.72);
+  scrollbar-width: thin;
+}
+
+.backfill-reward-groups::-webkit-scrollbar {
+  width: 10px;
+}
+
+.backfill-reward-groups::-webkit-scrollbar-track {
+  background: rgba(8, 10, 28, 0.72);
+  border-radius: 999px;
+}
+
+.backfill-reward-groups::-webkit-scrollbar-thumb {
+  background: rgba(140, 220, 255, 0.58);
+  border: 2px solid rgba(8, 10, 28, 0.72);
+  border-radius: 999px;
 }
 
 .backfill-reward-group {
@@ -1100,7 +1124,14 @@
 }
 
 .backfill-reward-group .stage-clear-reward-grid {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   margin: 14px 0 0;
+}
+
+.backfill-reward-group .reward-card {
+  max-width: 390px;
+  min-width: 260px;
+  width: 100%;
 }
 
 .stage-clear-header {
@@ -1217,6 +1248,7 @@
   color: #f6f3ff;
   font-size: 20px;
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .reward-card-copy p {
@@ -1235,6 +1267,7 @@
 .reward-card-actions {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   justify-content: space-between;
 }
@@ -1279,6 +1312,12 @@
   display: flex;
   gap: 18px;
   justify-content: space-between;
+}
+
+.backfill-rewards-modal .stage-clear-footer {
+  background: rgba(12, 16, 39, 0.98);
+  border-top: 1px solid rgba(140, 220, 255, 0.18);
+  padding-top: 16px;
 }
 
 .stage-clear-footer p {

@@ -1101,6 +1101,20 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 - When updates add unclaimed rewards to multiple already-cleared Stages, Continue grants every eligible reward and opens a Backfill Rewards modal grouped by Stage.
 - Backfill reward groups use the same Reward cards and immediate Equip, Set Background, and Open Gallery actions as normal Stage Clear rewards.
 - Closing the Backfill Rewards modal only dismisses the transient summary; granted rewards and `claimedRewardIds` remain saved.
+- The Backfill Rewards modal keeps its header and Continue footer visible while only the Stage reward-group list scrolls.
+- In development, open the Debug Panel and use `Show Backfill Rewards: 3 Stages`, `5 Stages`, or `10 Stages`. These fixtures replace only transient `pendingBackfillRewards`; they do not grant rewards or update `claimedRewardIds`.
+
+### Backfill Rewards Layout Verification
+
+Playwright is not currently installed. The automated viewport checks use the existing Electron renderer regression at 1280x720 and 1920x1080. Real-window visual inspection remains deferred until the Windows runtime startup failure is resolved.
+
+1. Run `npm run dev`, enter the game, and open the Debug Panel with `Ctrl + Shift + D`.
+2. Select `Show Backfill Rewards: 10 Stages`.
+3. At 1920x1080 and 1280x720, confirm the modal remains inside the game viewport and the header and Continue button remain visible.
+4. Scroll the Stage reward-group list and confirm the page/backdrop and header/footer do not scroll.
+5. Confirm Stage groups with multiple rewards wrap into readable cards and long/Unknown/Already Claimed labels do not break the card layout.
+6. Confirm Equip, Set Background, Open Gallery, and Continue remain operable.
+7. Confirm merely opening the fixture does not change the saved `claimedRewardIds`.
 
 ## Master Data Validation
 

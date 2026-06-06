@@ -334,6 +334,7 @@ export interface GameActions {
   debugAddFragments: (amount: number) => void;
   debugTriggerCornerHit: () => void;
   debugCompleteCurrentStage: () => void;
+  debugShowBackfillRewards: (stageCount: number) => void;
   debugActivateMuseSkill: (museId: string) => void;
   debugActivateMuseTap: (museId: string) => void;
 }

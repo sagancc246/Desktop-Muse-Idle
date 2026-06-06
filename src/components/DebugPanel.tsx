@@ -3,6 +3,7 @@ import { rebootMemoryRequirement } from '../data/balance';
 import { muses } from '../data/muses';
 import { getSkinById, museSkins } from '../data/skins';
 import { getStageById } from '../data/stages';
+import { useAppStore } from '../store/useAppStore';
 import { useGameStore } from '../store/useGameStore';
 
 interface DebugCollisionStatus {
@@ -52,6 +53,8 @@ export function DebugPanel({ onClose }: DebugPanelProps) {
   const debugAddFragments = useGameStore((state) => state.debugAddFragments);
   const debugTriggerCornerHit = useGameStore((state) => state.debugTriggerCornerHit);
   const debugCompleteCurrentStage = useGameStore((state) => state.debugCompleteCurrentStage);
+  const debugShowBackfillRewards = useGameStore((state) => state.debugShowBackfillRewards);
+  const setDebugPanelOpen = useAppStore((state) => state.setDebugPanelOpen);
   const unlockMuse = useGameStore((state) => state.unlockMuse);
   const setActiveMuses = useGameStore((state) => state.setActiveMuses);
   const unlockSkin = useGameStore((state) => state.unlockSkin);
@@ -119,6 +122,11 @@ export function DebugPanel({ onClose }: DebugPanelProps) {
     }
 
     dispatchCanvasDebugEvent('desktop-muse-idle:debug-clone-corner');
+  };
+
+  const showBackfillRewards = (stageCount: number) => {
+    debugShowBackfillRewards(stageCount);
+    setDebugPanelOpen(false);
   };
 
   return (
@@ -226,6 +234,21 @@ export function DebugPanel({ onClose }: DebugPanelProps) {
           <button onClick={debugCompleteCurrentStage} type="button">
             Clear Stage
           </button>
+        </div>
+      </div>
+
+      <div className="debug-section">
+        <h3>Backfill Rewards Fixture</h3>
+        <div className="debug-button-grid">
+          {[3, 5, 10].map((stageCount) => (
+            <button
+              key={stageCount}
+              onClick={() => showBackfillRewards(stageCount)}
+              type="button"
+            >
+              Show Backfill Rewards: {stageCount} Stages
+            </button>
+          ))}
         </div>
       </div>
 
