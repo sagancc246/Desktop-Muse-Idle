@@ -1036,6 +1036,39 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 - The HUD includes an `Exit` button and a Click Through placeholder label for future Electron work.
 - `Esc` also exits Muse Overlay Mode by returning `wallpaperMode` to `off`.
 
+## Current Wallpaper Mode Status
+
+Current implementation status: **`electron_window`** in the packaged Electron app, and **`browser_only`** during web development.
+
+| Capability | Current status | Evidence |
+| --- | --- | --- |
+| Wallpaper Stage Mode | `browser_only` / `electron_window` | Changes React/CSS layout and Pixi rendering inside the existing app window. |
+| Muse Overlay Mode | `browser_only` / `electron_window` | Uses a transparent-looking in-app presentation, but the OS window itself is not transparent. |
+| Transparent overlay | Not implemented | `localAdapter` and `steamAdapter` window-control methods are no-op stubs. |
+| Native desktop wallpaper | Not implemented | No WorkerW, Progman, SetParent, native window handle, or desktop-layer attachment code exists. |
+
+The Electron main process currently creates one normal `BrowserWindow` at 1280x820. It does not configure `transparent`, `alwaysOnTop`, `frame: false`, fullscreen, `skipTaskbar`, click-through, or native desktop attachment. `electron/preload.cjs` exposes no desktop-only APIs, and there is no Electron platform adapter connected to the renderer.
+
+The Always on Top, Click Through, and Transparent Window controls currently update web-safe state/settings only. They do not change the Windows window. Because real click-through is not active, Muse Tap remains clickable and there is currently no click-through/Muse Tap conflict.
+
+Expected behavior from the current code:
+
+- `Win + D`: the normal Electron window should be hidden with other app windows; it will not remain as the desktop background.
+- `Alt + Tab`: the app should appear as a normal Electron window.
+- Desktop icon layering: the game cannot render behind desktop icons.
+- Other applications: the game is not fixed behind them and Always on Top currently has no OS effect.
+- Desktop icon clicks: only possible after moving/minimizing the app; Click Through currently has no OS effect.
+- Taskbar: the Electron app should appear as a normal taskbar application because `skipTaskbar` is not configured.
+
+### Wallpaper Backend Verification
+
+1. Run the packaged Electron build and enter Wallpaper Stage Mode and Muse Overlay Mode.
+2. Press `Win + D` and confirm the app is hidden instead of remaining behind desktop icons.
+3. Use `Alt + Tab` and confirm Desktop Muse Idle appears as a normal application window.
+4. Confirm the game is not behind desktop icons and is not fixed behind other applications.
+5. Toggle Always on Top, Click Through, and Transparent Window and confirm they are currently placeholders with no OS-window effect.
+6. After a future native implementation, repeat these checks and update the status to `transparent_overlay` or `native_desktop_wallpaper` only when the OS behavior matches.
+
 ### Muse Overlay Mode Verification
 
 1. Run `npm run dev` and enter the game screen.

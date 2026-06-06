@@ -424,3 +424,11 @@ Verification results on 2026-06-05:
 - Verification passed: `npm.cmd run typecheck`, `npm.cmd run verify:priority1`, `npm.cmd run build`, and `npm.cmd run verify:all`.
 - In-app Browser visual inspection was attempted twice, but its Windows sandbox runtime failed to start; the Electron renderer regression verified the requested viewport and interaction behavior instead.
 - Playwright is not installed; real-window visual verification and future Playwright viewport coverage remain tracked in `docs/TODO.md`.
+
+## Wallpaper Backend Investigation
+
+- Confirmed Wallpaper Stage and Muse Overlay are presentation modes inside the existing browser/Electron window.
+- Confirmed `platformAdapter` currently resolves to `localAdapter`, whose overlay, transparent-window, always-on-top, and click-through methods are no-op stubs.
+- Confirmed Electron creates one normal framed 1280x820 `BrowserWindow`; preload exposes no desktop APIs.
+- Found no WorkerW, Progman, SetParent, native window handle, or other Windows desktop-layer attachment code.
+- Classified the packaged implementation as `electron_window`, the web implementation as `browser_only`, and native desktop wallpaper / transparent overlay as not implemented.

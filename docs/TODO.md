@@ -196,6 +196,9 @@ Next TODO:
 
 - Keep Electron-specific calls behind `src/platform/*`.
 - Do not call Electron APIs directly from React components.
+- Native Desktop Wallpaper Mode is not implemented. Add a reviewed Windows desktop-layer integration only after explicitly choosing the WorkerW/Progman/native-window strategy.
+- Add a real Electron platform adapter for transparent window, always-on-top, click-through, frameless/skip-taskbar behavior, and truthful backend status reporting.
+- After Electron window controls exist, verify `Win + D`, `Alt + Tab`, desktop-icon layering/clicks, taskbar presence, click-through, and Muse Tap interaction.
 - Later implement:
   - Transparent window.
   - Always on top.
