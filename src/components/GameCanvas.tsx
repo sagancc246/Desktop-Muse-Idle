@@ -68,7 +68,7 @@ interface ActiveMuseBody {
 }
 
 interface GameCanvasProps {
-  presentationMode?: 'normal' | 'muse_overlay';
+  presentationMode?: 'normal' | 'muse_overlay' | 'wallpaper_stage';
 }
 
 export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
@@ -305,11 +305,13 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
 
       const getWallpaperRuntimeSettings = () => {
         const { wallpaperMode, wallpaperSettings } = useAppStore.getState();
+        const isWallpaperPresentation = presentationModeRef.current === 'wallpaper_stage';
+        const isWallpaperMode = isWallpaperPresentation || wallpaperMode !== 'off';
         return {
-          isWallpaperMode: wallpaperMode !== 'off',
-          isWallpaperLowEffects: wallpaperMode !== 'off' && wallpaperSettings.effectsQuality === 'low',
-          seVolumeScale: wallpaperMode === 'off' ? 1 : wallpaperSettings.seVolumeScale,
-          wallpaperFps: wallpaperMode === 'off' ? 0 : wallpaperSettings.fps,
+          isWallpaperMode,
+          isWallpaperLowEffects: isWallpaperMode && wallpaperSettings.effectsQuality === 'low',
+          seVolumeScale: isWallpaperMode ? wallpaperSettings.seVolumeScale : 1,
+          wallpaperFps: isWallpaperMode ? wallpaperSettings.fps : 0,
         };
       };
 

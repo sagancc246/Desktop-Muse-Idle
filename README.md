@@ -174,6 +174,7 @@ npm run dev
 npm run build
 npm run preview
 npm run electron:dev
+npm run build:wallpaper-helper
 npm run electron:build
 ```
 
@@ -183,7 +184,10 @@ npm run electron:build
 
 ```text
 release\win-unpacked\Desktop Muse Idle.exe
+release\win-unpacked\resources\wallpaper-helper\wallpaper-helper.exe
 ```
+
+`npm run build:wallpaper-helper` requires the .NET SDK and publishes the Windows helper to `native\wallpaper-helper\bin\publish\win-x64\wallpaper-helper.exe`. `npm run electron:build` runs that helper publish step before `npm run build` and `electron-builder`, then bundles the helper into the packaged app under `resources\wallpaper-helper\wallpaper-helper.exe`. The normal web `npm run build` and `npm run verify:all` do not require .NET.
 
 ### Windows Electron 実機確認
 
@@ -1074,20 +1078,40 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 
 ## Current Wallpaper Mode Status
 
-Current implementation status: **`transparent_overlay`** for Muse Overlay in the packaged Electron app, **`electron_window`** for Wallpaper Stage, and **`browser_only`** during web development.
+Current implementation status: **`transparent_overlay`** for Muse Overlay in the packaged Electron app, **`electron_window`** for Wallpaper Stage, **`native_desktop_wallpaper` only when the Windows helper reports `attached: true`**, **`fallback_stage`** when helper attach is missing or fails, and **`browser_only`** during web development.
 
 | Capability | Current status | Evidence |
 | --- | --- | --- |
 | Wallpaper Stage Mode | `browser_only` / `electron_window` | Changes React/CSS layout and Pixi rendering inside the existing app window. |
 | Muse Overlay Mode | `browser_only` / `transparent_overlay` | Electron switches the existing transparent-capable window to fullscreen, always-on-top Overlay presentation. |
 | Transparent overlay | Implemented for Electron Muse Overlay | IPC controls fullscreen Overlay entry/exit, always-on-top, taskbar hiding, and click-through. |
-| Native desktop wallpaper | Not implemented | No WorkerW, Progman, SetParent, native window handle, or desktop-layer attachment code exists. |
+| Native desktop wallpaper | Windows helper MVP | Electron creates a dedicated hidden Wallpaper `BrowserWindow`, passes its HWND to the C# helper, and reports `native_desktop_wallpaper` only when WorkerW `SetParent` attach succeeds. Missing helper or failed attach falls back to Wallpaper Stage. |
 
 The Electron main process creates one transparent-capable `BrowserWindow` at 1280x820. Normal screens remain visually opaque. Entering Muse Overlay uses the preload IPC bridge and `electronAdapter` to make the existing window fullscreen, always-on-top, hidden from the taskbar, and visually transparent. Exiting restores the previous bounds/fullscreen/always-on-top state and always disables click-through.
 
 Click Through uses Electron `setIgnoreMouseEvents`. When it is OFF, Muse Tap and HUD buttons remain available. When it is ON, clicks pass to the desktop/application behind the Overlay, so Overlay buttons should be treated as unavailable. Use `Ctrl + Shift + M` to toggle Click Through; Electron registers this shortcut globally while Overlay is active so it remains usable even when the window ignores mouse events. `Esc` is also registered while Overlay is active and safely restores the normal window.
 
 Muse Overlay always starts with Click Through OFF. If the saved Click Through preference is ON, the app keeps Click Through OFF for the first 3 seconds, shows a safety HUD explaining `Ctrl + Shift + M` and `Esc`, and then applies the saved ON preference.
+
+Native Desktop Wallpaper Mode is exposed from Settings and `WallpaperModePanel` only when the platform adapter reports Windows Electron support. The renderer calls `platformAdapter` only; Electron handles `wallpaper:enter-native`, `wallpaper:exit-native`, and `wallpaper:get-status` in the main process. The current MVP uses the C# helper for WorkerW discovery, `SetParent`, style adjustment, and `SetWindowPos`; helper failure still returns a controlled fallback with the message `Native wallpaper attach failed. Fallback to Wallpaper Stage Mode.`
+
+The selected bridge direction for real `native_desktop_wallpaper` support is a C# self-contained helper exe called only by Electron main process code. This keeps Win32 WorkerW / Progman / SetParent calls out of React and avoids Electron native addon ABI risk. See `docs/WIN32_WALLPAPER_BRIDGE_DECISION.md` and `docs/NATIVE_WALLPAPER.md` for the comparison, implementation plan, and verification checklist.
+
+The helper lives in `native/wallpaper-helper/`. It supports `version`, `status`, `find-desktop`, `attach --hwnd <HWND> --dry-run`, `attach --hwnd <HWND>`, and `detach --hwnd <HWND>`, and always writes JSON to stdout. Electron passes the Wallpaper `BrowserWindow` HWND to `attach`; the helper searches Progman / WorkerW / SHELLDLL_DefView, adjusts window style, calls `SetParent`, then calls `SetWindowPos`. The app reports `backend: native_desktop_wallpaper` and `attached: true` only if helper attach verifies success. Failure remains `fallback_stage`. The HWND and helper path are included only for debug plumbing.
+
+Manual helper checks when the .NET SDK is installed:
+
+```powershell
+dotnet run --project native\wallpaper-helper\WallpaperHelper.csproj -- status
+dotnet run --project native\wallpaper-helper\WallpaperHelper.csproj -- version
+dotnet run --project native\wallpaper-helper\WallpaperHelper.csproj -- find-desktop
+dotnet run --project native\wallpaper-helper\WallpaperHelper.csproj -- attach --hwnd 12345 --dry-run
+dotnet run --project native\wallpaper-helper\WallpaperHelper.csproj -- attach --hwnd <real-electron-wallpaper-hwnd>
+dotnet run --project native\wallpaper-helper\WallpaperHelper.csproj -- detach --hwnd <real-electron-wallpaper-hwnd> --previous-parent <previous-parent-hwnd>
+npm run build:wallpaper-helper
+```
+
+The helper publish output is `native\wallpaper-helper\bin\publish\win-x64\wallpaper-helper.exe`. `electron-builder` bundles it to `resources\wallpaper-helper\wallpaper-helper.exe` in the packaged app. Electron also accepts `DESKTOP_MUSE_WALLPAPER_HELPER=C:\path\to\wallpaper-helper.exe` for local override testing. The normal app build does not require .NET. If the helper exe is missing, Electron reports helper unavailable, shows the missing helper path state in NativeWallpaperStatus, and falls back safely.
 
 Expected behavior from the current code:
 
@@ -1097,6 +1121,7 @@ Expected behavior from the current code:
 - Other applications: Muse Overlay remains above them while always-on-top is active.
 - Desktop icon/application clicks: work through the Overlay only when Click Through is ON.
 - Taskbar: normal mode appears normally; Muse Overlay uses `skipTaskbar`.
+- Native Wallpaper: attempts a Windows-only dedicated Wallpaper window first, then falls back to the existing Wallpaper Stage presentation unless the future WorkerW bridge reports `nativeAttached: true`.
 
 ### Wallpaper Backend Verification
 
@@ -1110,6 +1135,25 @@ Expected behavior from the current code:
 8. Press `Esc` or use the Overlay HUD Exit button and confirm the previous normal window bounds and interaction return.
 9. Confirm the HUD shows Overlay Active, Transparent, Always On Top, Click Through, and no Last Error.
 10. Confirm Wallpaper Stage remains a normal Electron window and that no mode renders behind desktop icons.
+
+### Native Desktop Wallpaper MVP Verification
+
+1. Run `npm run electron:dev` or launch `release\win-unpacked\Desktop Muse Idle.exe`, then enter the game screen.
+2. Open Settings or `WallpaperModePanel`.
+3. Confirm `Native Desktop Wallpaper` / `Native` is disabled in web or non-Windows environments.
+4. On Windows Electron, select `Native Desktop Wallpaper`.
+5. Confirm the Native Wallpaper status shows Backend, Native attached, Fallback, Helper, Helper path, and Last Error.
+6. If helper attach succeeds, confirm `Backend: native_desktop_wallpaper` and `Attached: true`.
+7. If helper attach fails or the helper is missing, confirm fallback to Wallpaper Stage with `Attached: false` and a clear helper/attach reason.
+8. Confirm the game remains usable and `Exit` / `Esc` returns to normal mode.
+9. For successful native attach, confirm:
+   - `Win + D` leaves the wallpaper visible.
+   - The wallpaper is behind desktop icons.
+   - Desktop icons remain clickable.
+   - The wallpaper does not appear as a normal Alt + Tab or taskbar window.
+   - Opening other apps leaves the wallpaper behind them.
+   - Exit or `Esc` detaches/closes the Wallpaper window and leaves no ghost window.
+   - Failure environments report `fallback_stage` with a clear Last Error.
 
 ### Muse Overlay Mode Verification
 

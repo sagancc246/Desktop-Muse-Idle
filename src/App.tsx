@@ -25,10 +25,15 @@ import { useGameStore } from './store/useGameStore';
 import { setWallpaperBgmMuted } from './systems/audioSystem';
 import {
   isElectronOverlayAvailable,
+  onPlatformNativeWallpaperStatus,
   onPlatformOverlayExitRequested,
   onPlatformOverlayState,
 } from './platform/platform';
 import type { CornerHitPosition } from './types/game';
+
+const isNativeWallpaperRenderer =
+  typeof window !== 'undefined' &&
+  new URLSearchParams(window.location.search).get('nativeWallpaperRenderer') === '1';
 
 const CreditsModal = lazy(() =>
   import('./components/CreditsModal').then(({ CreditsModal }) => ({ default: CreditsModal })),
@@ -79,6 +84,10 @@ export default function App() {
   const setClickThroughEnabled = useAppStore((state) => state.setClickThroughEnabled);
   const applyPlatformOverlayState = useAppStore((state) => state.applyPlatformOverlayState);
   const isClickThroughEnabled = useAppStore((state) => state.isClickThroughEnabled);
+  const applyNativeWallpaperStatus = useAppStore((state) => state.applyNativeWallpaperStatus);
+  const refreshNativeWallpaperStatus = useAppStore(
+    (state) => state.refreshNativeWallpaperStatus,
+  );
   const autoSaveEnabled = useAppStore((state) => state.settings.autoSaveEnabled);
   const language = useAppStore((state) => state.settings.language);
   const motionIntensity = useAppStore((state) => state.settings.motionIntensity);
@@ -100,7 +109,9 @@ export default function App() {
   const [pinballCornerHit, setPinballCornerHit] = useState<CornerHitPosition | null>(null);
   const [galleryOpenRequestKey, setGalleryOpenRequestKey] = useState(0);
   const stageScale = useStageScale();
-  const isWallpaperStageMode = wallpaperMode === 'stage';
+  const isWallpaperStageMode =
+    isNativeWallpaperRenderer || wallpaperMode === 'stage' || wallpaperMode === 'native_wallpaper';
+  const isNativeWallpaperMode = isNativeWallpaperRenderer || wallpaperMode === 'native_wallpaper';
   const isMuseOverlayMode = wallpaperMode === 'muse_overlay';
   const canShowDebugPanel =
     import.meta.env.DEV &&
@@ -109,6 +120,7 @@ export default function App() {
     wallpaperMode === 'off';
   const shouldShowTutorial =
     currentScreen === 'game' &&
+    !isNativeWallpaperMode &&
     !isMuseOverlayMode &&
     !hasSeenTutorial &&
     !pendingOfflineReward &&
@@ -234,18 +246,23 @@ export default function App() {
   }, [wallpaperMode, wallpaperSettings.bgmEnabled]);
 
   useEffect(() => {
+    void refreshNativeWallpaperStatus();
     const unsubscribeExit = onPlatformOverlayExitRequested(() => {
       useAppStore.getState().exitWallpaperMode();
     });
     const unsubscribeState = onPlatformOverlayState((overlayState) => {
       useAppStore.getState().applyPlatformOverlayState(overlayState);
     });
+    const unsubscribeNativeWallpaper = onPlatformNativeWallpaperStatus((nativeWallpaperStatus) => {
+      useAppStore.getState().applyNativeWallpaperStatus(nativeWallpaperStatus);
+    });
 
     return () => {
       unsubscribeExit();
       unsubscribeState();
+      unsubscribeNativeWallpaper();
     };
-  }, [applyPlatformOverlayState]);
+  }, [applyNativeWallpaperStatus, applyPlatformOverlayState, refreshNativeWallpaperStatus]);
 
   useEffect(() => {
     if (currentScreen !== 'game') {
@@ -319,7 +336,7 @@ export default function App() {
 
   let screenContent;
 
-  if (currentScreen === 'title') {
+  if (!isNativeWallpaperRenderer && currentScreen === 'title') {
     screenContent = (
       <TitleScreen
         onContinue={() => {
@@ -336,13 +353,13 @@ export default function App() {
         onStats={() => openStats('title')}
       />
     );
-  } else if (currentScreen === 'settings') {
+  } else if (!isNativeWallpaperRenderer && currentScreen === 'settings') {
     screenContent = <SettingsModal onBack={closeSettings} onStats={() => openStats('settings')} />;
-  } else if (currentScreen === 'gallery') {
+  } else if (!isNativeWallpaperRenderer && currentScreen === 'gallery') {
     screenContent = <GalleryPanel mode="screen" onBack={() => setScreen('title')} />;
-  } else if (currentScreen === 'credits') {
+  } else if (!isNativeWallpaperRenderer && currentScreen === 'credits') {
     screenContent = <CreditsModal onBack={() => setScreen('title')} />;
-  } else if (currentScreen === 'stats') {
+  } else if (!isNativeWallpaperRenderer && currentScreen === 'stats') {
     screenContent = <StatsPanel onBack={closeStats} />;
   } else {
     screenContent = (
@@ -365,7 +382,15 @@ export default function App() {
         />
         <main className="workspace">
           <UpgradePanel />
-          <GameCanvas presentationMode={isMuseOverlayMode ? 'muse_overlay' : 'normal'} />
+          <GameCanvas
+            presentationMode={
+              isMuseOverlayMode
+                ? 'muse_overlay'
+                : isWallpaperStageMode
+                  ? 'wallpaper_stage'
+                  : 'normal'
+            }
+          />
           <div className="side-panel-stack">
             <StagePanel />
             <WallpaperModePanel />
@@ -395,10 +420,10 @@ export default function App() {
         {isMuseOverlayMode ? (
           <MuseOverlayHud onExit={exitWallpaperMode} />
         ) : null}
-        {!isMuseOverlayMode && pendingOfflineReward ? (
+        {!isMuseOverlayMode && !isNativeWallpaperMode && pendingOfflineReward ? (
           <OfflineRewardModal onClose={dismissOfflineReward} reward={pendingOfflineReward} />
         ) : null}
-        {!isMuseOverlayMode && pendingStageClear ? (
+        {!isMuseOverlayMode && !isNativeWallpaperMode && pendingStageClear ? (
           <StageClearModal
             onContinue={dismissStageClear}
             onOpenGallery={() => {
@@ -408,7 +433,7 @@ export default function App() {
             summary={pendingStageClear}
           />
         ) : null}
-        {!isMuseOverlayMode && !pendingOfflineReward && !pendingStageClear && pendingBackfillRewards ? (
+        {!isMuseOverlayMode && !isNativeWallpaperMode && !pendingOfflineReward && !pendingStageClear && pendingBackfillRewards ? (
           <BackfillRewardsModal
             groups={pendingBackfillRewards}
             onContinue={dismissBackfillRewards}
@@ -418,10 +443,10 @@ export default function App() {
             }}
           />
         ) : null}
-        {!isMuseOverlayMode && !pendingStageClear && !pendingBackfillRewards && newlyUnlockedMuseIds[0] ? (
+        {!isMuseOverlayMode && !isNativeWallpaperMode && !pendingStageClear && !pendingBackfillRewards && newlyUnlockedMuseIds[0] ? (
           <MuseUnlockModal museId={newlyUnlockedMuseIds[0]} onClose={dismissMuseUnlock} />
         ) : null}
-        {!isMuseOverlayMode && !pendingStageClear && !pendingBackfillRewards && newlyUnlockedSkinIds[0] ? (
+        {!isMuseOverlayMode && !isNativeWallpaperMode && !pendingStageClear && !pendingBackfillRewards && newlyUnlockedSkinIds[0] ? (
           <SkinUnlockToast skinId={newlyUnlockedSkinIds[0]} onClose={dismissSkinUnlock} />
         ) : null}
         {shouldShowTutorial ? (

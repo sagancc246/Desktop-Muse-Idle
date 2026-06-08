@@ -1,7 +1,9 @@
 import { useAppStore } from '../store/useAppStore';
+import { NativeWallpaperStatus } from './NativeWallpaperStatus';
 import type { WallpaperMode } from '../types/game';
 
 const wallpaperModeLabels: Record<WallpaperMode, string> = {
+  native_wallpaper: 'Native Wallpaper',
   off: 'Off',
   stage: 'Wallpaper Stage',
   muse_overlay: 'Muse Overlay',
@@ -9,6 +11,7 @@ const wallpaperModeLabels: Record<WallpaperMode, string> = {
 
 export function WallpaperModePanel() {
   const wallpaperMode = useAppStore((state) => state.wallpaperMode);
+  const nativeWallpaperStatus = useAppStore((state) => state.nativeWallpaperStatus);
   const setWallpaperMode = useAppStore((state) => state.setWallpaperMode);
   const toggleWallpaperStageMode = useAppStore((state) => state.toggleWallpaperStageMode);
   const toggleMuseOverlayMode = useAppStore((state) => state.toggleMuseOverlayMode);
@@ -45,6 +48,20 @@ export function WallpaperModePanel() {
           Stage
         </button>
         <button
+          aria-pressed={wallpaperMode === 'native_wallpaper'}
+          className={wallpaperMode === 'native_wallpaper' ? 'active' : ''}
+          disabled={!nativeWallpaperStatus.supported}
+          onClick={() => setWallpaperMode('native_wallpaper')}
+          title={
+            nativeWallpaperStatus.supported
+              ? 'Start Native Desktop Wallpaper Mode'
+              : 'Native wallpaper is only available on Windows Electron builds'
+          }
+          type="button"
+        >
+          Native
+        </button>
+        <button
           aria-pressed={wallpaperMode === 'muse_overlay'}
           className={wallpaperMode === 'muse_overlay' ? 'active' : ''}
           onClick={toggleMuseOverlayMode}
@@ -53,6 +70,9 @@ export function WallpaperModePanel() {
           Muse Overlay
         </button>
       </div>
+      {wallpaperMode === 'native_wallpaper' ? (
+        <NativeWallpaperStatus className="wallpaper-mode-copy" />
+      ) : null}
     </section>
   );
 }

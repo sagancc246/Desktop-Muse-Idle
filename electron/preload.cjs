@@ -12,6 +12,14 @@ contextBridge.exposeInMainWorld('desktopMusePlatform', {
   getOverlayStatus: () => ipcRenderer.invoke('overlay:get-status'),
   setTransparentWindow: (enabled) =>
     ipcRenderer.invoke('desktop-muse-idle:set-transparent-window', Boolean(enabled)),
+  enterNativeWallpaperMode: () => ipcRenderer.invoke('wallpaper:enter-native'),
+  exitNativeWallpaperMode: () => ipcRenderer.invoke('wallpaper:exit-native'),
+  getNativeWallpaperStatus: () => ipcRenderer.invoke('wallpaper:get-status'),
+  onNativeWallpaperStatus: (callback) => {
+    const listener = (_event, state) => callback(state);
+    ipcRenderer.on('wallpaper:native-status', listener);
+    return () => ipcRenderer.removeListener('wallpaper:native-status', listener);
+  },
   onOverlayExitRequested: (callback) => {
     const listener = () => callback();
     ipcRenderer.on('desktop-muse-idle:overlay-exit-requested', listener);

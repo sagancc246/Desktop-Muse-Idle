@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import { NativeWallpaperStatus } from './NativeWallpaperStatus';
 import { useAppStore } from '../store/useAppStore';
 import { useGameStore } from '../store/useGameStore';
 import { localize } from '../systems/localization';
@@ -20,6 +21,7 @@ interface SettingsModalProps {
 export function SettingsModal({ onBack, onStats }: SettingsModalProps) {
   const settings = useAppStore((state) => state.settings);
   const wallpaperMode = useAppStore((state) => state.wallpaperMode);
+  const nativeWallpaperStatus = useAppStore((state) => state.nativeWallpaperStatus);
   const wallpaperSettings = useAppStore((state) => state.wallpaperSettings);
   const isAlwaysOnTopEnabled = useAppStore((state) => state.isAlwaysOnTopEnabled);
   const isClickThroughEnabled = useAppStore((state) => state.isClickThroughEnabled);
@@ -194,9 +196,13 @@ export function SettingsModal({ onBack, onStats }: SettingsModalProps) {
             >
               <option value="off">Off</option>
               <option value="stage">Wallpaper Stage</option>
+              <option disabled={!nativeWallpaperStatus.supported} value="native_wallpaper">
+                Native Desktop Wallpaper
+              </option>
               <option value="muse_overlay">Muse Overlay</option>
             </select>
           </label>
+          <NativeWallpaperStatus />
           <div className="wallpaper-settings-group">
             <div className="wallpaper-settings-heading">
               <span>Wallpaper Settings</span>

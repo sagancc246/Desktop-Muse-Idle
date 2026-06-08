@@ -1,6 +1,8 @@
 node_modules
 dist
 release
+native/**/bin
+native/**/obj
 .vite
 *.tsbuildinfo
 *.log

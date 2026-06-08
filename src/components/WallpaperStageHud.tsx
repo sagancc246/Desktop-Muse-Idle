@@ -11,6 +11,8 @@ export function WallpaperStageHud({ onExit }: WallpaperStageHudProps) {
   const memory = useGameStore((state) => state.memory);
   const currentStageId = useGameStore((state) => state.currentStageId);
   const stageCornerHits = useGameStore((state) => state.stageCornerHits);
+  const nativeWallpaperStatus = useAppStore((state) => state.nativeWallpaperStatus);
+  const wallpaperMode = useAppStore((state) => state.wallpaperMode);
   const wallpaperSettings = useAppStore((state) => state.wallpaperSettings);
   const currentStage = getStageById(currentStageId) ?? getStageById(initialStageId);
   const [isDimmed, setIsDimmed] = useState(false);
@@ -86,6 +88,31 @@ export function WallpaperStageHud({ onExit }: WallpaperStageHudProps) {
           {wallpaperSettings.fps}fps / {wallpaperSettings.effectsQuality}
         </strong>
       </div>
+      {wallpaperMode === 'native_wallpaper' ? (
+        <div className="wallpaper-stage-metric wide">
+          <span>Native Wallpaper</span>
+          <strong>
+            {nativeWallpaperStatus.nativeAttached
+              ? 'Native Wallpaper Active'
+              : 'Fallback Stage Active'}
+          </strong>
+          <small>
+            Helper: {nativeWallpaperStatus.helperAvailable ? 'reachable' : 'missing'}
+            {nativeWallpaperStatus.helperVersion ? ` ${nativeWallpaperStatus.helperVersion}` : ''}
+          </small>
+          <small>
+            Dry run: {nativeWallpaperStatus.dryRun ? 'true' : 'false'} / Progman:{' '}
+            {nativeWallpaperStatus.progmanFound ? 'found' : 'unknown'} / WorkerW:{' '}
+            {nativeWallpaperStatus.workerWCandidateCount ?? 0}
+          </small>
+          <small>
+            Attached: {nativeWallpaperStatus.attached ? 'true' : 'false'} / SetParent:{' '}
+            {nativeWallpaperStatus.setParentSucceeded ? 'true' : 'false'} / SetWindowPos:{' '}
+            {nativeWallpaperStatus.setWindowPosSucceeded ? 'true' : 'false'}
+          </small>
+          {nativeWallpaperStatus.lastError ? <small>{nativeWallpaperStatus.lastError}</small> : null}
+        </div>
+      ) : null}
       <button className="wallpaper-stage-exit" onClick={onExit} type="button">
         Exit Wallpaper
       </button>

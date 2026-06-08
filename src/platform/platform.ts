@@ -1,6 +1,6 @@
 import { electronAdapter } from './electronAdapter';
 import { localAdapter } from './localAdapter';
-import type { OverlayStatus, PlatformAdapter } from './platformAdapter';
+import type { NativeWallpaperStatus, OverlayStatus, PlatformAdapter } from './platformAdapter';
 
 export const platformAdapter: PlatformAdapter =
   typeof window !== 'undefined' && window.desktopMusePlatform ? electronAdapter : localAdapter;
@@ -13,6 +13,18 @@ export async function enterPlatformOverlayMode() {
 
 export async function exitPlatformOverlayMode() {
   await platformAdapter.exitOverlayMode?.();
+}
+
+export async function enterPlatformNativeWallpaperMode() {
+  return platformAdapter.enterNativeWallpaperMode?.();
+}
+
+export async function exitPlatformNativeWallpaperMode() {
+  return platformAdapter.exitNativeWallpaperMode?.();
+}
+
+export async function getPlatformNativeWallpaperStatus() {
+  return platformAdapter.getNativeWallpaperStatus?.();
 }
 
 export async function getPlatformOverlayStatus() {
@@ -37,4 +49,8 @@ export function onPlatformOverlayExitRequested(callback: () => void) {
 
 export function onPlatformOverlayState(callback: (state: OverlayStatus) => void) {
   return platformAdapter.onOverlayState?.(callback) ?? (() => undefined);
+}
+
+export function onPlatformNativeWallpaperStatus(callback: (state: NativeWallpaperStatus) => void) {
+  return platformAdapter.onNativeWallpaperStatus?.(callback) ?? (() => undefined);
 }

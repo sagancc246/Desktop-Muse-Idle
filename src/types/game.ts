@@ -153,7 +153,7 @@ export type EffectsQuality = 'low' | 'medium' | 'high';
 
 export type MotionIntensity = 'low' | 'medium' | 'high';
 
-export type WallpaperMode = 'off' | 'stage' | 'muse_overlay';
+export type WallpaperMode = 'off' | 'stage' | 'muse_overlay' | 'native_wallpaper';
 
 export interface OverlayWindowPreferences {
   isAlwaysOnTopEnabled: boolean;

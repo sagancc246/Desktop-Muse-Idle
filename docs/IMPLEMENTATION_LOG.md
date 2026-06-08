@@ -458,3 +458,58 @@ Verification results on 2026-06-05:
 - If the saved preference is ON, Click Through is applied after a 3-second safety delay.
 - The Overlay HUD is mounted during Muse Overlay so the startup safety guide can appear even when the normal Overlay HUD preference is OFF.
 - The safety guide explains that Overlay buttons are unavailable while Click Through is ON and that `Ctrl + Shift + M` returns to operation mode; `Esc` exits Overlay.
+
+## Native Desktop Wallpaper MVP
+
+- Added `native_wallpaper` to the shared Wallpaper Mode type without persisting the active mode.
+- Added `enterNativeWallpaperMode`, `exitNativeWallpaperMode`, and `getNativeWallpaperStatus` to the platform adapter boundary, with safe local/Steam no-op fallbacks.
+- Added context-isolated preload IPC for `wallpaper:enter-native`, `wallpaper:exit-native`, and `wallpaper:get-status`.
+- Added a dedicated hidden Wallpaper `BrowserWindow` factory for Electron that loads the renderer with `nativeWallpaperRenderer=1`, hides taskbar presence, uses transparent frameless bounds, and does not replace the main window.
+- Added a Win32 desktop attach boundary in `electron/nativeWallpaper.cjs`. It prepares the native window handle but deliberately returns fallback until a reviewed WorkerW/Progman/SetParent bridge is selected.
+- Native Wallpaper entry now attempts the Electron main-process attach path on Windows, reports backend/nativeAttached/fallback/lastError status, and falls back to the existing Wallpaper Stage presentation on failure.
+- Settings, WallpaperModePanel, and WallpaperStageHud now expose Native Wallpaper status while keeping unsupported web/non-Windows environments safe.
+- The dedicated Wallpaper renderer forces the game into the existing Wallpaper Stage presentation path and reuses Wallpaper FPS/effects settings without changing game coordinates, collision, rewards, or save data.
+
+## Win32 Wallpaper Bridge Decision
+
+- Compared C# helper exe, C++ helper exe, Node native addon, and ffi-napi/user32 direct-call approaches for WorkerW / Progman / SetParent integration.
+- Selected a C# self-contained helper exe as the first implementation path because it isolates Win32 failure from Electron, avoids Node/Electron ABI risk, is reviewable with explicit P/Invoke calls, and can be bundled with Steam/Electron as a separate executable.
+- Added `docs/WIN32_WALLPAPER_BRIDGE_DECISION.md` with the candidate comparison, recommended architecture, WorkerW attach plan, Electron integration flow, fallback rules, status model changes, and manual verification checklist.
+- Added `docs/NATIVE_WALLPAPER.md` and `native/wallpaper-helper/README.md` to document current fallback behavior and the future helper command contract.
+- No Win32 attach code or native dependencies were added in this step; the app remains on the safe `fallback_stage` MVP path until the helper is implemented.
+
+## Wallpaper Helper Skeleton
+
+- Added `native/wallpaper-helper/WallpaperHelper.csproj` and `Program.cs` as a C# console helper skeleton.
+- The helper supports `status`, `version`, `attach --hwnd <HWND>`, and `detach --hwnd <HWND>` and writes JSON to stdout for success, expected failure, and exception paths.
+- `attach` validates that an HWND was passed, then returns `attached: false` with `reason: "attach_not_implemented"`; no WorkerW / Progman / SetParent attach is attempted yet.
+- Electron `nativeWallpaper.cjs` now resolves a helper path, starts the helper with `child_process.spawn`, passes the Wallpaper BrowserWindow HWND, parses JSON stdout, enforces a timeout, and falls back safely on missing helper, spawn failure, invalid JSON, timeout, or attach-not-implemented.
+- Native Wallpaper status now exposes helper availability, helper version, helper last result, and attached/nativeAttached state for Settings, WallpaperModePanel, and WallpaperStageHud.
+- The normal `npm run build` and `verify:all` flows do not require the .NET SDK or a built helper executable.
+
+## Wallpaper Helper Desktop Discovery Dry Run
+
+- Added Win32 P/Invoke definitions in `native/wallpaper-helper/Win32.cs` for Progman/WorkerW dry-run discovery: `FindWindow`, `FindWindowEx`, `EnumWindows`, `GetClassName`, `GetWindowText`, `SendMessageTimeout`, `IsWindowVisible`, and `GetWindowRect`.
+- Added `DesktopWindowFinder` and discovery result models to keep Win32 traversal out of `Program.cs`.
+- Added `find-desktop`, which finds Progman, sends the `0x052C` WorkerW creation message with timeout, enumerates top-level windows, detects `SHELLDLL_DefView`, lists WorkerW candidates, and selects a preferred WorkerW candidate without calling `SetParent`.
+- Added `attach --hwnd <HWND> --dry-run`, which validates the HWND, runs the same desktop discovery, returns `dryRun: true`, `attached: false`, and `reason: "dry_run_no_set_parent"`.
+- Electron status surfaces Progman, SHELLDLL_DefView, WorkerW candidate count, preferred WorkerW, dryRun, reason, warnings, and helper JSON from helper attach/discovery results.
+- Dry-run discovery never reports `native_desktop_wallpaper` success.
+
+## Wallpaper Helper SetParent Attach
+
+- Added `WallpaperAttacher.cs` to perform the first real WorkerW attach attempt from the helper process.
+- `attach --hwnd <HWND>` now validates the target HWND with `IsWindow`, reuses desktop discovery, selects the preferred WorkerW, records previous parent/style/exStyle, adjusts style for WorkerW child-window use, calls `SetParent`, calls `SetWindowPos`, and returns `attached: true` only after successful verification.
+- Window style adjustment adds `WS_CHILD`, `WS_VISIBLE`, `WS_CLIPSIBLINGS`, `WS_CLIPCHILDREN`, removes `WS_POPUP`, and adds `WS_EX_TOOLWINDOW` / `WS_EX_NOACTIVATE` while preserving the old values for detach.
+- `detach --hwnd <HWND> --previous-parent --previous-style --previous-ex-style` now attempts to restore the previous parent/style values. Electron still closes the Wallpaper BrowserWindow afterward as the final cleanup fallback.
+- Electron now calls helper attach without `--dry-run`, stores workerW / previous parent / previous style fields, reports `native_desktop_wallpaper` only when `attached: true`, and calls helper detach during Native Wallpaper exit.
+- Current MVP positions the wallpaper on the primary display only via `GetSystemMetrics`; multi-monitor, virtual-screen, and DPI-specific placement remain TODO.
+
+## Wallpaper Helper Publish Packaging
+
+- Added `build:wallpaper-helper` to publish `native/wallpaper-helper/WallpaperHelper.csproj` as a Windows x64 self-contained single-file exe.
+- Standardized the helper publish output at `native/wallpaper-helper/bin/publish/win-x64/wallpaper-helper.exe`.
+- Added `electron-builder.extraResources` packaging so the published helper is copied to `resources/wallpaper-helper/wallpaper-helper.exe` in `release/win-unpacked`.
+- Updated Electron helper path resolution to prefer the new development publish output and packaged resources path, while preserving `DESKTOP_MUSE_WALLPAPER_HELPER` override and safe missing-helper fallback.
+- NativeWallpaperStatus now surfaces the resolved helper path in addition to helper availability/version.
+- `npm run build` and `npm run verify:all` remain independent of dotnet; packaged native wallpaper verification requires running the helper publish step first.

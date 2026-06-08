@@ -1,4 +1,4 @@
-import type { OverlayStatus, PlatformAdapter } from './platformAdapter';
+import type { NativeWallpaperStatus, OverlayStatus, PlatformAdapter } from './platformAdapter';
 
 const bridge = () => window.desktopMusePlatform;
 const fallbackOverlayStatus: OverlayStatus = {
@@ -12,6 +12,16 @@ const fallbackOverlayStatus: OverlayStatus = {
   transparentEnabled: false,
   lastError: 'Electron platform bridge is unavailable.',
 };
+const fallbackNativeWallpaperStatus: NativeWallpaperStatus = {
+  active: false,
+  attached: false,
+  backend: 'none',
+  fallbackActive: false,
+  helperAvailable: false,
+  lastError: 'Electron platform bridge is unavailable.',
+  nativeAttached: false,
+  supported: false,
+};
 
 export const electronAdapter: PlatformAdapter = {
   platformId: 'electron',
@@ -21,6 +31,19 @@ export const electronAdapter: PlatformAdapter = {
   exitOverlayMode: async () => {
     await bridge()?.exitOverlayMode();
   },
+  enterNativeWallpaperMode: async () =>
+    bridge()?.enterNativeWallpaperMode() ?? {
+      ok: false,
+      mode: 'unsupported',
+      message: 'Electron platform bridge is unavailable.',
+    },
+  exitNativeWallpaperMode: async () =>
+    bridge()?.exitNativeWallpaperMode() ?? {
+      ok: true,
+      mode: 'fallback_stage',
+    },
+  getNativeWallpaperStatus: async () =>
+    bridge()?.getNativeWallpaperStatus() ?? fallbackNativeWallpaperStatus,
   getOverlayStatus: async () => bridge()?.getOverlayStatus() ?? fallbackOverlayStatus,
   setAlwaysOnTop: async (enabled) => {
     await bridge()?.setAlwaysOnTop(enabled);
@@ -34,4 +57,6 @@ export const electronAdapter: PlatformAdapter = {
   onOverlayExitRequested: (callback) => bridge()?.onOverlayExitRequested(callback) ?? (() => undefined),
   onOverlayState: (callback: (state: OverlayStatus) => void) =>
     bridge()?.onOverlayState(callback) ?? (() => undefined),
+  onNativeWallpaperStatus: (callback: (state: NativeWallpaperStatus) => void) =>
+    bridge()?.onNativeWallpaperStatus(callback) ?? (() => undefined),
 };

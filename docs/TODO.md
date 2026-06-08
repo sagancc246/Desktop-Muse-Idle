@@ -196,9 +196,43 @@ Next TODO:
 
 - Keep Electron-specific calls behind `src/platform/*`.
 - Do not call Electron APIs directly from React components.
-- Native Desktop Wallpaper Mode is not implemented. Add a reviewed Windows desktop-layer integration only after explicitly choosing the WorkerW/Progman/native-window strategy.
+- [x] Add a Windows-only Native Desktop Wallpaper MVP entry point that creates a dedicated Wallpaper `BrowserWindow`, attempts the main-process attach path, reports status through `platformAdapter`, and safely falls back to Wallpaper Stage.
+- [x] Select the Win32 bridge strategy for Native Desktop Wallpaper. Decision: C# self-contained helper exe; see `docs/WIN32_WALLPAPER_BRIDGE_DECISION.md`.
+- Native Desktop Wallpaper currently uses a reviewed-safe fallback because WorkerW/Progman/SetParent requires the helper implementation.
+- Native Desktop Wallpaper implementation tasks:
+  - [x] Create the C# helper project under `native/wallpaper-helper/`.
+  - [x] Implement helper command parsing for `status`, `version`, `attach --hwnd`, and `detach --hwnd`.
+  - [x] Add helper `find-desktop` dry-run command.
+  - [x] Add helper `attach --hwnd <HWND> --dry-run` command.
+  - [x] Launch the helper from Electron main process and pass the Wallpaper BrowserWindow HWND.
+  - [x] Parse helper JSON output and surface helper reachability/version/last result in NativeWallpaperStatus.
+  - [x] Surface Progman / SHELLDLL_DefView / WorkerW candidate dry-run results in NativeWallpaperStatus.
+  - Extend helper command parsing for `attach --hwnd --x --y --width --height`.
+  - [x] Implement Progman discovery with `FindWindow("Progman", null)`.
+  - [x] Send the WorkerW creation message to Progman with timeout handling.
+  - [x] Implement `EnumWindows` / `FindWindowEx` traversal for `SHELLDLL_DefView`.
+  - [x] Select and validate the target WorkerW behind the desktop icon layer for dry-run reporting.
+  - [x] Implement `SetParent` attach for the Wallpaper Window.
+  - [x] Adjust window style and use `SetWindowPos` for primary display bounds.
+  - Extend `NativeWallpaperStatus` with `helperRunning` while preserving current fallback fields.
+  - [x] Add helper path resolution for development and packaged Electron builds.
+  - [x] Add helper missing / timeout / invalid JSON / non-zero exit fallback handling.
+  - [x] Implement helper detach with previous parent/style arguments and Electron BrowserWindow close fallback.
+  - Confirm `fallback_stage` still works when helper is missing or attach fails.
+  - [x] Add `build:wallpaper-helper` for Windows self-contained helper publish.
+  - [x] Package the helper with `electron-builder` via `extraResources`.
+  - Confirm packaged helper startup from `release\win-unpacked\resources\wallpaper-helper\wallpaper-helper.exe` on a local Windows machine.
+  - Add virtual-screen / multi-monitor placement support.
+  - Add DPI-aware placement verification.
+  - Run Windows local実機確認 for `Win + D`.
+  - Run Windows local実機確認 for desktop icon back-layer rendering.
+  - Run Windows local実機確認 for desktop icon clicks.
+  - Run Windows local実機確認 for Alt+Tab and taskbar absence.
+  - Run Windows local実機確認 for Exit restoration and no orphan Wallpaper window.
 - [x] Add an Electron platform adapter and IPC bridge for transparent Muse Overlay, always-on-top, click-through, fullscreen Overlay entry/exit, skip-taskbar behavior, and truthful HUD status.
 - Release-before manual check: verify `Win + D`, `Alt + Tab`, desktop-icon layering/clicks, taskbar presence, startup 3-second Click Through safety guide, `Ctrl + Shift + M` recovery, Click Through ON pass-through, Click Through OFF Muse Tap/HUD button interaction, HUD Last Error, and Esc restoration in the packaged Windows build.
+- Release-before manual check: verify Native Desktop Wallpaper Mode on local Windows Electron after the real WorkerW bridge is implemented; check `Win + D`, icon back-layer rendering, icon clicks, Alt + Tab/taskbar absence, app-behind behavior, and Exit restoration.
+- Current MVP manual check: confirm Windows Electron reports Native Wallpaper fallback cleanly and returns to normal mode without leaving a hidden Wallpaper window.
 - Windows Computer Use runtime startup currently fails with `windows sandbox failed: spawn setup refresh`; retry the packaged Overlay manual check after the runtime issue is resolved.
 - When Windows Computer Use runtime cannot start, switch to local Windows manual verification by launching `release\win-unpacked\Desktop Muse Idle.exe` and follow the README Electron checklist.
 - Later implement:
