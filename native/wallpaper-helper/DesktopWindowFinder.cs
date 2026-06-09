@@ -34,19 +34,10 @@ internal static class DesktopWindowFinder
             return result;
         }
 
-        var sendResult = Win32.SendMessageTimeoutW(
-            progman,
-            Win32.WorkerWMessage,
-            UIntPtr.Zero,
-            IntPtr.Zero,
-            Win32.SmtoNormal | Win32.SmtoAbortIfHung,
-            1_000,
-            out var messageResult);
-
-        result.WorkerWMessageSent = sendResult != IntPtr.Zero;
-        result.WorkerWMessageResult = result.WorkerWMessageSent
-            ? messageResult.ToUInt64().ToString()
-            : $"send_failed:{Win32.GetLastError()}";
+        var messageResults = SendWorkerWCreationMessages(progman);
+        result.WorkerWMessageSent = messageResults.Any((messageResult) => messageResult.sent);
+        result.WorkerWMessageResult = string.Join(";", messageResults.Select((messageResult) =>
+            $"{messageResult.wParam}:{messageResult.lParam}:{(messageResult.sent ? messageResult.result : $"send_failed:{messageResult.error}")}"));
 
         if (!result.WorkerWMessageSent)
         {
@@ -86,6 +77,18 @@ internal static class DesktopWindowFinder
                     className,
                     hasShellDllDefView: true,
                     candidateReason: "top_level_window_with_shelldll_defview");
+
+                var siblingWorkerW = Win32.FindWindowEx(IntPtr.Zero, hwnd, "WorkerW", null);
+                if (siblingWorkerW != IntPtr.Zero)
+                {
+                    AddCandidate(
+                        result,
+                        seen,
+                        siblingWorkerW,
+                        Win32.GetClassNameSafe(siblingWorkerW),
+                        hasShellDllDefView: false,
+                        candidateReason: "workerw_sibling_after_shelldll_defview");
+                }
             }
 
             if (string.Equals(className, "WorkerW", StringComparison.Ordinal))
@@ -133,7 +136,11 @@ internal static class DesktopWindowFinder
 
     private static void SelectPreferredWorkerW(DesktopDiscoveryResult result)
     {
-        var preferred = result.WorkerWCandidates.FirstOrDefault((candidate) =>
+        var desktopSizedCandidates = result.WorkerWCandidates
+            .Where(IsDesktopSizedCandidate)
+            .ToList();
+
+        var preferred = desktopSizedCandidates.FirstOrDefault((candidate) =>
             string.Equals(candidate.ClassName, "WorkerW", StringComparison.Ordinal) &&
             !candidate.HasShellDllDefView);
 
@@ -144,7 +151,7 @@ internal static class DesktopWindowFinder
             return;
         }
 
-        preferred = result.WorkerWCandidates.FirstOrDefault((candidate) =>
+        preferred = desktopSizedCandidates.FirstOrDefault((candidate) =>
             string.Equals(candidate.ClassName, "WorkerW", StringComparison.Ordinal));
 
         if (preferred is not null)
@@ -154,11 +161,58 @@ internal static class DesktopWindowFinder
             return;
         }
 
-        preferred = result.WorkerWCandidates.FirstOrDefault((candidate) => candidate.HasShellDllDefView);
-        if (preferred is not null)
+        if (result.WorkerWCandidates.Count > 0)
         {
-            result.PreferredWorkerWHwnd = preferred.Hwnd;
-            result.PreferredReason = "fallback_shelldll_defview_parent";
+            result.Warnings.Add("WorkerW candidates were found, but no desktop-sized WorkerW background target was available.");
         }
+    }
+
+    private static List<(string wParam, string lParam, bool sent, string result, int error)> SendWorkerWCreationMessages(IntPtr progman)
+    {
+        var messages = new List<(UIntPtr wParam, IntPtr lParam)>
+        {
+            (UIntPtr.Zero, IntPtr.Zero),
+            (new UIntPtr(0x0D), IntPtr.Zero),
+            (new UIntPtr(0x0D), new IntPtr(1)),
+        };
+        var results = new List<(string wParam, string lParam, bool sent, string result, int error)>();
+
+        foreach (var message in messages)
+        {
+            var sendResult = Win32.SendMessageTimeoutW(
+                progman,
+                Win32.WorkerWMessage,
+                message.wParam,
+                message.lParam,
+                Win32.SmtoNormal | Win32.SmtoAbortIfHung,
+                1_000,
+                out var messageResult);
+
+            results.Add((
+                message.wParam.ToUInt64().ToString(),
+                message.lParam.ToInt64().ToString(),
+                sendResult != IntPtr.Zero,
+                messageResult.ToUInt64().ToString(),
+                Win32.GetLastError()));
+        }
+
+        return results;
+    }
+
+    private static bool IsDesktopSizedCandidate(WorkerWindowCandidate candidate)
+    {
+        if (candidate.Rect is null)
+        {
+            return false;
+        }
+
+        var screenWidth = Math.Max(1, Win32.GetSystemMetrics(Win32.SmCxScreen));
+        var screenHeight = Math.Max(1, Win32.GetSystemMetrics(Win32.SmCyScreen));
+        var virtualWidth = Math.Max(screenWidth, Win32.GetSystemMetrics(Win32.SmCxVirtualScreen));
+        var virtualHeight = Math.Max(screenHeight, Win32.GetSystemMetrics(Win32.SmCyVirtualScreen));
+
+        return candidate.Rect.Width >= screenWidth && candidate.Rect.Height >= screenHeight ||
+            candidate.Rect.Width >= virtualWidth && candidate.Rect.Height >= screenHeight ||
+            candidate.Rect.Width >= screenWidth && candidate.Rect.Height >= virtualHeight;
     }
 }

@@ -6,7 +6,7 @@
     <OutputType>Exe</OutputType>
     <RootNamespace>WallpaperHelper</RootNamespace>
     <TargetFramework>net8.0</TargetFramework>
-    <Version>0.1.0</Version>
+    <Version>0.1.4</Version>
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>

@@ -14,6 +14,11 @@ internal static class Win32
     internal const int GwlExStyle = -20;
     internal const int SmCxScreen = 0;
     internal const int SmCyScreen = 1;
+    internal const int SmXVirtualScreen = 76;
+    internal const int SmYVirtualScreen = 77;
+    internal const int SmCxVirtualScreen = 78;
+    internal const int SmCyVirtualScreen = 79;
+    internal static readonly IntPtr HwndBottom = new(1);
     internal const int SwShowNoActivate = 4;
     internal const uint SwpNoZOrder = 0x0004;
     internal const uint SwpNoActivate = 0x0010;
@@ -126,21 +131,21 @@ internal static class Win32
         return GetWindowText(hwnd, builder, builder.Capacity) > 0 ? builder.ToString() : string.Empty;
     }
 
-    internal static object? GetRectSafe(IntPtr hwnd)
+    internal static WindowRectInfo? GetRectSafe(IntPtr hwnd)
     {
         if (!GetWindowRect(hwnd, out var rect))
         {
             return null;
         }
 
-        return new
+        return new WindowRectInfo
         {
-            left = rect.Left,
-            top = rect.Top,
-            right = rect.Right,
-            bottom = rect.Bottom,
-            width = rect.Right - rect.Left,
-            height = rect.Bottom - rect.Top,
+            Left = rect.Left,
+            Top = rect.Top,
+            Right = rect.Right,
+            Bottom = rect.Bottom,
+            Width = rect.Right - rect.Left,
+            Height = rect.Bottom - rect.Top,
         };
     }
 }

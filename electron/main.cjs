@@ -153,10 +153,11 @@ async function enterNativeWallpaperMode() {
       };
     }
 
+    nativeWallpaperWindow.setIgnoreMouseEvents(true, { forward: true });
     nativeWallpaperWindow.showInactive();
     setNativeWallpaperStatus({
       active: true,
-      backend: 'native_desktop_wallpaper',
+      backend: attachResult.backend ?? 'native_desktop_wallpaper',
       fallbackActive: false,
       attached: true,
       ...getHelperStatusFields(attachResult),

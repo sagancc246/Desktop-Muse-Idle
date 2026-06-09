@@ -513,3 +513,34 @@ Verification results on 2026-06-05:
 - Updated Electron helper path resolution to prefer the new development publish output and packaged resources path, while preserving `DESKTOP_MUSE_WALLPAPER_HELPER` override and safe missing-helper fallback.
 - NativeWallpaperStatus now surfaces the resolved helper path in addition to helper availability/version.
 - `npm run build` and `npm run verify:all` remain independent of dotnet; packaged native wallpaper verification requires running the helper publish step first.
+
+## Wallpaper Helper Desktop Target Selection Fix
+
+- Investigated a Windows packaged result where helper attach reported `backend: native_desktop_wallpaper`, `attached: true`, `SetParent: true`, and `SetWindowPos: true`, but `Win + D`, desktop icon back-layer rendering, and desktop icon clicks did not work.
+- Found that the helper selected the first `WorkerW` without `SHELLDLL_DefView`, even when that candidate was an invisible `91x26` window rather than a desktop-sized background layer.
+- Updated WorkerW selection to prefer only desktop-sized candidates, exposing that `Progman` fallback can look successful while still failing desktop behavior checks.
+- Changed attach positioning to place the Wallpaper child at `HWND_BOTTOM` instead of preserving the existing child z-order.
+- Bumped `wallpaper-helper` to `0.1.1` so packaged verification can confirm the fixed helper is being used.
+
+## Wallpaper Helper Progman Fallback Correction
+
+- Investigated a second Windows packaged result where `Preferred WorkerW` was actually `className: "Progman"` with `preferredReason: "fallback_progman_with_shelldll_defview"`, and the wallpaper still failed `Win + D`, desktop icon back-layer rendering, and desktop icon click checks.
+- Removed `Progman` / `SHELLDLL_DefView` parent fallback from native success selection. A successful `native_desktop_wallpaper` result now requires a desktop-sized `WorkerW` target, not just a valid parent HWND.
+- Added additional `0x052C` WorkerW creation message variants so Windows versions that need the `0x0D` message sequence can expose the proper background WorkerW before enumeration.
+- Added sibling WorkerW discovery after the `SHELLDLL_DefView` host window.
+- Set the Electron Wallpaper BrowserWindow to ignore mouse events after native attach so the wallpaper surface does not block desktop icon clicks.
+- Bumped `wallpaper-helper` to `0.1.2` so the next packaged log can distinguish this correction from the previous WorkerW selection fix.
+
+## Wallpaper Helper Progman Child Fallback
+
+- Investigated a `0.1.2` packaged result where all discovered `WorkerW` windows were tiny invisible candidates and the only desktop-sized candidate was `Progman`; strict WorkerW selection correctly returned `fallback_stage` with `reason: "workerw_not_found"`.
+- Added an explicit `progman_desktop_child` backend for environments where Windows does not expose a desktop-sized WorkerW target, but `Progman` can still be used as a desktop child parent.
+- Kept `native_desktop_wallpaper` reserved for successful desktop-sized WorkerW attach, while allowing `Progman` fallback to be tested separately and shown truthfully in NativeWallpaperStatus.
+- Bumped `wallpaper-helper` to `0.1.3` so packaged verification can confirm this fallback path is active.
+
+## Wallpaper Helper Progman Fallback Rejected
+
+- Verified on the Windows packaged app that `progman_desktop_child` still fails the required native wallpaper behavior: `Win + D` persistence, desktop-icon back-layer rendering, desktop-icon clicks, Alt+Tab/taskbar absence, clean Exit/Esc restore, and no leftover transparent window.
+- Removed `Progman` child fallback from the success path. The helper now returns `fallback_stage` unless it can attach to a desktop-sized `WorkerW` target.
+- Bumped `wallpaper-helper` to `0.1.4` so future logs clearly show the rejected Progman fallback is no longer being used.
+- Next implementation direction should avoid treating Electron BrowserWindow -> Progman `SetParent` as a valid wallpaper backend. A native host-window bridge or a different desktop compositor strategy is required for environments where Explorer does not expose a usable desktop-sized WorkerW.

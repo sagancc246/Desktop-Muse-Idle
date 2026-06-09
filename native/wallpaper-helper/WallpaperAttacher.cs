@@ -45,6 +45,8 @@ internal static class WallpaperAttacher
         }
 
         result.WorkerWHwnd = Win32.HwndToString(workerW);
+        var targetCandidate = discovery.WorkerWCandidates.FirstOrDefault((candidate) =>
+            string.Equals(candidate.Hwnd, discovery.PreferredWorkerWHwnd, StringComparison.Ordinal));
         var previousParent = Win32.GetParent(hwnd);
         result.PreviousParentHwnd = previousParent == IntPtr.Zero ? null : Win32.HwndToString(previousParent);
 
@@ -86,17 +88,18 @@ internal static class WallpaperAttacher
             return result;
         }
 
-        var width = Math.Max(1, Win32.GetSystemMetrics(Win32.SmCxScreen));
-        var height = Math.Max(1, Win32.GetSystemMetrics(Win32.SmCyScreen));
+        var targetRect = targetCandidate?.Rect;
+        var width = Math.Max(1, targetRect?.Width ?? Win32.GetSystemMetrics(Win32.SmCxScreen));
+        var height = Math.Max(1, targetRect?.Height ?? Win32.GetSystemMetrics(Win32.SmCyScreen));
         Win32.ShowWindow(hwnd, Win32.SwShowNoActivate);
         result.SetWindowPosSucceeded = Win32.SetWindowPos(
             hwnd,
-            IntPtr.Zero,
+            Win32.HwndBottom,
             0,
             0,
             width,
             height,
-            Win32.SwpNoZOrder | Win32.SwpNoActivate | Win32.SwpFrameChanged | Win32.SwpShowWindow);
+            Win32.SwpNoActivate | Win32.SwpFrameChanged | Win32.SwpShowWindow);
         result.Position = new
         {
             x = 0,

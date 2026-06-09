@@ -28,9 +28,19 @@ internal sealed class WorkerWindowCandidate
     public string ClassName { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public bool Visible { get; set; }
-    public object? Rect { get; set; }
+    public WindowRectInfo? Rect { get; set; }
     public bool HasShellDllDefView { get; set; }
     public string CandidateReason { get; set; } = string.Empty;
+}
+
+internal sealed class WindowRectInfo
+{
+    public int Left { get; set; }
+    public int Top { get; set; }
+    public int Right { get; set; }
+    public int Bottom { get; set; }
+    public int Width { get; set; }
+    public int Height { get; set; }
 }
 
 internal sealed class WallpaperAttachResult : DesktopDiscoveryResult
