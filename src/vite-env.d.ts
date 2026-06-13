@@ -8,6 +8,7 @@ interface DesktopMusePlatformBridge {
   enterNativeWallpaperMode: () => Promise<NativeWallpaperResult>;
   exitNativeWallpaperMode: () => Promise<NativeWallpaperResult>;
   getNativeWallpaperStatus: () => Promise<NativeWallpaperStatus>;
+  inspectNativeWallpaper?: () => Promise<NativeWallpaperStatus>;
   getOverlayStatus: () => Promise<OverlayStatus>;
   setAlwaysOnTop: (enabled: boolean) => Promise<boolean>;
   setClickThrough: (enabled: boolean) => Promise<boolean>;

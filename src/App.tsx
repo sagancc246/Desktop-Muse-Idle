@@ -75,6 +75,7 @@ export default function App() {
   const isFocusMode = useAppStore((state) => state.isFocusMode);
   const wallpaperMode = useAppStore((state) => state.wallpaperMode);
   const wallpaperSettings = useAppStore((state) => state.wallpaperSettings);
+  const nativeWallpaperStatus = useAppStore((state) => state.nativeWallpaperStatus);
   const toggleFocusMode = useAppStore((state) => state.toggleFocusMode);
   const toggleDebugPanel = useAppStore((state) => state.toggleDebugPanel);
   const setDebugPanelOpen = useAppStore((state) => state.setDebugPanelOpen);
@@ -109,10 +110,34 @@ export default function App() {
   const [pinballCornerHit, setPinballCornerHit] = useState<CornerHitPosition | null>(null);
   const [galleryOpenRequestKey, setGalleryOpenRequestKey] = useState(0);
   const stageScale = useStageScale();
+  const nativeProbeActive = Boolean(
+    !isNativeWallpaperRenderer &&
+      wallpaperMode === 'native_wallpaper' &&
+      (nativeWallpaperStatus.nativeProbeActive ||
+        (nativeWallpaperStatus.probeAttached && nativeWallpaperStatus.needsManualVerification)),
+  );
+  const nativeDisplayActive = Boolean(
+    nativeProbeActive ||
+      (!isNativeWallpaperRenderer &&
+        wallpaperMode === 'native_wallpaper' &&
+        (nativeWallpaperStatus.attached || nativeWallpaperStatus.nativeAttached)),
+  );
   const isWallpaperStageMode =
-    isNativeWallpaperRenderer || wallpaperMode === 'stage' || wallpaperMode === 'native_wallpaper';
+    isNativeWallpaperRenderer ||
+    wallpaperMode === 'stage' ||
+    (wallpaperMode === 'native_wallpaper' && !nativeDisplayActive);
   const isNativeWallpaperMode = isNativeWallpaperRenderer || wallpaperMode === 'native_wallpaper';
   const isMuseOverlayMode = wallpaperMode === 'muse_overlay';
+  const renderSurface = isNativeWallpaperRenderer
+    ? 'native_wallpaper_surface'
+    : nativeProbeActive
+      ? 'main_window'
+      : isMuseOverlayMode
+        ? 'overlay'
+        : isWallpaperStageMode
+          ? 'wallpaper_stage'
+          : 'main_window';
+  const nativeWallpaperSurface = renderSurface === 'native_wallpaper_surface';
   const canShowDebugPanel =
     import.meta.env.DEV &&
     currentScreen === 'game' &&
@@ -361,12 +386,33 @@ export default function App() {
     screenContent = <CreditsModal onBack={() => setScreen('title')} />;
   } else if (!isNativeWallpaperRenderer && currentScreen === 'stats') {
     screenContent = <StatsPanel onBack={closeStats} />;
+  } else if (nativeProbeActive) {
+    screenContent = (
+      <div className="app-shell native-probe-control-mode">
+        <NeonBackground />
+        <ResourceBar
+          onFocus={toggleFocusMode}
+          onSettings={() => openSettings('game')}
+          onStats={() => openStats('game')}
+          onWallpaperStage={toggleWallpaperStageMode}
+          wallpaperMode={wallpaperMode}
+        />
+        <main className="workspace native-probe-workspace">
+          <div className="side-panel-stack native-probe-panel-stack">
+            <WallpaperModePanel />
+          </div>
+        </main>
+        {wallpaperSettings.showStageHud ? <WallpaperStageHud onExit={exitWallpaperMode} /> : null}
+      </div>
+    );
   } else {
     screenContent = (
       <div
         className={`app-shell${isFocusMode ? ' focus-mode' : ''}${
           isWallpaperStageMode ? ' wallpaper-stage-mode' : ''
-        }${isMuseOverlayMode ? ' muse-overlay-mode' : ''}`}
+        }${isMuseOverlayMode ? ' muse-overlay-mode' : ''}${
+          nativeWallpaperSurface ? ' native-wallpaper-surface-mode' : ''
+        }`}
       >
         <NeonBackground />
         <PinballBackground
@@ -414,7 +460,7 @@ export default function App() {
         ) : null}
         {!isMuseOverlayMode ? <SaveStatusToast /> : null}
         {isFocusMode ? <FocusHud onExit={exitFocusMode} /> : null}
-        {isWallpaperStageMode && wallpaperSettings.showStageHud ? (
+        {isWallpaperStageMode && wallpaperSettings.showStageHud && !nativeWallpaperSurface ? (
           <WallpaperStageHud onExit={exitWallpaperMode} />
         ) : null}
         {isMuseOverlayMode ? (

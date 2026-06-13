@@ -13,6 +13,9 @@ export interface OverlayStatus {
 export type NativeWallpaperBackend =
   | 'fallback_stage'
   | 'none'
+  | 'progman_native_host_probe'
+  | 'workerw_native_host_probe'
+  | 'workerw_child_native_host_probe'
   | 'web_preview'
   | 'electron_window'
   | 'native_desktop_wallpaper';
@@ -25,25 +28,128 @@ export interface NativeWallpaperResult {
 
 export interface NativeWallpaperStatus {
   active: boolean;
+  appVersion?: string;
   attached?: boolean;
+  attachMethod?: string;
   backend: NativeWallpaperBackend;
+  electronWallpaperHwnd?: string;
   fallbackActive?: boolean;
+  fallbackReason?: string;
   helperAvailable?: boolean;
   helperLastResult?: string;
   helperPath?: string | null;
+  helperPid?: number;
+  helperProcessAlive?: boolean;
+  helperRunning?: boolean;
   helperVersion?: string;
+  hostHwnd?: string;
+  activeDisplaySurfaces?: string[];
+  clickThroughEnabled?: boolean;
+  clickThroughMode?: string;
+  cleanupStaleHostWindowsAttempted?: boolean;
+  cleanupStaleHostWindowsFailed?: boolean;
+  cleanupStaleHostWindowsSucceeded?: boolean;
+  coordinateMode?: string;
+  electronIgnoreMouseEventsEnabled?: boolean;
+  electronIgnoreMouseEventsRequested?: boolean;
+  electronParentHwndAfterSetParent?: string | null;
+  hostWindowRect?: unknown;
+  hostParentHwndAfterSetParent?: string | null;
+  hostRectAfterSetParent?: unknown;
+  hostRectAfterSetWindowPos?: unknown;
+  hostRectBeforeSetParent?: unknown;
+  hostRelativeToShellDllDefView?: string;
+  hostRelativeToSysListView32?: string;
   lastError?: string;
   nativeAttached?: boolean;
+  nativeExStyleAfterClickThrough?: string;
+  nativeExStyleBeforeClickThrough?: string;
+  nativeHostHwnd?: string;
+  nativeHostNoActivateEnabled?: boolean;
+  nativeHostNoActivateRequested?: boolean;
+  nativeHostTransparentEnabled?: boolean;
+  nativeHostTransparentRequested?: boolean;
+  nativeProbeActive?: boolean;
+  nativeProbeBackend?: string;
+  nativeProbeVisible?: boolean;
+  renderSurface?: 'main_window' | 'wallpaper_stage' | 'native_wallpaper_surface' | 'overlay' | string;
+  nativeWallpaperSurface?: boolean;
+  controlView?: boolean;
+  nativeWallpaperSurfaceInteractiveUiVisible?: boolean;
+  nativeWallpaperSurfaceButtonsVisible?: boolean;
+  nativeWallpaperSurfaceExitButtonVisible?: boolean;
+  controlViewExitButtonVisible?: boolean;
+  wallpaperSurfaceClickThroughExpected?: boolean;
+  wallpaperSurfaceUiSuppressed?: boolean;
+  wallpaperSurfaceUiSuppressionReason?: string;
+  fallbackStageVisible?: boolean;
+  overlayVisible?: boolean;
+  mainStageVisible?: boolean;
+  duplicateStageSuppressed?: boolean;
+  duplicateStageSuppressionReason?: string;
+  needsManualVerification?: boolean;
+  parentHwndAfterSetParent?: string | null;
+  closestWorkerWHwnd?: string;
+  closestWorkerWReason?: string;
   preferredWorkerWHwnd?: string | null;
+  preferredReason?: string;
   previousParentHwnd?: string;
+  probeAttached?: boolean;
+  progmanCandidate?: unknown;
+  progmanCoversPrimaryScreen?: boolean;
   progmanFound?: boolean;
+  progmanHasShellDllDefView?: boolean;
+  progmanHasSysListView32?: boolean;
+  progmanHwnd?: string;
+  progmanNativeHostHwnd?: string;
+  progmanNativeHostProbeResult?: unknown;
+  progmanChildrenAfterHostCreate?: unknown[];
+  progmanChildrenAfterSetParent?: unknown[];
+  progmanChildrenAfterZOrder?: unknown[];
+  progmanChildrenBeforeProbe?: unknown[];
+  progmanChildWorkerWCandidates?: unknown[];
+  progmanProbeAttempted?: boolean;
+  requestedParentClientRect?: unknown;
+  requestedScreenRect?: unknown;
+  progmanClientRect?: unknown;
+  progmanWindowRect?: unknown;
+  rectMismatch?: boolean;
   reason?: string;
+  restoredAfterProbe?: boolean;
+  setParentResult?: string | null;
   setParentSucceeded?: boolean;
   setWindowPosSucceeded?: boolean;
   shellDllDefViewFound?: boolean;
+  shellDllDefViewHwnd?: string;
   supported: boolean;
+  sysListView32Hwnd?: string;
+  hitTestTransparentIfImplemented?: boolean;
+  virtualScreenRect?: unknown;
+  wallpaperWindowRect?: unknown;
+  wallpaperRectAfterSetParent?: unknown;
+  wallpaperRectAfterSetWindowPos?: unknown;
+  staleHostWindowsBeforeCleanup?: unknown[];
+  workerWDiscoveryStrategies?: unknown[];
+  workerWChildHwnd?: string;
+  workerWChildNativeHostProbeHwnd?: string;
+  workerWChildNativeHostProbeResult?: unknown;
+  workerWNativeHostProbeHwnd?: string;
+  workerWNativeHostProbeResult?: unknown;
+  workerWProbeAttempted?: boolean;
+  zOrderResult?: string;
+  zOrderStrategy?: string;
+  zOrderStrategyResults?: unknown[];
+  zOrderSucceeded?: boolean;
+  selectedProgmanChildWorkerWHwnd?: string;
+  selectedWorkerWHwnd?: string;
+  selectedWorkerWStrategy?: string;
   workerWHwnd?: string;
+  workerWCandidates?: unknown[];
+  workerWCandidatesBeforeMessage?: unknown[];
   workerWCandidateCount?: number;
+  workerWCreatedHwnds?: string[];
+  workerWRemovedHwnds?: string[];
+  workerWSelectionOrder?: unknown[];
   warnings?: string[];
   dryRun?: boolean;
 }

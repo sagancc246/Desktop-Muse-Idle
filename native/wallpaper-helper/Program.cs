@@ -2,7 +2,7 @@ using System.Text;
 using System.Text.Json;
 using WallpaperHelper;
 
-const string HelperVersion = "0.1.4";
+const string HelperVersion = "0.1.12";
 var jsonOptions = new JsonSerializerOptions
 {
     PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -32,6 +32,8 @@ try
         "find-desktop" => WriteJson(DesktopWindowFinder.FindDesktop(HelperVersion, "find-desktop")),
         "attach" => HandleAttach(args),
         "detach" => HandleDetach(args),
+        "host" => HandleHost(args),
+        "inspect" => HandleInspect(args),
         _ => WriteJson(new Dictionary<string, object?>
         {
             ["ok"] = false,
@@ -53,6 +55,33 @@ catch (Exception error)
         ["message"] = error.Message,
         ["helperVersion"] = HelperVersion,
     });
+}
+
+int HandleInspect(string[] args)
+{
+    return WriteJson(NativeHostWindow.Inspect(
+        HelperVersion,
+        GetOptionValue(args, "--hwnd"),
+        GetOptionValue(args, "--host-hwnd"),
+        GetOptionValue(args, "--workerw-hwnd")));
+}
+
+int HandleHost(string[] args)
+{
+    var hwnd = GetOptionValue(args, "--hwnd");
+    if (string.IsNullOrWhiteSpace(hwnd))
+    {
+        return WriteJson(new Dictionary<string, object?>
+        {
+            ["ok"] = false,
+            ["command"] = "host",
+            ["attached"] = false,
+            ["reason"] = "missing_hwnd",
+            ["helperVersion"] = HelperVersion,
+        });
+    }
+
+    return NativeHostWindow.Run(HelperVersion, hwnd);
 }
 
 int HandleAttach(string[] args)

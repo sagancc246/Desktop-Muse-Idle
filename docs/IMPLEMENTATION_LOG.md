@@ -544,3 +544,98 @@ Verification results on 2026-06-05:
 - Removed `Progman` child fallback from the success path. The helper now returns `fallback_stage` unless it can attach to a desktop-sized `WorkerW` target.
 - Bumped `wallpaper-helper` to `0.1.4` so future logs clearly show the rejected Progman fallback is no longer being used.
 - Next implementation direction should avoid treating Electron BrowserWindow -> Progman `SetParent` as a valid wallpaper backend. A native host-window bridge or a different desktop compositor strategy is required for environments where Explorer does not expose a usable desktop-sized WorkerW.
+
+## Wallpaper Helper Native Host Window
+
+- Added `host --hwnd <HWND>` to `wallpaper-helper` as the preferred Native Desktop Wallpaper attach path.
+- The helper now creates a helper-owned native host window, parents that host under the selected desktop-sized WorkerW, parents the Electron Wallpaper `BrowserWindow` HWND into the host, writes JSON to stdout, and keeps a message loop alive until Electron sends `exit` on stdin.
+- Electron now starts the persistent host helper first, keeps the process handle while Native Wallpaper Mode is active, and stops it during Native Wallpaper exit before closing the Wallpaper `BrowserWindow`.
+- Retained direct Electron `BrowserWindow` -> WorkerW `attach --hwnd` only as a diagnostic probe. Even if `SetParent` and `SetWindowPos` succeed, it now restores the previous parent/style, returns `attached: false`, and reports `reason: "electron_window_direct_set_parent_not_verified"`.
+- NativeWallpaperStatus now surfaces `attachMethod`, `helperRunning`, `hostHwnd`, and `restoredAfterProbe` so host success and direct-probe fallback are distinguishable in Settings, WallpaperModePanel, and WallpaperStageHud.
+- Bumped `wallpaper-helper` to `0.1.5`; packaged Windows verification is still required for `Win + D`, desktop icon back-layer rendering/clicks, Alt+Tab/taskbar absence, Exit/Esc restoration, and no ghost window.
+
+## Wallpaper Helper 0.1.6 Diagnostics
+
+- Bumped `wallpaper-helper` to `0.1.6` without changing the native rendering strategy.
+- Added host-mode diagnostics for `electronWallpaperHwnd`, `parentHwndAfterSetParent`, `setParentResult`, host/window/virtual-screen rects, and `rectMismatch`.
+- Added `inspect --hwnd --host-hwnd --workerw-hwnd` so Electron can re-check whether the Wallpaper child, native host, and WorkerW still exist and whether the child is still parented to the host.
+- Electron now tracks helper PID/process liveness, logs native wallpaper enter/attach/inspect/detach/fallback JSON to the main-process console, and marks `fallback_stage` / `attached:false` if the persistent helper exits unexpectedly.
+- `wallpaper:get-status` now re-inspects active native wallpaper state, so Explorer restart or WorkerW disappearance does not keep a stale success state.
+- NativeWallpaperStatus and WallpaperStageHud now expose helper PID, WorkerW HWND, Native Host HWND, Electron Wallpaper HWND, parent-after-SetParent, rect mismatch, reason, fallback reason, and copyable diagnostics.
+- App quit now waits for Native Wallpaper cleanup once before quitting, so the helper receives `exit` and can restore the Electron Wallpaper window before final close.
+- Existing `release/win-unpacked` output was detected with stale helper `0.1.3`; a fresh `electron:build` is required before packaged 0.1.6 manual verification.
+
+## Wallpaper Helper 0.1.7 WorkerW Candidate Diagnostics
+
+- Bumped `wallpaper-helper` to `0.1.7` without adding WebView2, native drawing, Progman success fallback, or direct Electron `BrowserWindow` success fallback.
+- Expanded WorkerW discovery JSON so `workerw_not_found` includes every enumerated candidate and its HWND, class name, window text, parent HWND, owner HWND, process ID, style, exStyle, visibility, rect, width/height, nearest monitor, primary/virtual screen match flags, `SHELLDLL_DefView` / `SysListView32` flags, selection rank, selection reason, and reject reason.
+- Discovery now enumerates candidates before and after the Progman `0x052C` WorkerW creation messages, then reports `workerWCandidatesBeforeMessage`, `workerWCreatedHwnds`, and `workerWRemovedHwnds`.
+- Added `workerWSelectionOrder`, `closestWorkerWHwnd`, and `closestWorkerWReason` so a packaged failure can show which WorkerW was nearest to being eligible and why it was rejected.
+- Kept selection conservative: the helper still requires a visible desktop-sized `WorkerW` without desktop icon views; small, empty, invisible, non-WorkerW, and icon-host candidates are rejected with explicit reasons.
+- Electron now passes candidate arrays and selection diagnostics into NativeWallpaperStatus so Copy diagnostics contains the data needed for packaged Windows investigation.
+- NativeWallpaperStatus and WallpaperStageHud now show WorkerW candidate count, before-message count, closest candidate, closest reject reason, preferred reason, and a compact reject summary.
+
+## Wallpaper Helper 0.1.8 Progman Native Host Probe
+
+- Bumped `wallpaper-helper` to `0.1.8` without adding WebView2, native drawing, Progman success fallback, or direct Electron `BrowserWindow` success fallback.
+- Added a final diagnostic-only `progman_native_host_probe` path for environments where WorkerW candidates exist but all are rejected as hidden or empty and no desktop-sized WorkerW is available.
+- The helper still prefers the existing `native_host_window` WorkerW path whenever a desktop-sized eligible WorkerW exists.
+- The Progman probe is attempted only when Progman is found, visible, has `SHELLDLL_DefView` / `SysListView32` descendants, and covers or matches the primary screen.
+- In the probe, the helper creates its own native host window as a child of Progman, parents the Electron Wallpaper window into that host, attempts `HWND_BOTTOM` z-order placement, and reports host HWND, child HWND, parent after SetParent, rects, z-order result, and Progman candidate details.
+- The probe returns `backend: "progman_native_host_probe"`, `probeAttached: true`, `needsManualVerification: true`, and `attached: false`; API success is deliberately not treated as verified native wallpaper success.
+- Electron keeps the helper process alive for this probe so packaged manual verification can check desktop icon layering, click-through, Alt+Tab/taskbar absence, Win+D behavior, Exit/Esc cleanup, app quit cleanup, and Explorer restart behavior.
+- NativeWallpaperStatus and WallpaperStageHud now expose Progman probe attempted, Progman HWND, Progman `SHELLDLL_DefView` / `SysListView32` / primary coverage flags, Progman native host HWND, z-order result, and manual-verification requirement.
+- Result is pending packaged manual verification. Do not promote this probe to `attached:true` unless the full desktop behavior checklist passes.
+
+## Wallpaper Helper 0.1.9 WorkerW Re-Verification Probes
+
+- Bumped `wallpaper-helper` to `0.1.9` as an investigation build, not a rollback from Native Desktop Wallpaper Mode.
+- Recorded the `0.1.8` packaged result: `progman_native_host_probe` succeeded at the API layer, kept the helper alive, and rendered, but appeared in front of desktop icons and blocked desktop clicks.
+- Added WorkerW discovery strategy diagnostics modeled after common `0x052C` / WorkerW wallpaper examples: current algorithm, classic `0x052C`, `SHELLDLL_DefView` owner based, next sibling WorkerW, and `FindWindowEx` based discovery.
+- Strategy diagnostics now report candidate HWND/class/style/exStyle/process/rect/visibility, shell view HWNDs, sibling WorkerW HWNDs, reject reason, score, and which strategy selected the probe candidate.
+- Split WorkerW candidate rejection into attach rejection vs probe usefulness, including `visibleFalseButPossibleWallpaperLayer`, `emptyRect`, `tooSmall`, `noShellDllDefViewRelation`, and `noDesktopSizeMatch`.
+- Added a manual-verification-only `workerw_native_host_probe` path for strategy-selected WorkerW candidates that are not eligible for verified attach but may still be the hidden wallpaper layer used by Explorer.
+- Kept all probe paths as `attached:false`, `probeAttached:true`, and `needsManualVerification:true`; `native_desktop_wallpaper` success is not reported by this investigation build.
+- Strengthened Progman probe diagnostics with child z-order snapshots before/after host creation, SetParent, and z-order attempts, plus host-relative order against `SHELLDLL_DefView` and `SysListView32`.
+- Added multiple z-order strategies for diagnostics only: `hwnd_bottom`, `behind_shell_dll_defview`, `before_shell_dll_defview`, `shell_dll_defview_top_after_host`, and `syslistview_top_after_host`.
+- Added parent-client coordinate diagnostics so screen coordinates, virtual-screen coordinates, Progman client coordinates, host rects, and wallpaper rects can be compared after SetParent / SetWindowPos.
+- Added click-through diagnostics: Electron ignore-mouse-events is enabled by Electron for probes, and the helper applies `WS_EX_TRANSPARENT`, `WS_EX_NOACTIVATE`, and `WS_EX_TOOLWINDOW` to the native host.
+- NativeWallpaperStatus and WallpaperStageHud now show selected WorkerW strategy/HWND, discovery strategy count, shell HWNDs, z-order strategy, host-relative order, click-through flags, parent HWNDs, and rect mismatch.
+- Result is pending packaged manual verification. If either icon-back-layer rendering or non-blocking click-through is confirmed, consider formal backend promotion in `0.1.10`; otherwise use the diagnostics to decide whether WebView2/native drawing is needed.
+
+## Wallpaper Helper 0.1.10 Progman Child WorkerW Probe
+
+- Bumped `wallpaper-helper` to `0.1.10` as a continued investigation build.
+- Recorded the `0.1.9` packaged result: ordinary top-level WorkerW strategies still selected only tiny hidden WorkerWs, but `progmanChildrenBeforeProbe` showed a full-size visible `WorkerW` directly under Progman.
+- Added `progman_child_workerw_algorithm` to discover visible full-size WorkerW children of Progman that do not contain `SHELLDLL_DefView` or `SysListView32`.
+- Added `progmanChildWorkerWCandidates`, `selectedProgmanChildWorkerWHwnd`, candidate geometry/visibility/parent/icon-view flags, and strategy scoring to diagnostics.
+- Kept Progman child WorkerW candidates out of verified `PreferredWorkerW` attach by marking them `progman_child_workerw_probe_only`; they are probe candidates only until manual verification passes.
+- Added `workerw_child_native_host_probe`, which creates the helper-owned native host under the selected Progman child WorkerW and parents the Electron Wallpaper window into that host.
+- The child WorkerW probe returns `attached:false`, `probeAttached:true`, `needsManualVerification:true`, and `backend:"workerw_child_native_host_probe"`.
+- Added startup cleanup for stale `DesktopMuseIdleWallpaperHost` children under Progman before starting a new probe. Diagnostics now include `staleHostWindowsBeforeCleanup`, `cleanupStaleHostWindowsAttempted`, `cleanupStaleHostWindowsSucceeded`, `cleanupStaleHostWindowsFailed`, and `progmanChildrenAfterCleanup`.
+- Expanded click-through diagnostics with requested/enabled flags for Electron ignore-mouse-events and native transparent/no-activate styles, plus `clickThroughMode`.
+- UI now surfaces selected Progman child WorkerW, stale cleanup status, child host HWND, and click-through mode.
+- Packaged manual verification remains required before any probe can be promoted to `attached:true`.
+
+## Native Wallpaper 0.1.11 Duplicate Display Suppression
+
+- Bumped `wallpaper-helper` to `0.1.11`; the helper attach strategy is unchanged from `0.1.10`.
+- Recorded the `0.1.10` packaged result: `workerw_child_native_host_probe` with `selectedWorkerWStrategy: "progman_child_workerw_algorithm"` rendered behind desktop icons, but the normal foreground game/stage was also visible.
+- Treated the result as a duplicate display bug, not as a Native Wallpaper failure.
+- Added explicit native probe display state to Electron status: `nativeProbeActive`, `nativeProbeBackend`, `nativeProbeVisible`, `fallbackStageVisible`, `overlayVisible`, `mainStageVisible`, `duplicateStageSuppressed`, `duplicateStageSuppressionReason`, and `activeDisplaySurfaces`.
+- During `probeAttached:true` / `needsManualVerification:true`, Electron now reports `fallbackActive:false` and marks the native probe as the active display surface instead of showing fallback stage as the primary outcome.
+- Renderer now suppresses the foreground Wallpaper Stage and normal `GameCanvas` while a native probe is active. The main window keeps only controls/diagnostics/mode selection.
+- Muse Overlay is disabled in the UI while a native probe is active, and Electron exits overlay mode before entering Native Wallpaper Mode.
+- NativeWallpaperStatus and WallpaperStageHud now show `Native Probe Active`, the probe backend, fallback-stage visibility, main-stage visibility, duplicate suppression, and active display surfaces.
+- Manual verification is still required; `attached:true` is not promoted in this version.
+
+## Native Wallpaper 0.1.12 Surface / Control UI Separation
+
+- Bumped `wallpaper-helper` to `0.1.12`; the native host strategy is unchanged.
+- Recorded the `0.1.11` packaged result: WorkerW child native host rendered behind desktop icons, desktop icon clicks worked, `Win + D` preserved the wallpaper, and ghost cleanup was broadly successful.
+- Identified the remaining issue as UI responsibility leakage: the click-through native wallpaper surface still displayed an `Exit Wallpaper` button, which looked clickable but could not receive input.
+- Added explicit surface diagnostics: `renderSurface`, `nativeWallpaperSurface`, `controlView`, `nativeWallpaperSurfaceInteractiveUiVisible`, `nativeWallpaperSurfaceButtonsVisible`, `nativeWallpaperSurfaceExitButtonVisible`, `controlViewExitButtonVisible`, `wallpaperSurfaceClickThroughExpected`, `wallpaperSurfaceUiSuppressed`, and `wallpaperSurfaceUiSuppressionReason`.
+- The `nativeWallpaperRenderer=1` wallpaper surface now suppresses `WallpaperStageHud`, including the `Exit Wallpaper` button.
+- Added CSS safeguards so buttons/inputs/selects/sliders and native wallpaper actions are hidden on `.native-wallpaper-surface-mode`.
+- The foreground native probe Control View remains responsible for Exit, Native Wallpaper OFF, Copy diagnostics, mode selection, settings, and status text.
+- Manual verification is still required; `attached:true` is not promoted in this version.

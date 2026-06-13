@@ -15,6 +15,10 @@ export function WallpaperModePanel() {
   const setWallpaperMode = useAppStore((state) => state.setWallpaperMode);
   const toggleWallpaperStageMode = useAppStore((state) => state.toggleWallpaperStageMode);
   const toggleMuseOverlayMode = useAppStore((state) => state.toggleMuseOverlayMode);
+  const nativeProbeActive = Boolean(
+    nativeWallpaperStatus.nativeProbeActive ||
+      (nativeWallpaperStatus.probeAttached && nativeWallpaperStatus.needsManualVerification),
+  );
 
   return (
     <section className="wallpaper-mode-panel panel" aria-label="Wallpaper Mode">
@@ -64,12 +68,24 @@ export function WallpaperModePanel() {
         <button
           aria-pressed={wallpaperMode === 'muse_overlay'}
           className={wallpaperMode === 'muse_overlay' ? 'active' : ''}
+          disabled={nativeProbeActive}
           onClick={toggleMuseOverlayMode}
+          title={
+            nativeProbeActive
+              ? 'Native Wallpaper and Overlay cannot be enabled at the same time'
+              : 'Start Muse Overlay Mode'
+          }
           type="button"
         >
           Muse Overlay
         </button>
       </div>
+      {nativeProbeActive ? (
+        <p className="wallpaper-mode-copy">
+          Native Probe Active. The wallpaper surface is click-through and visual-only; use this
+          Control View for Exit, settings, and diagnostics.
+        </p>
+      ) : null}
       {wallpaperMode === 'native_wallpaper' ? (
         <NativeWallpaperStatus className="wallpaper-mode-copy" />
       ) : null}

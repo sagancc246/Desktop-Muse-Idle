@@ -5,7 +5,7 @@ internal static class WallpaperAttacher
     internal static WallpaperAttachResult Attach(string helperVersion, string hwndText)
     {
         var result = CreateAttachResult(helperVersion, hwndText);
-        var hwnd = ParseHwnd(hwndText);
+        var hwnd = Win32.ParseHwnd(hwndText);
         if (hwnd == IntPtr.Zero)
         {
             result.Reason = "invalid_hwnd";
@@ -36,7 +36,7 @@ internal static class WallpaperAttacher
             return result;
         }
 
-        var workerW = ParseHwnd(discovery.PreferredWorkerWHwnd);
+        var workerW = Win32.ParseHwnd(discovery.PreferredWorkerWHwnd);
         if (workerW == IntPtr.Zero || !Win32.IsWindow(workerW))
         {
             result.Reason = "workerw_invalid";
@@ -45,6 +45,7 @@ internal static class WallpaperAttacher
         }
 
         result.WorkerWHwnd = Win32.HwndToString(workerW);
+        result.ElectronWallpaperHwnd = Win32.HwndToString(hwnd);
         var targetCandidate = discovery.WorkerWCandidates.FirstOrDefault((candidate) =>
             string.Equals(candidate.Hwnd, discovery.PreferredWorkerWHwnd, StringComparison.Ordinal));
         var previousParent = Win32.GetParent(hwnd);
@@ -79,7 +80,10 @@ internal static class WallpaperAttacher
         }
 
         var setParentResult = Win32.SetParent(hwnd, workerW);
-        result.SetParentSucceeded = setParentResult != IntPtr.Zero || Win32.GetParent(hwnd) == workerW;
+        var parentAfterSetParent = Win32.GetParent(hwnd);
+        result.ParentHwndAfterSetParent = Win32.HwndToNullableString(parentAfterSetParent);
+        result.SetParentResult = Win32.HwndToNullableString(setParentResult);
+        result.SetParentSucceeded = setParentResult != IntPtr.Zero || parentAfterSetParent == workerW;
         if (!result.SetParentSucceeded)
         {
             result.Reason = "set_parent_failed";
@@ -116,10 +120,18 @@ internal static class WallpaperAttacher
             return result;
         }
 
-        result.Ok = true;
-        result.Attached = true;
-        result.Backend = "native_desktop_wallpaper";
-        result.Reason = null;
+        result.HostWindowRect = targetCandidate?.Rect;
+        result.WallpaperWindowRect = Win32.GetRectSafe(hwnd);
+        result.VirtualScreenRect = Win32.GetVirtualScreenRect();
+        result.RectMismatch = Win32.RectMismatch(result.HostWindowRect, result.WallpaperWindowRect);
+        TryRestore(hwnd, previousParent, previousStyle, previousExStyle);
+        result.AttachMethod = "electron_window_direct_set_parent_probe";
+        result.Ok = false;
+        result.Attached = false;
+        result.Backend = "fallback_stage";
+        result.Reason = "electron_window_direct_set_parent_not_verified";
+        result.RestoredAfterProbe = true;
+        result.Warnings.Add("Electron BrowserWindow direct SetParent/SetWindowPos succeeded at the API layer, but this path failed real desktop wallpaper verification. Use native host mode instead.");
         return result;
     }
 
@@ -136,7 +148,7 @@ internal static class WallpaperAttacher
             Hwnd = hwndText,
             PreviousParentHwnd = previousParentText,
         };
-        var hwnd = ParseHwnd(hwndText);
+        var hwnd = Win32.ParseHwnd(hwndText);
         if (hwnd == IntPtr.Zero)
         {
             result.Reason = "missing_hwnd";
@@ -161,7 +173,7 @@ internal static class WallpaperAttacher
             return result;
         }
 
-        var previousParent = ParseHwnd(previousParentText);
+        var previousParent = Win32.ParseHwnd(previousParentText);
         if (previousParent != IntPtr.Zero && Win32.IsWindow(previousParent))
         {
             Win32.SetParent(hwnd, previousParent);
@@ -207,47 +219,45 @@ internal static class WallpaperAttacher
         };
     }
 
-    private static void CopyDiscovery(WallpaperAttachResult target, DesktopDiscoveryResult source)
+    internal static void CopyDiscovery(WallpaperAttachResult target, DesktopDiscoveryResult source)
     {
+        target.PrimaryScreenRect = source.PrimaryScreenRect;
+        target.VirtualScreenRect = source.VirtualScreenRect;
         target.ProgmanFound = source.ProgmanFound;
         target.ProgmanHwnd = source.ProgmanHwnd;
+        target.ProgmanCandidate = source.ProgmanCandidate;
+        target.ProgmanHasShellDllDefView = source.ProgmanHasShellDllDefView;
+        target.ProgmanHasSysListView32 = source.ProgmanHasSysListView32;
+        target.ProgmanCoversPrimaryScreen = source.ProgmanCoversPrimaryScreen;
+        target.ShellDllDefViewHwnd = source.ShellDllDefViewHwnd;
+        target.SysListView32Hwnd = source.SysListView32Hwnd;
         target.WorkerWMessageSent = source.WorkerWMessageSent;
         target.WorkerWMessageResult = source.WorkerWMessageResult;
         target.ShellDllDefViewFound = source.ShellDllDefViewFound;
+        target.WorkerWDiscoveryStrategies.AddRange(source.WorkerWDiscoveryStrategies);
+        target.ProgmanChildWorkerWCandidates.AddRange(source.ProgmanChildWorkerWCandidates);
+        target.SelectedProgmanChildWorkerWHwnd = source.SelectedProgmanChildWorkerWHwnd;
+        target.WorkerWCandidatesBeforeMessage.AddRange(source.WorkerWCandidatesBeforeMessage);
         target.PreferredWorkerWHwnd = source.PreferredWorkerWHwnd;
         target.PreferredReason = source.PreferredReason;
+        target.ClosestWorkerWHwnd = source.ClosestWorkerWHwnd;
+        target.ClosestWorkerWReason = source.ClosestWorkerWReason;
         target.WorkerWCandidates.AddRange(source.WorkerWCandidates);
+        target.WorkerWCreatedHwnds.AddRange(source.WorkerWCreatedHwnds);
+        target.WorkerWRemovedHwnds.AddRange(source.WorkerWRemovedHwnds);
+        target.WorkerWSelectionOrder.AddRange(source.WorkerWSelectionOrder);
         target.Warnings.AddRange(source.Warnings);
         target.Errors.AddRange(source.Errors);
     }
 
-    private static void TryRestore(IntPtr hwnd, IntPtr previousParent, IntPtr previousStyle, IntPtr previousExStyle)
+    internal static void TryRestore(IntPtr hwnd, IntPtr previousParent, IntPtr previousStyle, IntPtr previousExStyle)
     {
-        if (previousParent != IntPtr.Zero && Win32.IsWindow(previousParent))
+        if (previousParent == IntPtr.Zero || Win32.IsWindow(previousParent))
         {
             Win32.SetParent(hwnd, previousParent);
         }
 
         Win32.SetWindowLongPtr(hwnd, Win32.GwlStyle, previousStyle);
         Win32.SetWindowLongPtr(hwnd, Win32.GwlExStyle, previousExStyle);
-    }
-
-    private static IntPtr ParseHwnd(string? hwndText)
-    {
-        if (string.IsNullOrWhiteSpace(hwndText))
-        {
-            return IntPtr.Zero;
-        }
-
-        var normalized = hwndText.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
-            ? hwndText[2..]
-            : hwndText;
-        var numberStyle = hwndText.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
-            ? System.Globalization.NumberStyles.HexNumber
-            : System.Globalization.NumberStyles.Integer;
-
-        return long.TryParse(normalized, numberStyle, System.Globalization.CultureInfo.InvariantCulture, out var value)
-            ? new IntPtr(value)
-            : IntPtr.Zero;
     }
 }

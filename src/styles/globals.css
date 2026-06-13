@@ -225,6 +225,30 @@ select:focus-visible,
   min-height: 0;
 }
 
+.native-probe-control-mode {
+  background: rgba(7, 8, 16, 0.82);
+}
+
+.native-probe-workspace {
+  align-items: start;
+  grid-template-columns: minmax(420px, 720px);
+  justify-content: end;
+}
+
+.native-probe-panel-stack {
+  max-height: calc(100vh - 150px);
+  min-width: min(720px, 100%);
+}
+
+.native-wallpaper-surface-mode button,
+.native-wallpaper-surface-mode input,
+.native-wallpaper-surface-mode select,
+.native-wallpaper-surface-mode textarea,
+.native-wallpaper-surface-mode .native-wallpaper-actions,
+.native-wallpaper-surface-mode .wallpaper-stage-exit {
+  display: none !important;
+}
+
 .upgrade-panel,
 .muse-panel,
 .stage-panel,

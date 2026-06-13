@@ -7,6 +7,28 @@ interface WallpaperStageHudProps {
   onExit: () => void;
 }
 
+function summarizeRejectReasons(candidates: unknown[] | undefined) {
+  if (!Array.isArray(candidates) || candidates.length === 0) {
+    return 'n/a';
+  }
+
+  const counts = new Map<string, number>();
+  for (const candidate of candidates) {
+    if (!candidate || typeof candidate !== 'object' || !('rejectReason' in candidate)) {
+      continue;
+    }
+
+    const reason = String(candidate.rejectReason || 'eligible');
+    counts.set(reason, (counts.get(reason) ?? 0) + 1);
+  }
+
+  return [...counts.entries()]
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .slice(0, 3)
+    .map(([reason, count]) => `${reason}:${count}`)
+    .join(', ') || 'n/a';
+}
+
 export function WallpaperStageHud({ onExit }: WallpaperStageHudProps) {
   const memory = useGameStore((state) => state.memory);
   const currentStageId = useGameStore((state) => state.currentStageId);
@@ -92,13 +114,20 @@ export function WallpaperStageHud({ onExit }: WallpaperStageHudProps) {
         <div className="wallpaper-stage-metric wide">
           <span>Native Wallpaper</span>
           <strong>
-            {nativeWallpaperStatus.nativeAttached
+            {nativeWallpaperStatus.nativeProbeActive || nativeWallpaperStatus.probeAttached
+              ? 'Native Probe Active'
+              : nativeWallpaperStatus.nativeAttached
               ? 'Native Wallpaper Active'
               : 'Fallback Stage Active'}
           </strong>
           <small>
             Helper: {nativeWallpaperStatus.helperAvailable ? 'reachable' : 'missing'}
             {nativeWallpaperStatus.helperVersion ? ` ${nativeWallpaperStatus.helperVersion}` : ''}
+            {nativeWallpaperStatus.helperRunning ? ' / running' : ''}
+            {nativeWallpaperStatus.helperPid ? ` / PID ${nativeWallpaperStatus.helperPid}` : ''}
+            {nativeWallpaperStatus.attachMethod
+              ? ` / ${nativeWallpaperStatus.attachMethod}`
+              : ''}
           </small>
           <small>
             Dry run: {nativeWallpaperStatus.dryRun ? 'true' : 'false'} / Progman:{' '}
@@ -109,6 +138,68 @@ export function WallpaperStageHud({ onExit }: WallpaperStageHudProps) {
             Attached: {nativeWallpaperStatus.attached ? 'true' : 'false'} / SetParent:{' '}
             {nativeWallpaperStatus.setParentSucceeded ? 'true' : 'false'} / SetWindowPos:{' '}
             {nativeWallpaperStatus.setWindowPosSucceeded ? 'true' : 'false'}
+          </small>
+          <small>
+            Probe: {nativeWallpaperStatus.probeAttached ? 'true' : 'false'} / Fallback Stage:{' '}
+            {nativeWallpaperStatus.fallbackStageVisible ? 'visible' : 'hidden'} / Main Stage:{' '}
+            {nativeWallpaperStatus.mainStageVisible ? 'visible' : 'hidden'}
+          </small>
+          <small>
+            Back surface UI: {nativeWallpaperStatus.wallpaperSurfaceUiSuppressed ? 'hidden' : 'visible'} /
+            Exit: {nativeWallpaperStatus.nativeWallpaperSurfaceExitButtonVisible ? 'surface' : 'control'} /
+            Click-through: {nativeWallpaperStatus.wallpaperSurfaceClickThroughExpected ? 'expected' : 'n/a'}
+          </small>
+          <small>
+            WorkerW probe: {nativeWallpaperStatus.workerWProbeAttempted ? 'true' : 'false'} /
+            Progman probe: {nativeWallpaperStatus.progmanProbeAttempted ? 'true' : 'false'} /
+            Manual check: {nativeWallpaperStatus.needsManualVerification ? 'required' : 'n/a'}
+          </small>
+          <small>
+            Strategy: {nativeWallpaperStatus.selectedWorkerWStrategy ?? 'n/a'} / Selected WorkerW:{' '}
+            {nativeWallpaperStatus.selectedWorkerWHwnd ?? 'n/a'} / Strategies:{' '}
+            {nativeWallpaperStatus.workerWDiscoveryStrategies?.length ?? 0}
+          </small>
+          <small>
+            Progman child WorkerW: {nativeWallpaperStatus.selectedProgmanChildWorkerWHwnd ?? 'n/a'} /
+            Child candidates: {nativeWallpaperStatus.progmanChildWorkerWCandidates?.length ?? 0} /
+            Child host: {nativeWallpaperStatus.workerWChildNativeHostProbeHwnd ?? 'n/a'}
+          </small>
+          <small>
+            Stale hosts: {nativeWallpaperStatus.staleHostWindowsBeforeCleanup?.length ?? 0} /
+            Cleanup: {nativeWallpaperStatus.cleanupStaleHostWindowsSucceeded ? 'ok' : 'n/a'} /
+            Click: {nativeWallpaperStatus.clickThroughMode ?? (
+              nativeWallpaperStatus.clickThroughEnabled ? 'enabled' : 'normal'
+            )}
+          </small>
+          <small>
+            Progman: {nativeWallpaperStatus.progmanHwnd ?? 'n/a'} / ShellDLL:{' '}
+            {nativeWallpaperStatus.shellDllDefViewHwnd ?? (
+              nativeWallpaperStatus.progmanHasShellDllDefView ? 'true' : 'false'
+            )} / SysListView32:{' '}
+            {nativeWallpaperStatus.sysListView32Hwnd ?? (
+              nativeWallpaperStatus.progmanHasSysListView32 ? 'true' : 'false'
+            )} / Covers primary:{' '}
+            {nativeWallpaperStatus.progmanCoversPrimaryScreen ? 'true' : 'false'}
+          </small>
+          <small>
+            WorkerW: {nativeWallpaperStatus.workerWHwnd ?? 'n/a'} / Host:{' '}
+            {nativeWallpaperStatus.progmanNativeHostHwnd ?? nativeWallpaperStatus.hostHwnd ?? 'n/a'} / Electron:{' '}
+            {nativeWallpaperStatus.electronWallpaperHwnd ?? 'n/a'}
+          </small>
+          <small>
+            Parent: {nativeWallpaperStatus.parentHwndAfterSetParent ?? 'n/a'} / Rect mismatch:{' '}
+            {nativeWallpaperStatus.rectMismatch ? 'true' : 'false'} / Reason:{' '}
+            {nativeWallpaperStatus.reason ?? nativeWallpaperStatus.fallbackReason ?? 'n/a'}
+          </small>
+          <small>
+            Z-order: {nativeWallpaperStatus.zOrderStrategy ?? nativeWallpaperStatus.zOrderResult ?? 'n/a'} /
+            Shell rel: {nativeWallpaperStatus.hostRelativeToShellDllDefView ?? 'n/a'} / Click:{' '}
+            {nativeWallpaperStatus.clickThroughEnabled ? 'through' : 'normal'}
+          </small>
+          <small>
+            Closest: {nativeWallpaperStatus.closestWorkerWHwnd ?? 'n/a'} / Reject:{' '}
+            {nativeWallpaperStatus.closestWorkerWReason ?? 'n/a'} / Reject summary:{' '}
+            {summarizeRejectReasons(nativeWallpaperStatus.workerWCandidates)}
           </small>
           {nativeWallpaperStatus.lastError ? <small>{nativeWallpaperStatus.lastError}</small> : null}
         </div>

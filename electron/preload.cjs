@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('desktopMusePlatform', {
   enterNativeWallpaperMode: () => ipcRenderer.invoke('wallpaper:enter-native'),
   exitNativeWallpaperMode: () => ipcRenderer.invoke('wallpaper:exit-native'),
   getNativeWallpaperStatus: () => ipcRenderer.invoke('wallpaper:get-status'),
+  inspectNativeWallpaper: () => ipcRenderer.invoke('wallpaper:inspect-native'),
   onNativeWallpaperStatus: (callback) => {
     const listener = (_event, state) => callback(state);
     ipcRenderer.on('wallpaper:native-status', listener);

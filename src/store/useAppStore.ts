@@ -186,7 +186,9 @@ export const useAppStore = create<AppStore>((set) => ({
             useAppStore.setState((state) => ({
               nativeWallpaperStatus: {
                 ...state.nativeWallpaperStatus,
-                fallbackActive: result.mode !== 'native_desktop_wallpaper',
+                fallbackActive:
+                  !state.nativeWallpaperStatus.probeAttached &&
+                  result.mode !== 'native_desktop_wallpaper',
                 lastError: result.message,
               },
             }));

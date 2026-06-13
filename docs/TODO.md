@@ -214,14 +214,19 @@ Next TODO:
   - [x] Select and validate the target WorkerW behind the desktop icon layer for dry-run reporting.
   - [x] Implement `SetParent` attach for the Wallpaper Window.
   - [x] Adjust window style and use `SetWindowPos` for primary display bounds.
-  - Extend `NativeWallpaperStatus` with `helperRunning` while preserving current fallback fields.
+  - [x] Add persistent helper `host --hwnd` mode with a native host window under WorkerW.
+  - [x] Prefer native host mode before the legacy direct `SetParent` diagnostic probe.
+  - [x] Keep Electron BrowserWindow direct `SetParent` as fallback/probe only, never as verified native wallpaper success.
+  - [x] Extend `NativeWallpaperStatus` with `helperRunning` while preserving current fallback fields.
+  - [x] Add 0.1.6 packaged-verification diagnostics: helper PID, host HWND, Electron HWND, parent HWND, rects, rect mismatch, process liveness, copy diagnostics, and active-state recheck.
+  - [x] Add 0.1.7 WorkerW candidate diagnostics: before/after `0x052C`, per-candidate reject reasons, nearest monitor data, selection order, and closest rejected candidate.
   - [x] Add helper path resolution for development and packaged Electron builds.
   - [x] Add helper missing / timeout / invalid JSON / non-zero exit fallback handling.
   - [x] Implement helper detach with previous parent/style arguments and Electron BrowserWindow close fallback.
   - Confirm `fallback_stage` still works when helper is missing or attach fails.
   - [x] Add `build:wallpaper-helper` for Windows self-contained helper publish.
   - [x] Package the helper with `electron-builder` via `extraResources`.
-  - Confirm packaged helper startup from `release\win-unpacked\resources\wallpaper-helper\wallpaper-helper.exe` on a local Windows machine.
+  - Confirm packaged helper startup from `release\win-unpacked\resources\wallpaper-helper\wallpaper-helper.exe` reports `0.1.6` on a fresh packaged build.
   - Add virtual-screen / multi-monitor placement support.
   - Add DPI-aware placement verification.
   - Run Windows local実機確認 for `Win + D`.
@@ -230,6 +235,71 @@ Next TODO:
   - Run Windows local実機確認 for Alt+Tab and taskbar absence.
   - Run Windows local実機確認 for Exit restoration and no orphan Wallpaper window.
 - [x] Add an Electron platform adapter and IPC bridge for transparent Muse Overlay, always-on-top, click-through, fullscreen Overlay entry/exit, skip-taskbar behavior, and truthful HUD status.
+- Native Desktop Wallpaper 0.1.6 packaged manual verification pending:
+  - Confirm `release\win-unpacked\resources\wallpaper-helper\wallpaper-helper.exe version` reports `0.1.6` after a fresh `npm.cmd run electron:build`.
+  - Confirm desktop icon back-layer rendering.
+  - Confirm taskbar back-layer behavior.
+  - Confirm Alt+Tab absence.
+  - Confirm no extra taskbar window.
+  - Confirm `Win + D` persistence.
+  - Confirm desktop icon clicks are not blocked.
+  - Confirm Exit button removes wallpaper.
+  - Confirm `Esc` removes wallpaper.
+  - Confirm Native Wallpaper OFF removes wallpaper.
+  - Confirm app quit leaves no ghost window.
+  - Confirm Explorer restart does not keep stale `attached:true`.
+  - Confirm failure shows `fallback_stage` / `attached:false` / reason.
+- Native Desktop Wallpaper 0.1.7 WorkerW candidate diagnostics result pending:
+  - Collect Copy diagnostics after `workerw_not_found` on packaged Windows.
+  - Confirm `helperVersion` is `0.1.7`.
+  - Review `workerwCandidateCount`, `workerwCandidates`, `workerWSelectionOrder`, `closestWorkerWHwnd`, and `closestWorkerWReason`.
+  - Decide whether selection logic can be safely refined without accepting Progman fallback or direct Electron `SetParent` as success.
+- Native Desktop Wallpaper 0.1.8 Progman native host probe result pending:
+  - Build a fresh package and confirm packaged helper reports `0.1.8`.
+  - Confirm whether `progman_native_host_probe` is attempted when all WorkerW candidates are rejected.
+  - Copy diagnostics and preserve `progmanCandidate`, `progmanNativeHostProbeResult`, host window result, z-order result, and `needsManualVerification`.
+  - Verify whether the probe renders behind desktop icons or incorrectly appears in front of them.
+  - Verify desktop icon clicks, Alt+Tab absence, taskbar absence, `Win + D`, Native Wallpaper OFF, Exit, `Esc`, app quit, ghost window cleanup, and Explorer restart behavior.
+  - Keep the probe as `attached:false` unless the full checklist passes.
+- Native Desktop Wallpaper 0.1.9 WorkerW / z-order / click-through investigation pending:
+  - Build a fresh package and confirm packaged helper reports `0.1.9`.
+  - Enter Native Wallpaper Mode and copy diagnostics immediately.
+  - Review `workerWDiscoveryStrategies`, `selectedWorkerWStrategy`, `selectedWorkerWHwnd`, and per-candidate probe flags.
+  - If `workerw_native_host_probe` runs, verify whether it appears behind icons or at least lets desktop icon clicks pass through.
+  - If `progman_native_host_probe` runs, compare `progmanChildrenBeforeProbe`, `progmanChildrenAfterZOrder`, `zOrderStrategyResults`, and host-relative order against `SHELLDLL_DefView` / `SysListView32`.
+  - Confirm `clickThroughEnabled`, `electronIgnoreMouseEventsEnabled`, `nativeHostTransparentEnabled`, and `nativeHostNoActivateEnabled`.
+  - Verify Alt+Tab absence, taskbar absence, `Win + D`, Native Wallpaper OFF, Exit, `Esc`, app quit, ghost window cleanup, and Explorer restart behavior.
+  - Keep all probes as `attached:false` until manual verification proves icon-back-layer rendering or reliable click-through.
+  - If a probe is viable, consider formal backend promotion in `0.1.10`; otherwise decide whether WebView2 or native drawing is the next investigation.
+- Native Desktop Wallpaper 0.1.10 Progman child WorkerW probe result pending:
+  - Build a fresh package and confirm packaged helper reports `0.1.10`.
+  - Confirm Native Wallpaper ON performs stale host cleanup before starting a new probe.
+  - Confirm `staleHostWindowsBeforeCleanup`, `cleanupStaleHostWindowsSucceeded`, and `progmanChildrenAfterCleanup` in Copy diagnostics.
+  - Confirm `selectedWorkerWStrategy` becomes `progman_child_workerw_algorithm` when a full-size visible Progman child WorkerW exists.
+  - Confirm `selectedProgmanChildWorkerWHwnd` and `workerWChildNativeHostProbeResult` are present.
+  - Verify whether the wallpaper appears behind desktop icons.
+  - If it appears in front of icons, verify whether clicks pass through and do not block desktop icons.
+  - Verify Alt+Tab absence, taskbar absence, `Win + D`, Native Wallpaper OFF, Exit, `Esc`, app quit, ghost window cleanup, and Explorer restart behavior.
+  - Keep `workerw_child_native_host_probe` as `attached:false` until the full manual checklist passes.
+- Native Desktop Wallpaper 0.1.11 duplicate display suppression pending:
+  - Build a fresh package and confirm packaged helper reports `0.1.11`.
+  - Confirm `workerw_child_native_host_probe` still renders behind desktop icons.
+  - Confirm the foreground app no longer shows a duplicate GameCanvas or Wallpaper Stage while `nativeProbeActive:true`.
+  - Confirm diagnostics show `fallbackStageVisible:false`, `mainStageVisible:false`, `duplicateStageSuppressed:true`, and `activeDisplaySurfaces` containing only the native probe surface for stage rendering.
+  - Confirm Muse Overlay cannot be enabled while a native probe is active.
+  - Confirm normal app controls/diagnostics remain usable.
+  - Confirm minimizing the normal window leaves the desktop wallpaper probe visible.
+  - Verify desktop icon clicks, `Win + D`, Alt+Tab absence, taskbar absence, Native Wallpaper OFF, Exit, `Esc`, app quit, and ghost window cleanup.
+  - Keep `attached:false` until the full manual checklist passes.
+- Native Desktop Wallpaper 0.1.12 wallpaper surface / Control View split pending:
+  - Build a fresh package and confirm packaged helper reports `0.1.12`.
+  - Confirm Native Wallpaper ON shows only Muse/background on the desktop wallpaper surface.
+  - Confirm the back wallpaper surface does not show `Exit Wallpaper` or any clickable UI.
+  - Confirm foreground Control View shows Exit Wallpaper / OFF controls and diagnostics.
+  - Confirm `nativeWallpaperSurfaceInteractiveUiVisible:false`, `nativeWallpaperSurfaceButtonsVisible:false`, `nativeWallpaperSurfaceExitButtonVisible:false`, `controlViewExitButtonVisible:true`, and `wallpaperSurfaceUiSuppressed:true`.
+  - Confirm Control View Exit Wallpaper removes the back wallpaper.
+  - Confirm desktop icon clicks, `Win + D`, Alt+Tab/taskbar absence, OFF, `Esc`, app quit, and ghost cleanup.
+  - Keep `attached:false` until the full manual checklist passes.
 - Release-before manual check: verify `Win + D`, `Alt + Tab`, desktop-icon layering/clicks, taskbar presence, startup 3-second Click Through safety guide, `Ctrl + Shift + M` recovery, Click Through ON pass-through, Click Through OFF Muse Tap/HUD button interaction, HUD Last Error, and Esc restoration in the packaged Windows build.
 - Release-before manual check: verify Native Desktop Wallpaper Mode on local Windows Electron after the real WorkerW bridge is implemented; check `Win + D`, icon back-layer rendering, icon clicks, Alt + Tab/taskbar absence, app-behind behavior, and Exit restoration.
 - Current MVP manual check: confirm Windows Electron reports Native Wallpaper fallback cleanly and returns to normal mode without leaving a hidden Wallpaper window.
