@@ -342,6 +342,12 @@ internal static class DesktopWindowFinder
         {
             result.PreferredWorkerWHwnd = preferred.Hwnd;
             result.PreferredReason = preferred.SelectionReason;
+            result.TopLevelDesktopWorkerWFound = true;
+            result.ProgmanChildDesktopWorkerWFound = result.ProgmanChildWorkerWCandidates.Any((candidate) =>
+                string.IsNullOrWhiteSpace(candidate.RejectReason) || candidate.UsableForProbe);
+            result.ProgmanChildWorkerWProbeActive = false;
+            result.WorkerWWarningLevel = "info";
+            result.WorkerWWarningMessage = "Top-level desktop-sized WorkerW background target found.";
             return;
         }
 
@@ -353,9 +359,23 @@ internal static class DesktopWindowFinder
             result.ClosestWorkerWReason = closest.RejectReason;
         }
 
+        result.TopLevelDesktopWorkerWFound = false;
+        result.ProgmanChildDesktopWorkerWFound = result.ProgmanChildWorkerWCandidates.Any((candidate) =>
+            string.IsNullOrWhiteSpace(candidate.RejectReason) || candidate.UsableForProbe);
+        result.ProgmanChildWorkerWProbeActive = result.ProgmanChildDesktopWorkerWFound;
+
+        if (result.WorkerWCandidates.Count > 0 && result.ProgmanChildDesktopWorkerWFound)
+        {
+            result.WorkerWWarningLevel = "info";
+            result.WorkerWWarningMessage = "No top-level desktop-sized WorkerW found, but Progman child WorkerW probe is active.";
+            return;
+        }
+
         if (result.WorkerWCandidates.Count > 0)
         {
-            result.Warnings.Add("WorkerW candidates were found, but no desktop-sized WorkerW background target was available.");
+            result.WorkerWWarningLevel = "warning";
+            result.WorkerWWarningMessage = "WorkerW candidates were found, but no desktop-sized WorkerW background target was available.";
+            result.Warnings.Add(result.WorkerWWarningMessage);
         }
     }
 

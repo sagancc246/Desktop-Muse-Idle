@@ -23,6 +23,7 @@ let suppressNativeWallpaperCloseStatus = false;
 let suppressNativeWallpaperControlCloseStatus = false;
 let nativeWallpaperControlWindowState = null;
 let lastNativeWallpaperControlRestore = null;
+let controlViewRestoreLastResult = null;
 let nativeWallpaperStatus = {
   active: false,
   appVersion: app.getVersion(),
@@ -38,6 +39,73 @@ let nativeWallpaperStatus = {
   nativeAttached: false,
   supported: process.platform === 'win32',
 };
+
+function sameHwnd(left, right) {
+  if (!left || !right) {
+    return false;
+  }
+  return String(left).toLowerCase() === String(right).toLowerCase();
+}
+
+function getAttachedPromotionDiagnostics(helperResult, extra = {}) {
+  const checklist = {
+    backendIsWorkerWChildProbe: helperResult.backend === 'workerw_child_native_host_probe',
+    probeAttached: helperResult.probeAttached === true,
+    nativeProbeVisible: extra.nativeProbeVisible === true,
+    selectedStrategyIsProgmanChild:
+      helperResult.selectedWorkerWStrategy === 'progman_child_workerw_algorithm',
+    selectedWorkerWHwndExists: Boolean(helperResult.selectedWorkerWHwnd),
+    hostParentMatchesSelectedWorkerW: sameHwnd(
+      helperResult.hostParentHwndAfterSetParent,
+      helperResult.selectedWorkerWHwnd,
+    ),
+    electronParentMatchesHost: sameHwnd(
+      helperResult.electronParentHwndAfterSetParent,
+      helperResult.hostHwnd,
+    ),
+    rectMismatchFalse: helperResult.rectMismatch === false,
+    wallpaperDoesNotBlockClicks: extra.wallpaperWindowMayBlockDesktopClicks === false,
+    desktopClickThroughExpected: extra.desktopIconClickThroughExpected === true,
+    fallbackStageHidden: extra.fallbackStageVisible === false,
+    mainStageHidden: extra.mainStageVisible === false,
+    overlayHidden: extra.overlayVisible === false,
+    duplicateStageSuppressed: extra.duplicateStageSuppressed === true,
+    wallpaperSurfaceExitHidden: extra.nativeWallpaperSurfaceExitButtonVisible === false,
+    duplicateControlButtonsAbsent: extra.duplicateControlButtonsDetected === false,
+    controlWindowVisible: extra.nativeWallpaperControlWindowVisible === true,
+    controlViewRestoreAvailable: extra.controlViewRestoreAvailable === true,
+    staleHostCleanupDidNotFail: helperResult.cleanupStaleHostWindowsFailed !== true,
+  };
+  const labels = {
+    backendIsWorkerWChildProbe: 'backend_is_not_workerw_child_native_host_probe',
+    probeAttached: 'probe_not_attached',
+    nativeProbeVisible: 'native_probe_not_visible',
+    selectedStrategyIsProgmanChild: 'selected_strategy_not_progman_child_workerw_algorithm',
+    selectedWorkerWHwndExists: 'selected_workerw_hwnd_missing',
+    hostParentMatchesSelectedWorkerW: 'host_parent_does_not_match_selected_workerw',
+    electronParentMatchesHost: 'electron_parent_does_not_match_host',
+    rectMismatchFalse: 'rect_mismatch',
+    wallpaperDoesNotBlockClicks: 'wallpaper_window_may_block_clicks',
+    desktopClickThroughExpected: 'desktop_click_through_not_expected',
+    fallbackStageHidden: 'fallback_stage_visible',
+    mainStageHidden: 'main_stage_visible',
+    overlayHidden: 'overlay_visible',
+    duplicateStageSuppressed: 'duplicate_stage_not_suppressed',
+    wallpaperSurfaceExitHidden: 'wallpaper_surface_exit_visible',
+    duplicateControlButtonsAbsent: 'duplicate_control_buttons_detected',
+    controlWindowVisible: 'control_window_not_visible',
+    controlViewRestoreAvailable: 'control_view_restore_not_available',
+    staleHostCleanupDidNotFail: 'stale_host_cleanup_failed',
+  };
+  const blockedReasons = Object.entries(checklist)
+    .filter(([, passed]) => !passed)
+    .map(([key]) => labels[key] ?? key);
+  return {
+    attachedPromotionChecklist: checklist,
+    attachedPromotionBlockedReasons: blockedReasons,
+    canPromoteNativeWallpaperToAttachedCandidate: blockedReasons.length === 0,
+  };
+}
 
 function getHelperStatusFields(helperResult) {
   const nativeProbeActive = Boolean(helperResult.probeAttached && helperResult.needsManualVerification);
@@ -80,6 +148,23 @@ function getHelperStatusFields(helperResult) {
     !nativeProbeActive && !controlViewMinimized && rectCovers(mainWindowBounds, primaryBounds);
   const controlViewWindowBounds = nativeProbeActive ? controlWindowBounds : null;
   const controlViewRestoreTargetScreen = nativeProbeActive ? getControlViewRestoreTargetScreen() : null;
+  const promotionExtra = {
+    nativeProbeVisible: nativeProbeActive,
+    wallpaperWindowMayBlockDesktopClicks: false,
+    desktopIconClickThroughExpected: nativeProbeActive,
+    fallbackStageVisible: false,
+    mainStageVisible: false,
+    overlayVisible: Boolean(overlayState),
+    duplicateStageSuppressed: nativeProbeActive,
+    nativeWallpaperSurfaceExitButtonVisible: false,
+    duplicateControlButtonsDetected: false,
+    nativeWallpaperControlWindowVisible:
+      nativeProbeActive &&
+      Boolean(nativeWallpaperControlWindow && !nativeWallpaperControlWindow.isDestroyed()) &&
+      !controlViewMinimized,
+    controlViewRestoreAvailable: nativeProbeActive,
+  };
+  const promotionDiagnostics = getAttachedPromotionDiagnostics(helperResult, promotionExtra);
 
   return {
     appVersion: app.getVersion(),
@@ -120,6 +205,13 @@ function getHelperStatusFields(helperResult) {
     controlViewCloseButtonVisible: nativeProbeActive,
     controlViewCloseAction: nativeProbeActive ? 'exit_native_wallpaper' : undefined,
     controlViewMinimized,
+    controlViewMinimizeAction: 'minimize',
+    controlViewRecoverableViaTaskbar: nativeProbeActive,
+    controlViewRecoverableViaAltTab: nativeProbeActive,
+    controlViewRestoreShortcut: 'taskbar_or_alt_tab',
+    controlViewRestoreAvailable: nativeProbeActive,
+    controlViewHiddenOrMinimized: controlViewMinimized,
+    controlViewRestoreLastResult,
     controlViewBounds: controlViewWindowBounds,
     controlViewRestoreTargetScreen,
     nativeWallpaperControlWindowCreated: nativeProbeActive && Boolean(nativeWallpaperControlWindow),
@@ -132,6 +224,11 @@ function getHelperStatusFields(helperResult) {
     nativeWallpaperControlWindowDraggable: nativeProbeActive,
     nativeWallpaperControlWindowRoute: nativeProbeActive ? 'nativeWallpaperControl=1' : undefined,
     nativeWallpaperControlWindowButtonCount: nativeProbeActive ? 3 : 0,
+    nativeWallpaperControlWindowDragRegion: nativeProbeActive
+      ? 'titlebar_and_safe_empty_areas'
+      : undefined,
+    nativeWallpaperControlWindowWideDragRegionEnabled: nativeProbeActive,
+    nativeWallpaperControlWindowNoDragControlsApplied: nativeProbeActive,
     duplicateControlButtonsDetected: false,
     mainWindowHiddenForNativeWallpaper:
       nativeProbeActive && Boolean(mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()),
@@ -139,6 +236,24 @@ function getHelperStatusFields(helperResult) {
     savedMainWindowBoundsBeforeNativeWallpaper: nativeWallpaperControlWindowState?.bounds,
     savedMainWindowStateBeforeNativeWallpaper,
     savedMenuBarVisibleBeforeNativeWallpaper: nativeWallpaperControlWindowState?.menuBarVisible,
+    topLevelDesktopWorkerWFound: Boolean(helperResult.topLevelDesktopWorkerWFound),
+    progmanChildDesktopWorkerWFound: Boolean(helperResult.progmanChildDesktopWorkerWFound),
+    progmanChildWorkerWProbeActive: Boolean(
+      helperResult.progmanChildWorkerWProbeActive ||
+        helperResult.backend === 'workerw_child_native_host_probe',
+    ),
+    workerWWarningLevel: helperResult.workerWWarningLevel,
+    workerWWarningMessage: helperResult.workerWWarningMessage,
+    ...promotionDiagnostics,
+    explorerRestartDetected: false,
+    nativeWallpaperStaleAfterExplorerRestart: false,
+    nativeWallpaperCleanupOnExitAttempted: false,
+    nativeWallpaperCleanupOnExitSucceeded: false,
+    nativeWallpaperControlWindowClosedOnExit: false,
+    nativeWallpaperHostClosedOnExit: false,
+    nativeWallpaperGhostWindowSuspected: false,
+    winDBehaviorExpected: nativeProbeActive,
+    winDAfterNativeWallpaperStillVisible: undefined,
     controlViewWindowResized: nativeProbeActive,
     controlViewWindowResizeReason: nativeProbeActive ? 'native_wallpaper_probe_active' : undefined,
     controlViewMenuBarVisible: nativeProbeActive ? false : undefined,
@@ -414,8 +529,16 @@ function createNativeWallpaperControlWindow() {
     }
   });
   nativeWallpaperControlWindow.on('minimize', () => {
+    controlViewRestoreLastResult = 'minimized_to_taskbar';
     setNativeWallpaperStatus({
       controlViewMinimized: true,
+      controlViewMinimizeAction: 'minimize',
+      controlViewRecoverableViaTaskbar: true,
+      controlViewRecoverableViaAltTab: true,
+      controlViewRestoreShortcut: 'taskbar_or_alt_tab',
+      controlViewRestoreAvailable: true,
+      controlViewHiddenOrMinimized: true,
+      controlViewRestoreLastResult,
       controlViewVisible: false,
       nativeWallpaperControlWindowVisible: false,
       nativeWallpaperControlWindowBounds:
@@ -425,8 +548,11 @@ function createNativeWallpaperControlWindow() {
     });
   });
   nativeWallpaperControlWindow.on('restore', () => {
+    controlViewRestoreLastResult = 'restored_from_taskbar_or_alt_tab';
     setNativeWallpaperStatus({
       controlViewMinimized: false,
+      controlViewHiddenOrMinimized: false,
+      controlViewRestoreLastResult,
       controlViewVisible: true,
       nativeWallpaperControlWindowVisible: true,
       nativeWallpaperControlWindowBounds:
@@ -471,6 +597,7 @@ function enterNativeWallpaperControlView() {
     return null;
   }
   lastNativeWallpaperControlRestore = null;
+  controlViewRestoreLastResult = null;
 
   nativeWallpaperControlWindowState = {
     alwaysOnTop: mainWindow.isAlwaysOnTop(),
@@ -501,8 +628,16 @@ function minimizeNativeWallpaperControlView() {
   }
 
   nativeWallpaperControlWindow.minimize();
+  controlViewRestoreLastResult = 'minimized_to_taskbar';
   setNativeWallpaperStatus({
     controlViewMinimized: true,
+    controlViewMinimizeAction: 'minimize',
+    controlViewRecoverableViaTaskbar: true,
+    controlViewRecoverableViaAltTab: true,
+    controlViewRestoreShortcut: 'taskbar_or_alt_tab',
+    controlViewRestoreAvailable: true,
+    controlViewHiddenOrMinimized: true,
+    controlViewRestoreLastResult,
     controlViewVisible: false,
     nativeWallpaperControlWindowVisible: false,
     nativeWallpaperControlWindowBounds: nativeWallpaperControlWindow.getBounds(),
@@ -681,6 +816,9 @@ async function closeNativeWallpaperWindow() {
 }
 
 async function exitNativeWallpaperMode() {
+  const hadControlWindow =
+    Boolean(nativeWallpaperControlWindow && !nativeWallpaperControlWindow.isDestroyed());
+  const hadWallpaperWindow = Boolean(nativeWallpaperWindow && !nativeWallpaperWindow.isDestroyed());
   await closeNativeWallpaperWindow();
   const restoredControlViewBounds = exitNativeWallpaperControlView();
   setNativeWallpaperStatus({
@@ -724,6 +862,16 @@ async function exitNativeWallpaperMode() {
     duplicateControlButtonsDetected: false,
     mainWindowHiddenForNativeWallpaper: false,
     mainWindowRestoredAfterNativeWallpaper: Boolean(lastNativeWallpaperControlRestore),
+    explorerRestartDetected: false,
+    nativeWallpaperStaleAfterExplorerRestart: false,
+    nativeWallpaperCleanupOnExitAttempted: true,
+    nativeWallpaperCleanupOnExitSucceeded: true,
+    nativeWallpaperControlWindowClosedOnExit:
+      hadControlWindow && !nativeWallpaperControlWindow,
+    nativeWallpaperHostClosedOnExit: hadWallpaperWindow && !nativeWallpaperWindow,
+    nativeWallpaperGhostWindowSuspected: false,
+    winDBehaviorExpected: true,
+    winDAfterNativeWallpaperStillVisible: undefined,
     restoredMainWindowBoundsAfterNativeWallpaper:
       lastNativeWallpaperControlRestore?.bounds ?? restoredControlViewBounds,
     restoredMainWindowStateAfterNativeWallpaper: lastNativeWallpaperControlRestore?.state,

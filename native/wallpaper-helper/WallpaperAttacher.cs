@@ -242,6 +242,11 @@ internal static class WallpaperAttacher
         target.PreferredReason = source.PreferredReason;
         target.ClosestWorkerWHwnd = source.ClosestWorkerWHwnd;
         target.ClosestWorkerWReason = source.ClosestWorkerWReason;
+        target.TopLevelDesktopWorkerWFound = source.TopLevelDesktopWorkerWFound;
+        target.ProgmanChildDesktopWorkerWFound = source.ProgmanChildDesktopWorkerWFound;
+        target.ProgmanChildWorkerWProbeActive = source.ProgmanChildWorkerWProbeActive;
+        target.WorkerWWarningLevel = source.WorkerWWarningLevel;
+        target.WorkerWWarningMessage = source.WorkerWWarningMessage;
         target.WorkerWCandidates.AddRange(source.WorkerWCandidates);
         target.WorkerWCreatedHwnds.AddRange(source.WorkerWCreatedHwnds);
         target.WorkerWRemovedHwnds.AddRange(source.WorkerWRemovedHwnds);

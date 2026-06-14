@@ -32,6 +32,11 @@ internal class DesktopDiscoveryResult
     public string? PreferredReason { get; set; }
     public string? ClosestWorkerWHwnd { get; set; }
     public string? ClosestWorkerWReason { get; set; }
+    public bool TopLevelDesktopWorkerWFound { get; set; }
+    public bool ProgmanChildDesktopWorkerWFound { get; set; }
+    public bool ProgmanChildWorkerWProbeActive { get; set; }
+    public string WorkerWWarningLevel { get; set; } = "info";
+    public string WorkerWWarningMessage { get; set; } = string.Empty;
     public bool DryRun { get; set; }
     public bool Attached { get; set; }
     public string? Hwnd { get; set; }

@@ -247,7 +247,7 @@ select:focus-visible,
 }
 
 .native-wallpaper-control-view {
-  -webkit-app-region: no-drag;
+  -webkit-app-region: drag;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -313,7 +313,7 @@ select:focus-visible,
 }
 
 .native-control-summary {
-  -webkit-app-region: no-drag;
+  -webkit-app-region: drag;
   background: rgba(11, 13, 31, 0.78);
   border: 1px solid rgba(145, 132, 221, 0.18);
   border-radius: 12px;
@@ -418,8 +418,13 @@ select:focus-visible,
 .native-wallpaper-control-view input,
 .native-wallpaper-control-view select,
 .native-wallpaper-control-view textarea,
+.native-wallpaper-control-view a,
 .native-wallpaper-control-view details,
-.native-wallpaper-control-view summary {
+.native-wallpaper-control-view summary,
+.native-wallpaper-control-view .native-wallpaper-diagnostics,
+.native-wallpaper-control-view .native-wallpaper-diagnostic,
+.native-wallpaper-control-view .native-wallpaper-actions,
+.native-wallpaper-control-view .no-drag {
   -webkit-app-region: no-drag;
 }
 

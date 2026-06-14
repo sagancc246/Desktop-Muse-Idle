@@ -28,12 +28,12 @@ export function NativeWallpaperControlView() {
       className="native-wallpaper-control-view native-wallpaper-control-view-root native-wallpaper-control-window native-wallpaper-control-compact"
       aria-label="Native Wallpaper Control"
     >
-      <div className="native-control-titlebar native-wallpaper-control-titlebar">
+      <div className="native-control-titlebar native-wallpaper-control-titlebar native-wallpaper-control-header native-wallpaper-control-drag-zone">
         <div>
           <p className="eyebrow">NATIVE WALLPAPER</p>
           <h1>Native Wallpaper Control</h1>
         </div>
-        <div className="native-control-window-actions">
+        <div className="native-control-window-actions native-wallpaper-control-actions no-drag">
           <button onClick={() => void minimizeControlView()} type="button">
             Minimize
           </button>
@@ -42,7 +42,19 @@ export function NativeWallpaperControlView() {
 
       <div className="native-control-summary native-wallpaper-control-content">
         <span>
+          <strong>Native Wallpaper Probe Active</strong> / Experimental
+        </span>
+        <span>
           Backend: <strong>{nativeWallpaperStatus.backend}</strong>
+        </span>
+        <span>
+          Control Window: <strong>active</strong>
+        </span>
+        <span>
+          Desktop icon click-through:{' '}
+          <strong>
+            {nativeWallpaperStatus.desktopIconClickThroughExpected ? 'expected' : 'unknown'}
+          </strong>
         </span>
         <span>
           Probe attached:{' '}
@@ -54,7 +66,7 @@ export function NativeWallpaperControlView() {
         </span>
       </div>
 
-      <div className="native-control-primary-actions">
+      <div className="native-control-primary-actions native-wallpaper-control-actions no-drag">
         <button onClick={exitWallpaperMode} type="button">
           Exit Wallpaper
         </button>

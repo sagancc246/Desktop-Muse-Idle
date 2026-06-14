@@ -483,6 +483,100 @@ mainWindowHiddenForNativeWallpaper: true
 mainWindowRestoredAfterNativeWallpaper: true after exit
 ```
 
+## Experimental Success Candidate Rules
+
+As of `0.1.17`, Native Wallpaper Mode remains Experimental. A packaged build may show the back Muse/background through `workerw_child_native_host_probe`, but the app must still report `attached:false`, `probeAttached:true`, and `needsManualVerification:true`.
+
+User-facing language should make these points clear:
+
+- `Native Wallpaper Probe Active`
+- `Experimental`
+- `Manual verification required`
+- Back wallpaper surface is visual-only and click-through.
+- Use the dedicated Control Window for Minimize, Exit Wallpaper, and Copy Diagnostics.
+- If this route is unstable on a Windows environment, use Wallpaper Stage Mode.
+
+Minimize behavior:
+
+- The Control Window uses OS minimize, not an unrecoverable hide.
+- `skipTaskbar:false` is required so the user can restore from the taskbar.
+- Alt+Tab should also be able to restore the Control Window.
+- `Esc` remains an exit path for Native Wallpaper.
+
+Expected restore diagnostics:
+
+```text
+controlViewMinimizeAction: minimize
+controlViewRecoverableViaTaskbar: true
+controlViewRecoverableViaAltTab: true
+controlViewRestoreShortcut: taskbar_or_alt_tab
+controlViewRestoreAvailable: true
+controlViewHiddenOrMinimized: true|false
+controlViewRestoreLastResult: <last minimize/restore result>
+```
+
+Drag behavior:
+
+- The titlebar and safe empty areas should drag the frameless Control Window.
+- Buttons, summaries, diagnostics, copy, exit, and minimize controls must be no-drag so clicks still work.
+
+Expected drag diagnostics:
+
+```text
+nativeWallpaperControlWindowDragRegion: titlebar_and_safe_empty_areas
+nativeWallpaperControlWindowWideDragRegionEnabled: true
+nativeWallpaperControlWindowNoDragControlsApplied: true
+```
+
+WorkerW warning behavior:
+
+- If no top-level desktop-sized WorkerW exists but the Progman child WorkerW probe is active, this is not the old failure warning.
+- Diagnostics should report info-level wording, for example: `No top-level desktop-sized WorkerW found, but Progman child WorkerW probe is active.`
+
+Expected warning diagnostics:
+
+```text
+topLevelDesktopWorkerWFound: false
+progmanChildDesktopWorkerWFound: true
+progmanChildWorkerWProbeActive: true
+workerWWarningLevel: info
+workerWWarningMessage: No top-level desktop-sized WorkerW found, but Progman child WorkerW probe is active.
+```
+
+Future `attached:true` promotion candidate conditions are reported but not acted on in `0.1.17`:
+
+```text
+backend === workerw_child_native_host_probe
+probeAttached === true
+nativeProbeVisible === true
+selectedWorkerWStrategy === progman_child_workerw_algorithm
+selectedWorkerWHwnd exists
+hostParentHwndAfterSetParent === selectedWorkerWHwnd
+electronParentHwndAfterSetParent === hostHwnd
+rectMismatch === false
+wallpaperWindowMayBlockDesktopClicks === false
+desktopIconClickThroughExpected === true
+fallbackStageVisible === false
+mainStageVisible === false
+overlayVisible === false
+duplicateStageSuppressed === true
+nativeWallpaperSurfaceExitButtonVisible === false
+duplicateControlButtonsDetected === false
+nativeWallpaperControlWindowVisible === true
+controlViewRestoreAvailable === true
+cleanupStaleHostWindowsFailed === false
+```
+
+Diagnostics:
+
+```text
+canPromoteNativeWallpaperToAttachedCandidate
+attachedPromotionBlockedReasons
+attachedPromotionChecklist
+```
+
+Even if `canPromoteNativeWallpaperToAttachedCandidate:true`, `0.1.17` must keep `attached:false`. A later version can decide promotion after final packaged manual verification.
+
 The Control View should be a small panel, not a transparent full-screen window. Outside the Control View bounds, desktop icons, desktop right-click, and drag selection should work.
 
 ## App Screen Restoration
@@ -634,20 +728,20 @@ The useful packaged result is not only "behind icons". A probe is also worth pre
 
 ## Packaged Windows Manual Verification
 
-Before testing, rebuild the packaged app so the unpacked resources contain helper `0.1.16`:
+Before testing, rebuild the packaged app so the unpacked resources contain helper `0.1.17`:
 
 ```powershell
 npm.cmd run electron:build
 release\win-unpacked\resources\wallpaper-helper\wallpaper-helper.exe version
 ```
 
-The version command must report `helperVersion: "0.1.16"`. If it reports an older version, do not use that packaged folder for Native Wallpaper verification.
+The version command must report `helperVersion: "0.1.17"`. If it reports an older version, do not use that packaged folder for Native Wallpaper verification.
 
 Manual verification flow:
 
 1. Launch `release\win-unpacked\Desktop Muse Idle.exe`.
 2. Open Settings or Wallpaper panel and select Native Desktop Wallpaper.
-3. Confirm the status panel shows `Helper: reachable 0.1.16`, `Native Probe Active`, `Backend`, `Attached`, `Probe attached`, `Manual verification`, `renderSurface: control_view`, dedicated Control Window diagnostics, `Fallback Stage: hidden`, `Main Stage: hidden`, wallpaper surface UI suppressed, `mainWindowMayBlockDesktopClicks:false`, `Helper PID`, selected WorkerW strategy/HWND, selected Progman child WorkerW, stale cleanup status, WorkerW HWND, Native Host HWND, Electron Wallpaper HWND, Parent after SetParent, Rect mismatch, z-order strategy, click-through, and Reason/Fallback reason.
+3. Confirm the status panel shows `Helper: reachable 0.1.17`, `Native Probe Active`, `Experimental`, `Backend`, `Attached:false`, `Probe attached`, `Manual verification`, `renderSurface: control_view`, dedicated Control Window diagnostics, restore diagnostics, WorkerW warning diagnostics, promotion checklist diagnostics, `Fallback Stage: hidden`, `Main Stage: hidden`, wallpaper surface UI suppressed, `mainWindowMayBlockDesktopClicks:false`, `Helper PID`, selected WorkerW strategy/HWND, selected Progman child WorkerW, stale cleanup status, WorkerW HWND, Native Host HWND, Electron Wallpaper HWND, Parent after SetParent, Rect mismatch, z-order strategy, click-through, and Reason/Fallback reason.
 4. Use `Copy diagnostics` immediately after entering the mode and after any failure.
 5. Confirm the wallpaper renders behind desktop icons and behind the taskbar.
 6. Confirm Alt+Tab does not show an extra Wallpaper window and the taskbar has no extra Wallpaper window.

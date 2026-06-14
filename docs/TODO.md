@@ -349,6 +349,18 @@ Next TODO:
   - Confirm `Exit Wallpaper`, `Esc`, Native Wallpaper OFF, and app quit close the Control Window, remove the back wallpaper, restore mainWindow, and leave no ghost windows.
   - Confirm diagnostics show `nativeWallpaperControlWindowCreated:true`, `nativeWallpaperControlWindowVisible:true`, `nativeWallpaperControlWindowFrameless:true`, `nativeWallpaperControlWindowDraggable:true`, `nativeWallpaperControlWindowRoute:nativeWallpaperControl=1`, `nativeWallpaperControlWindowButtonCount:3`, `duplicateControlButtonsDetected:false`, `mainWindowHiddenForNativeWallpaper:true`, and `mainWindowRestoredAfterNativeWallpaper:true` after exit.
   - Keep `attached:false` until the full manual checklist passes.
+- Native Desktop Wallpaper 0.1.17 experimental success candidate cleanup pending:
+  - Build a fresh package and confirm packaged helper reports `0.1.17`.
+  - Confirm Control Window minimize is recoverable through the taskbar or Alt+Tab.
+  - Confirm diagnostics show `controlViewMinimizeAction:minimize`, `controlViewRecoverableViaTaskbar:true`, `controlViewRecoverableViaAltTab:true`, `controlViewRestoreAvailable:true`, and a useful `controlViewRestoreLastResult`.
+  - Confirm titlebar and safe empty areas drag the Control Window, while Minimize / Exit Wallpaper / Copy Diagnostics / diagnostics summary remain clickable.
+  - Confirm diagnostics show `nativeWallpaperControlWindowDragRegion:titlebar_and_safe_empty_areas`, `nativeWallpaperControlWindowWideDragRegionEnabled:true`, and `nativeWallpaperControlWindowNoDragControlsApplied:true`.
+  - Confirm WorkerW diagnostics no longer show the misleading old warning when `workerw_child_native_host_probe` is active.
+  - Confirm `workerWWarningLevel:info` and `workerWWarningMessage` explains that no top-level WorkerW was found but Progman child WorkerW probe is active.
+  - Confirm Control Window text says Native Wallpaper is Experimental and manual verification is required.
+  - Confirm `canPromoteNativeWallpaperToAttachedCandidate`, `attachedPromotionBlockedReasons`, and `attachedPromotionChecklist` appear in Copy diagnostics.
+  - Confirm OFF / Exit Wallpaper / Esc / app quit cleanup diagnostics are present and no ghost window remains.
+  - Keep `attached:false` until a later version explicitly promotes after final manual verification.
 - Release-before manual check: verify `Win + D`, `Alt + Tab`, desktop-icon layering/clicks, taskbar presence, startup 3-second Click Through safety guide, `Ctrl + Shift + M` recovery, Click Through ON pass-through, Click Through OFF Muse Tap/HUD button interaction, HUD Last Error, and Esc restoration in the packaged Windows build.
 - Release-before manual check: verify Native Desktop Wallpaper Mode on local Windows Electron after the real WorkerW bridge is implemented; check `Win + D`, icon back-layer rendering, icon clicks, Alt + Tab/taskbar absence, app-behind behavior, and Exit restoration.
 - Current MVP manual check: confirm Windows Electron reports Native Wallpaper fallback cleanly and returns to normal mode without leaving a hidden Wallpaper window.

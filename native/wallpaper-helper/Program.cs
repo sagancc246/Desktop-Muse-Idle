@@ -2,7 +2,7 @@ using System.Text;
 using System.Text.Json;
 using WallpaperHelper;
 
-const string HelperVersion = "0.1.16";
+const string HelperVersion = "0.1.17";
 var jsonOptions = new JsonSerializerOptions
 {
     PropertyNamingPolicy = JsonNamingPolicy.CamelCase,

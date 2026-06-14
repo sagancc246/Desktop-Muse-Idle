@@ -684,3 +684,14 @@ Verification results on 2026-06-05:
 - The dedicated Control Window mounts only `NativeWallpaperControlView`, bypassing the normal `appViewport` / 1920x1080 game stage / GameCanvas / Wallpaper Stage layouts.
 - Reduced Control View buttons to `Minimize`, `Exit Wallpaper`, and `Copy Diagnostics`; duplicate close/off/mode buttons are intentionally omitted.
 - Added dedicated Control Window diagnostics: creation/visibility/bounds, frameless/draggable route, button count, duplicate button detection, main-window hidden/restored flags.
+
+## Native Wallpaper 0.1.17 Experimental Success Candidate Cleanup / Warning / Restore UX / Wide Drag Region
+
+- Bumped `wallpaper-helper` to `0.1.17`; native host behavior remains probe-only and `attached:true` is still not promoted.
+- Recorded the `0.1.16` packaged result: dedicated `Native Wallpaper Control` window largely works, text is readable, only three controls are shown, dragging works from the titlebar, minimize preserves the back Muse surface, and Exit removes the back surface.
+- Clarified minimize recovery diagnostics: Control Window minimize is treated as OS minimize, recoverable through taskbar / Alt+Tab, with restore availability and last restore result reported.
+- Expanded the draggable region from titlebar-only to titlebar plus safe empty areas, while keeping buttons, inputs, summaries, diagnostics, and actions as explicit no-drag controls.
+- Fixed the misleading WorkerW warning. When no top-level desktop-sized WorkerW exists but a Progman child WorkerW probe is active, diagnostics now report info-level wording instead of the old warning.
+- Added Experimental / Manual verification language to the Control Window so users understand that the back surface is visual/click-through and actions belong in the Control Window.
+- Added `canPromoteNativeWallpaperToAttachedCandidate`, `attachedPromotionBlockedReasons`, and `attachedPromotionChecklist` diagnostics to document the future `attached:true` promotion conditions without promoting in this version.
+- Added cleanup/Explorer/Win+D diagnostics placeholders so packaged logs can prove OFF / Exit / Esc / app quit behavior and stale-success handling.
