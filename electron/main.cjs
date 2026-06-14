@@ -1,7 +1,7 @@
 'use strict';
 
 const path = require('node:path');
-const { app, BrowserWindow, globalShortcut, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, globalShortcut, ipcMain, screen, shell } = require('electron');
 const {
   attachWallpaperWindowToDesktop,
   detachWallpaperWindowFromDesktop,
@@ -17,8 +17,12 @@ let mainWindow = null;
 let overlayState = null;
 let overlayLastError = null;
 let nativeWallpaperWindow = null;
+let nativeWallpaperControlWindow = null;
 let isQuittingAfterNativeWallpaperCleanup = false;
 let suppressNativeWallpaperCloseStatus = false;
+let suppressNativeWallpaperControlCloseStatus = false;
+let nativeWallpaperControlWindowState = null;
+let lastNativeWallpaperControlRestore = null;
 let nativeWallpaperStatus = {
   active: false,
   appVersion: app.getVersion(),
@@ -38,8 +42,24 @@ let nativeWallpaperStatus = {
 function getHelperStatusFields(helperResult) {
   const nativeProbeActive = Boolean(helperResult.probeAttached && helperResult.needsManualVerification);
   const nativeProbeBackend = nativeProbeActive ? helperResult.backend ?? helperResult.attachMethod : undefined;
+  const controlViewMinimized = Boolean(
+    nativeProbeActive &&
+      nativeWallpaperControlWindow &&
+      !nativeWallpaperControlWindow.isDestroyed() &&
+      nativeWallpaperControlWindow.isMinimized(),
+  );
+  const savedMainWindowStateBeforeNativeWallpaper = nativeWallpaperControlWindowState
+    ? {
+        fullScreen: nativeWallpaperControlWindowState.fullScreen,
+        maximized: nativeWallpaperControlWindowState.maximized,
+        minimized: nativeWallpaperControlWindowState.minimized,
+        resizable: nativeWallpaperControlWindowState.resizable,
+        alwaysOnTop: nativeWallpaperControlWindowState.alwaysOnTop,
+      }
+    : undefined;
   const activeDisplaySurfaces = [];
   if (nativeProbeActive) {
+    activeDisplaySurfaces.push('native_wallpaper_control_window');
     if (helperResult.backend === 'workerw_child_native_host_probe') {
       activeDisplaySurfaces.push('native_workerw_child');
     } else if (helperResult.backend === 'progman_native_host_probe') {
@@ -50,6 +70,16 @@ function getHelperStatusFields(helperResult) {
   } else if (helperResult.fallbackActive) {
     activeDisplaySurfaces.push('fallback_stage');
   }
+  const mainWindowBounds = mainWindow && !mainWindow.isDestroyed() ? mainWindow.getBounds() : null;
+  const controlWindowBounds =
+    nativeWallpaperControlWindow && !nativeWallpaperControlWindow.isDestroyed()
+      ? nativeWallpaperControlWindow.getBounds()
+      : null;
+  const primaryBounds = screen.getPrimaryDisplay().bounds;
+  const mainWindowCoversPrimaryScreen =
+    !nativeProbeActive && !controlViewMinimized && rectCovers(mainWindowBounds, primaryBounds);
+  const controlViewWindowBounds = nativeProbeActive ? controlWindowBounds : null;
+  const controlViewRestoreTargetScreen = nativeProbeActive ? getControlViewRestoreTargetScreen() : null;
 
   return {
     appVersion: app.getVersion(),
@@ -80,13 +110,74 @@ function getHelperStatusFields(helperResult) {
     nativeProbeActive,
     nativeProbeBackend,
     nativeProbeVisible: nativeProbeActive,
-    renderSurface: nativeProbeActive ? 'main_window' : 'main_window',
-    nativeWallpaperSurface: nativeProbeActive,
+    renderSurface: nativeProbeActive ? 'control_view' : 'main_window',
+    nativeWallpaperSurface: false,
     controlView: nativeProbeActive,
+    controlViewMode: nativeProbeActive ? 'native_wallpaper_control' : undefined,
+    controlViewMovable: nativeProbeActive,
+    controlViewDraggable: nativeProbeActive,
+    controlViewMinimizeButtonVisible: nativeProbeActive,
+    controlViewCloseButtonVisible: nativeProbeActive,
+    controlViewCloseAction: nativeProbeActive ? 'exit_native_wallpaper' : undefined,
+    controlViewMinimized,
+    controlViewBounds: controlViewWindowBounds,
+    controlViewRestoreTargetScreen,
+    nativeWallpaperControlWindowCreated: nativeProbeActive && Boolean(nativeWallpaperControlWindow),
+    nativeWallpaperControlWindowVisible:
+      nativeProbeActive &&
+      Boolean(nativeWallpaperControlWindow && !nativeWallpaperControlWindow.isDestroyed()) &&
+      !controlViewMinimized,
+    nativeWallpaperControlWindowBounds: controlWindowBounds,
+    nativeWallpaperControlWindowFrameless: nativeProbeActive,
+    nativeWallpaperControlWindowDraggable: nativeProbeActive,
+    nativeWallpaperControlWindowRoute: nativeProbeActive ? 'nativeWallpaperControl=1' : undefined,
+    nativeWallpaperControlWindowButtonCount: nativeProbeActive ? 3 : 0,
+    duplicateControlButtonsDetected: false,
+    mainWindowHiddenForNativeWallpaper:
+      nativeProbeActive && Boolean(mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()),
+    mainWindowRestoredAfterNativeWallpaper: false,
+    savedMainWindowBoundsBeforeNativeWallpaper: nativeWallpaperControlWindowState?.bounds,
+    savedMainWindowStateBeforeNativeWallpaper,
+    savedMenuBarVisibleBeforeNativeWallpaper: nativeWallpaperControlWindowState?.menuBarVisible,
+    controlViewWindowResized: nativeProbeActive,
+    controlViewWindowResizeReason: nativeProbeActive ? 'native_wallpaper_probe_active' : undefined,
+    controlViewMenuBarVisible: nativeProbeActive ? false : undefined,
+    menuBarSuppressedForControlView: nativeProbeActive,
+    controlViewLayoutCompact: nativeProbeActive,
+    controlViewLargeBlankSuppressed: nativeProbeActive,
+    mainGameLayoutMounted: false,
+    wallpaperStageLayoutMounted: false,
+    nativeWallpaperControlViewMounted: nativeProbeActive,
     nativeWallpaperSurfaceInteractiveUiVisible: false,
     nativeWallpaperSurfaceButtonsVisible: false,
     nativeWallpaperSurfaceExitButtonVisible: false,
     controlViewExitButtonVisible: nativeProbeActive,
+    controlViewVisible: nativeProbeActive && !controlViewMinimized,
+    controlViewDiagnosticsVisible: nativeProbeActive,
+    controlViewModeSelectorVisible: nativeProbeActive,
+    controlViewWindowBounds,
+    mainWindowBounds,
+    mainWindowCoversPrimaryScreen,
+    mainWindowMayBlockDesktopClicks: nativeProbeActive && !controlViewMinimized && mainWindowCoversPrimaryScreen,
+    controlViewTransparentOrEmptySuspected: false,
+    desktopIconClickThroughExpected: nativeProbeActive,
+    desktopIconClickThroughBlockedSuspected:
+      nativeProbeActive && !controlViewMinimized && mainWindowCoversPrimaryScreen,
+    wallpaperWindowMayBlockDesktopClicks: false,
+    controlViewMayBlockDesktopClicks: nativeProbeActive,
+    electronWallpaperIgnoreMouseEventsEnabled: Boolean(helperResult.electronIgnoreMouseEventsEnabled),
+    nativeHostToolWindowEnabled: Boolean(helperResult.nativeHostNoActivateEnabled),
+    appScreen: undefined,
+    previousAppScreenBeforeNativeWallpaper: undefined,
+    restoredAppScreenAfterNativeWallpaperOff: undefined,
+    nativeWallpaperChangedAppScreen: false,
+    mainWindowGameCanvasSuppressed: nativeProbeActive,
+    mainWindowGameCanvasSuppressionReason: nativeProbeActive
+      ? 'native_probe_control_view_hides_game_canvas'
+      : undefined,
+    normalGameCanvasVisible: !nativeProbeActive,
+    normalBackgroundVisible: !nativeProbeActive,
+    normalMuseVisible: !nativeProbeActive,
     wallpaperSurfaceClickThroughExpected: nativeProbeActive,
     wallpaperSurfaceUiSuppressed: nativeProbeActive,
     wallpaperSurfaceUiSuppressionReason: nativeProbeActive
@@ -219,6 +310,260 @@ function getHelperStatusFields(helperResult) {
   };
 }
 
+function rectCovers(rect, target) {
+  if (!rect || !target) {
+    return false;
+  }
+
+  return rect.x <= target.x &&
+    rect.y <= target.y &&
+    rect.x + rect.width >= target.x + target.width &&
+    rect.y + rect.height >= target.y + target.height;
+}
+
+function getControlViewRestoreTargetScreen() {
+  if (nativeWallpaperControlWindowState?.restoreTargetScreen) {
+    return nativeWallpaperControlWindowState.restoreTargetScreen;
+  }
+  const referenceBounds = mainWindow && !mainWindow.isDestroyed()
+    ? mainWindow.getBounds()
+    : screen.getPrimaryDisplay().bounds;
+  const display = screen.getDisplayMatching(referenceBounds);
+  return {
+    id: display.id,
+    bounds: display.bounds,
+    workArea: display.workArea,
+  };
+}
+
+function getControlViewBounds() {
+  const primaryBounds = screen.getPrimaryDisplay().workArea;
+  const width = Math.min(560, Math.max(520, primaryBounds.width - 96));
+  const height = Math.min(400, Math.max(360, primaryBounds.height - 96));
+  return {
+    x: primaryBounds.x + primaryBounds.width - width - 24,
+    y: primaryBounds.y + 40,
+    width,
+    height,
+  };
+}
+
+function getMenuBarVisible(window) {
+  if (!window || window.isDestroyed() || typeof window.isMenuBarVisible !== 'function') {
+    return true;
+  }
+  return window.isMenuBarVisible();
+}
+
+function getNativeWallpaperControlUrl() {
+  if (!developmentUrl) {
+    return null;
+  }
+  const url = new URL(developmentUrl);
+  url.searchParams.set('nativeWallpaperControl', '1');
+  return url.toString();
+}
+
+function createNativeWallpaperControlWindow() {
+  if (nativeWallpaperControlWindow && !nativeWallpaperControlWindow.isDestroyed()) {
+    nativeWallpaperControlWindow.show();
+    nativeWallpaperControlWindow.focus();
+    return nativeWallpaperControlWindow;
+  }
+
+  nativeWallpaperControlWindow = new BrowserWindow({
+    title: 'Native Wallpaper Control',
+    ...getControlViewBounds(),
+    minWidth: 520,
+    minHeight: 360,
+    resizable: false,
+    frame: false,
+    transparent: false,
+    show: false,
+    alwaysOnTop: false,
+    skipTaskbar: false,
+    autoHideMenuBar: true,
+    backgroundColor: '#070919',
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      preload: path.join(__dirname, 'preload.cjs'),
+      sandbox: true,
+    },
+  });
+
+  nativeWallpaperControlWindow.setMenuBarVisibility(false);
+  if (typeof nativeWallpaperControlWindow.setMenu === 'function') {
+    nativeWallpaperControlWindow.setMenu(null);
+  }
+  nativeWallpaperControlWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https://') || url.startsWith('http://')) {
+      void shell.openExternal(url);
+    }
+
+    return { action: 'deny' };
+  });
+  nativeWallpaperControlWindow.on('closed', () => {
+    nativeWallpaperControlWindow = null;
+    if (suppressNativeWallpaperControlCloseStatus) {
+      suppressNativeWallpaperControlCloseStatus = false;
+      return;
+    }
+    if (nativeWallpaperStatus.nativeProbeActive || nativeWallpaperStatus.probeAttached) {
+      void exitNativeWallpaperMode();
+    }
+  });
+  nativeWallpaperControlWindow.on('minimize', () => {
+    setNativeWallpaperStatus({
+      controlViewMinimized: true,
+      controlViewVisible: false,
+      nativeWallpaperControlWindowVisible: false,
+      nativeWallpaperControlWindowBounds:
+        nativeWallpaperControlWindow && !nativeWallpaperControlWindow.isDestroyed()
+          ? nativeWallpaperControlWindow.getBounds()
+          : null,
+    });
+  });
+  nativeWallpaperControlWindow.on('restore', () => {
+    setNativeWallpaperStatus({
+      controlViewMinimized: false,
+      controlViewVisible: true,
+      nativeWallpaperControlWindowVisible: true,
+      nativeWallpaperControlWindowBounds:
+        nativeWallpaperControlWindow && !nativeWallpaperControlWindow.isDestroyed()
+          ? nativeWallpaperControlWindow.getBounds()
+          : null,
+    });
+  });
+
+  const controlUrl = getNativeWallpaperControlUrl();
+  if (controlUrl) {
+    void nativeWallpaperControlWindow.loadURL(controlUrl);
+  } else {
+    void nativeWallpaperControlWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), {
+      query: { nativeWallpaperControl: '1' },
+    });
+  }
+  nativeWallpaperControlWindow.once('ready-to-show', () => {
+    nativeWallpaperControlWindow?.show();
+    nativeWallpaperControlWindow?.focus();
+    setNativeWallpaperStatus({
+      nativeWallpaperControlWindowCreated: true,
+      nativeWallpaperControlWindowVisible: true,
+      nativeWallpaperControlWindowBounds: nativeWallpaperControlWindow?.getBounds() ?? null,
+    });
+  });
+  return nativeWallpaperControlWindow;
+}
+
+function closeNativeWallpaperControlWindow() {
+  if (!nativeWallpaperControlWindow || nativeWallpaperControlWindow.isDestroyed()) {
+    nativeWallpaperControlWindow = null;
+    return;
+  }
+  suppressNativeWallpaperControlCloseStatus = true;
+  nativeWallpaperControlWindow.close();
+  nativeWallpaperControlWindow = null;
+}
+
+function enterNativeWallpaperControlView() {
+  if (!mainWindow || mainWindow.isDestroyed() || nativeWallpaperControlWindowState) {
+    return null;
+  }
+  lastNativeWallpaperControlRestore = null;
+
+  nativeWallpaperControlWindowState = {
+    alwaysOnTop: mainWindow.isAlwaysOnTop(),
+    bounds: mainWindow.getBounds(),
+    fullScreen: mainWindow.isFullScreen(),
+    maximized: mainWindow.isMaximized(),
+    minimized: mainWindow.isMinimized(),
+    menu: typeof mainWindow.getMenu === 'function' ? mainWindow.getMenu() : null,
+    menuBarVisible: getMenuBarVisible(mainWindow),
+    minimumSize: mainWindow.getMinimumSize(),
+    resizable: mainWindow.isResizable(),
+    restoreTargetScreen: getControlViewRestoreTargetScreen(),
+    skipTaskbar: false,
+    visible: mainWindow.isVisible(),
+  };
+
+  mainWindow.hide();
+  const controlWindow = createNativeWallpaperControlWindow();
+  return controlWindow?.getBounds() ?? null;
+}
+
+function minimizeNativeWallpaperControlView() {
+  if (!nativeWallpaperControlWindow || nativeWallpaperControlWindow.isDestroyed()) {
+    return { ok: false, reason: 'control_window_unavailable' };
+  }
+  if (!nativeWallpaperStatus.nativeProbeActive && !nativeWallpaperStatus.probeAttached) {
+    return { ok: false, reason: 'native_probe_not_active' };
+  }
+
+  nativeWallpaperControlWindow.minimize();
+  setNativeWallpaperStatus({
+    controlViewMinimized: true,
+    controlViewVisible: false,
+    nativeWallpaperControlWindowVisible: false,
+    nativeWallpaperControlWindowBounds: nativeWallpaperControlWindow.getBounds(),
+    controlViewBounds: nativeWallpaperControlWindow.getBounds(),
+    controlViewWindowBounds: nativeWallpaperControlWindow.getBounds(),
+    mainWindowMayBlockDesktopClicks: false,
+    desktopIconClickThroughBlockedSuspected: false,
+  });
+  return { ok: true, minimized: true };
+}
+
+function exitNativeWallpaperControlView() {
+  closeNativeWallpaperControlWindow();
+  if (!mainWindow || mainWindow.isDestroyed() || !nativeWallpaperControlWindowState) {
+    nativeWallpaperControlWindowState = null;
+    return null;
+  }
+
+  const previousState = nativeWallpaperControlWindowState;
+  nativeWallpaperControlWindowState = null;
+  mainWindow.setIgnoreMouseEvents(false);
+  if (typeof mainWindow.setFocusable === 'function') {
+    mainWindow.setFocusable(true);
+  }
+  mainWindow.setAlwaysOnTop(previousState.alwaysOnTop);
+  mainWindow.setSkipTaskbar(previousState.skipTaskbar);
+  if (typeof mainWindow.setMenu === 'function') {
+    mainWindow.setMenu(previousState.menu ?? null);
+  }
+  mainWindow.setMenuBarVisibility(previousState.menuBarVisible);
+  mainWindow.setAutoHideMenuBar(!previousState.menuBarVisible);
+  mainWindow.setResizable(previousState.resizable);
+  mainWindow.setMinimumSize(previousState.minimumSize[0], previousState.minimumSize[1]);
+  if (previousState.fullScreen) {
+    mainWindow.setFullScreen(true);
+  } else {
+    mainWindow.setBounds(previousState.bounds);
+    if (previousState.maximized) {
+      mainWindow.maximize();
+    }
+  }
+  if (previousState.minimized) {
+    mainWindow.minimize();
+  } else if (previousState.visible) {
+    mainWindow.show();
+    mainWindow.focus();
+  }
+  lastNativeWallpaperControlRestore = {
+    bounds: mainWindow.getBounds(),
+    reason: 'native_wallpaper_exit',
+    state: {
+      fullScreen: previousState.fullScreen,
+      maximized: previousState.maximized,
+      minimized: previousState.minimized,
+      resizable: previousState.resizable,
+      alwaysOnTop: previousState.alwaysOnTop,
+    },
+  };
+  return mainWindow.getBounds();
+}
+
 function getNativeWallpaperStatus() {
   return nativeWallpaperStatus;
 }
@@ -230,6 +575,9 @@ function setNativeWallpaperStatus(updates) {
   };
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('wallpaper:native-status', nativeWallpaperStatus);
+  }
+  if (nativeWallpaperControlWindow && !nativeWallpaperControlWindow.isDestroyed()) {
+    nativeWallpaperControlWindow.webContents.send('wallpaper:native-status', nativeWallpaperStatus);
   }
 }
 
@@ -249,6 +597,7 @@ function logNativeWallpaperDiagnostic(eventName, payload = {}) {
 
 function setNativeWallpaperFallback(reason, helperResult = {}) {
   logNativeWallpaperDiagnostic('fallback', { reason, helperResult });
+  const restoredControlViewBounds = exitNativeWallpaperControlView();
   setNativeWallpaperStatus({
     active: false,
     backend: 'fallback_stage',
@@ -267,6 +616,7 @@ function setNativeWallpaperFallback(reason, helperResult = {}) {
     mainStageVisible: true,
     duplicateStageSuppressed: false,
     activeDisplaySurfaces: ['fallback_stage'],
+    restoredControlViewBounds,
     lastError: `Native wallpaper fallback: ${reason}`,
     nativeAttached: false,
     supported: process.platform === 'win32',
@@ -332,6 +682,7 @@ async function closeNativeWallpaperWindow() {
 
 async function exitNativeWallpaperMode() {
   await closeNativeWallpaperWindow();
+  const restoredControlViewBounds = exitNativeWallpaperControlView();
   setNativeWallpaperStatus({
     active: false,
     activeDisplaySurfaces: [],
@@ -341,15 +692,59 @@ async function exitNativeWallpaperMode() {
     duplicateStageSuppressed: false,
     duplicateStageSuppressionReason: undefined,
     fallbackStageVisible: false,
+    controlViewVisible: false,
+    controlViewExitButtonVisible: false,
+    controlViewDiagnosticsVisible: false,
+    controlViewModeSelectorVisible: false,
+    controlViewMode: undefined,
+    controlViewMovable: false,
+    controlViewDraggable: false,
+    controlViewMinimizeButtonVisible: false,
+    controlViewCloseButtonVisible: false,
+    controlViewCloseAction: undefined,
+    controlViewMinimized: false,
+    controlViewBounds: null,
+    controlViewRestoreTargetScreen: null,
+    controlViewWindowResized: false,
+    controlViewWindowResizeReason: undefined,
+    controlViewMenuBarVisible: getMenuBarVisible(mainWindow),
+    menuBarSuppressedForControlView: false,
+    controlViewLayoutCompact: false,
+    controlViewLargeBlankSuppressed: false,
+    mainGameLayoutMounted: true,
+    wallpaperStageLayoutMounted: false,
+    nativeWallpaperControlViewMounted: false,
+    nativeWallpaperControlWindowCreated: false,
+    nativeWallpaperControlWindowVisible: false,
+    nativeWallpaperControlWindowBounds: null,
+    nativeWallpaperControlWindowFrameless: false,
+    nativeWallpaperControlWindowDraggable: false,
+    nativeWallpaperControlWindowRoute: undefined,
+    nativeWallpaperControlWindowButtonCount: 0,
+    duplicateControlButtonsDetected: false,
+    mainWindowHiddenForNativeWallpaper: false,
+    mainWindowRestoredAfterNativeWallpaper: Boolean(lastNativeWallpaperControlRestore),
+    restoredMainWindowBoundsAfterNativeWallpaper:
+      lastNativeWallpaperControlRestore?.bounds ?? restoredControlViewBounds,
+    restoredMainWindowStateAfterNativeWallpaper: lastNativeWallpaperControlRestore?.state,
+    restoreMainWindowReason: lastNativeWallpaperControlRestore?.reason,
+    restoredControlViewBounds,
     helperProcessAlive: false,
     helperRunning: false,
     mainStageVisible: true,
+    mainWindowGameCanvasSuppressed: false,
+    mainWindowGameCanvasSuppressionReason: undefined,
     nativeAttached: false,
     nativeProbeActive: false,
     nativeProbeBackend: undefined,
     nativeProbeVisible: false,
     overlayVisible: Boolean(overlayState),
     probeAttached: false,
+    renderSurface: 'main_window',
+    controlView: false,
+    normalGameCanvasVisible: true,
+    normalBackgroundVisible: true,
+    normalMuseVisible: true,
   });
 }
 
@@ -396,6 +791,11 @@ async function enterNativeWallpaperMode() {
     if (attachResult.ok && attachResult.probeAttached && attachResult.needsManualVerification) {
       nativeWallpaperWindow.setIgnoreMouseEvents(true, { forward: true });
       nativeWallpaperWindow.showInactive();
+      const controlViewWindowBounds = enterNativeWallpaperControlView();
+      const mainWindowBounds = mainWindow && !mainWindow.isDestroyed() ? mainWindow.getBounds() : null;
+      const mainWindowCoversPrimaryScreen =
+        Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) &&
+        rectCovers(mainWindowBounds, screen.getPrimaryDisplay().bounds);
       setNativeWallpaperStatus({
         active: true,
         backend: attachResult.backend ?? 'fallback_stage',
@@ -411,13 +811,72 @@ async function enterNativeWallpaperMode() {
         nativeProbeActive: true,
         nativeProbeBackend: attachResult.backend,
         nativeProbeVisible: true,
-        renderSurface: 'main_window',
-        nativeWallpaperSurface: true,
+        renderSurface: 'control_view',
+        nativeWallpaperSurface: false,
         controlView: true,
+        controlViewMode: 'native_wallpaper_control',
+        controlViewMovable: true,
+        controlViewDraggable: true,
+        controlViewMinimizeButtonVisible: true,
+        controlViewCloseButtonVisible: true,
+        controlViewCloseAction: 'exit_native_wallpaper',
+        controlViewMinimized: false,
+        controlViewBounds: controlViewWindowBounds,
+        controlViewRestoreTargetScreen: getControlViewRestoreTargetScreen(),
+        savedMainWindowBoundsBeforeNativeWallpaper: nativeWallpaperControlWindowState?.bounds,
+        savedMainWindowStateBeforeNativeWallpaper: nativeWallpaperControlWindowState
+          ? {
+              fullScreen: nativeWallpaperControlWindowState.fullScreen,
+              maximized: nativeWallpaperControlWindowState.maximized,
+              minimized: nativeWallpaperControlWindowState.minimized,
+              resizable: nativeWallpaperControlWindowState.resizable,
+              alwaysOnTop: nativeWallpaperControlWindowState.alwaysOnTop,
+            }
+          : undefined,
+        savedMenuBarVisibleBeforeNativeWallpaper: nativeWallpaperControlWindowState?.menuBarVisible,
+        controlViewWindowResized: true,
+        controlViewWindowResizeReason: 'native_wallpaper_probe_active',
+        controlViewMenuBarVisible: false,
+        menuBarSuppressedForControlView: true,
+        controlViewLayoutCompact: true,
+        controlViewLargeBlankSuppressed: true,
+        mainGameLayoutMounted: false,
+        wallpaperStageLayoutMounted: false,
+        nativeWallpaperControlViewMounted: true,
+        nativeWallpaperControlWindowCreated: true,
+        nativeWallpaperControlWindowVisible: true,
+        nativeWallpaperControlWindowBounds: controlViewWindowBounds,
+        nativeWallpaperControlWindowFrameless: true,
+        nativeWallpaperControlWindowDraggable: true,
+        nativeWallpaperControlWindowRoute: 'nativeWallpaperControl=1',
+        nativeWallpaperControlWindowButtonCount: 3,
+        duplicateControlButtonsDetected: false,
+        mainWindowHiddenForNativeWallpaper:
+          Boolean(mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()),
+        mainWindowRestoredAfterNativeWallpaper: false,
+        controlViewVisible: true,
+        controlViewDiagnosticsVisible: true,
+        controlViewModeSelectorVisible: true,
         nativeWallpaperSurfaceInteractiveUiVisible: false,
         nativeWallpaperSurfaceButtonsVisible: false,
         nativeWallpaperSurfaceExitButtonVisible: false,
         controlViewExitButtonVisible: true,
+        controlViewWindowBounds,
+        mainWindowBounds,
+        mainWindowCoversPrimaryScreen,
+        mainWindowMayBlockDesktopClicks: mainWindowCoversPrimaryScreen,
+        controlViewTransparentOrEmptySuspected: false,
+        desktopIconClickThroughExpected: true,
+        desktopIconClickThroughBlockedSuspected: mainWindowCoversPrimaryScreen,
+        wallpaperWindowMayBlockDesktopClicks: false,
+        controlViewMayBlockDesktopClicks: true,
+        electronWallpaperIgnoreMouseEventsEnabled: true,
+        nativeHostToolWindowEnabled: Boolean(attachResult.nativeHostNoActivateEnabled),
+        mainWindowGameCanvasSuppressed: true,
+        mainWindowGameCanvasSuppressionReason: 'native_probe_control_view_hides_game_canvas',
+        normalGameCanvasVisible: false,
+        normalBackgroundVisible: false,
+        normalMuseVisible: false,
         wallpaperSurfaceClickThroughExpected: true,
         wallpaperSurfaceUiSuppressed: true,
         wallpaperSurfaceUiSuppressionReason: 'native_wallpaper_surface_is_click_through_visual_only',
@@ -437,6 +896,7 @@ async function enterNativeWallpaperMode() {
 
     if (!attachResult.ok || !attachResult.attached) {
       await closeNativeWallpaperWindow();
+      exitNativeWallpaperControlView();
       const message =
         attachResult.message ??
         attachResult.reason ??
@@ -473,6 +933,7 @@ async function enterNativeWallpaperMode() {
     return { ok: true, mode: 'native_desktop_wallpaper' };
   } catch (error) {
     await closeNativeWallpaperWindow();
+    exitNativeWallpaperControlView();
     const message = error instanceof Error ? error.message : String(error);
     setNativeWallpaperStatus({
       active: false,
@@ -657,6 +1118,7 @@ ipcMain.handle('wallpaper:exit-native', async () => {
   await exitNativeWallpaperMode();
   return { ok: true, mode: 'fallback_stage' };
 });
+ipcMain.handle('wallpaper:minimize-control-view', () => minimizeNativeWallpaperControlView());
 ipcMain.handle('wallpaper:get-status', () => refreshNativeWallpaperInspection());
 ipcMain.handle('wallpaper:inspect-native', () => refreshNativeWallpaperInspection());
 ipcMain.handle('wallpaper:helper-status', () => getWallpaperHelperStatus());
@@ -668,6 +1130,7 @@ function createWindow() {
     height: 820,
     minWidth: 1120,
     minHeight: 720,
+    autoHideMenuBar: true,
     backgroundColor: '#00000000',
     transparent: true,
     webPreferences: {
@@ -688,8 +1151,38 @@ function createWindow() {
   mainWindow.on('closed', () => {
     unregisterOverlayShortcuts();
     void closeNativeWallpaperWindow();
+    closeNativeWallpaperControlWindow();
     mainWindow = null;
     overlayState = null;
+  });
+  mainWindow.on('minimize', () => {
+    if (!nativeWallpaperStatus.nativeProbeActive && !nativeWallpaperStatus.probeAttached) {
+      return;
+    }
+    const bounds = mainWindow.getBounds();
+    setNativeWallpaperStatus({
+      controlViewMinimized: true,
+      controlViewVisible: false,
+      controlViewBounds: bounds,
+      controlViewWindowBounds: bounds,
+      mainWindowMayBlockDesktopClicks: false,
+      desktopIconClickThroughBlockedSuspected: false,
+    });
+  });
+  mainWindow.on('restore', () => {
+    if (!nativeWallpaperStatus.nativeProbeActive && !nativeWallpaperStatus.probeAttached) {
+      return;
+    }
+    const bounds = mainWindow.getBounds();
+    const coversPrimary = rectCovers(bounds, screen.getPrimaryDisplay().bounds);
+    setNativeWallpaperStatus({
+      controlViewMinimized: false,
+      controlViewVisible: true,
+      controlViewBounds: bounds,
+      controlViewWindowBounds: bounds,
+      mainWindowMayBlockDesktopClicks: coversPrimary,
+      desktopIconClickThroughBlockedSuspected: coversPrimary,
+    });
   });
 
   if (developmentUrl) {
@@ -717,12 +1210,16 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', (event) => {
-  if (isQuittingAfterNativeWallpaperCleanup || !nativeWallpaperWindow) {
+  if (
+    isQuittingAfterNativeWallpaperCleanup ||
+    (!nativeWallpaperWindow && !nativeWallpaperControlWindow)
+  ) {
     return;
   }
 
   event.preventDefault();
   isQuittingAfterNativeWallpaperCleanup = true;
+  closeNativeWallpaperControlWindow();
   void closeNativeWallpaperWindow().finally(() => {
     app.quit();
   });

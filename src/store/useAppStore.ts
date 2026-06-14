@@ -33,6 +33,8 @@ interface AppStore {
   isTransparentWindowEnabled: boolean;
   nativeWallpaperStatus: NativeWallpaperStatus;
   overlayLastError?: string;
+  previousAppScreenBeforeNativeWallpaper?: AppScreen;
+  restoredAppScreenAfterNativeWallpaperOff?: AppScreen;
   wallpaperMode: WallpaperMode;
   wallpaperSettings: WallpaperSettings;
   settingsReturnScreen: 'title' | 'game';
@@ -123,6 +125,8 @@ export const useAppStore = create<AppStore>((set) => ({
   isTransparentWindowEnabled: false,
   nativeWallpaperStatus: initialNativeWallpaperStatus,
   overlayLastError: undefined,
+  previousAppScreenBeforeNativeWallpaper: undefined,
+  restoredAppScreenAfterNativeWallpaperOff: undefined,
   wallpaperMode: 'off',
   wallpaperSettings: initialWallpaperSettings,
   settingsReturnScreen: 'title',
@@ -179,6 +183,11 @@ export const useAppStore = create<AppStore>((set) => ({
         }
       });
     } else if (mode === 'native_wallpaper') {
+      set((state) => ({
+        previousAppScreenBeforeNativeWallpaper:
+          state.previousAppScreenBeforeNativeWallpaper ?? state.currentScreen,
+        restoredAppScreenAfterNativeWallpaperOff: undefined,
+      }));
       void exitPlatformOverlayMode();
       void enterPlatformNativeWallpaperMode()
         .then((result) => {
@@ -211,24 +220,49 @@ export const useAppStore = create<AppStore>((set) => ({
       void exitPlatformNativeWallpaperMode();
       void exitPlatformOverlayMode();
     }
-    set((state) => ({
-      isDebugPanelOpen: false,
-      isClickThroughEnabled: false,
-      isFocusMode: mode === 'off' ? state.isFocusMode : false,
-      overlayLastError: undefined,
-      isTransparentWindowEnabled: mode === 'muse_overlay',
-      wallpaperMode: mode,
-    }));
+    set((state) => {
+      const restoredScreen =
+        mode === 'off' && state.wallpaperMode === 'native_wallpaper'
+          ? state.previousAppScreenBeforeNativeWallpaper
+          : undefined;
+      return {
+        currentScreen: restoredScreen ?? state.currentScreen,
+        isDebugPanelOpen: false,
+        isClickThroughEnabled: false,
+        isFocusMode: mode === 'off' ? state.isFocusMode : false,
+        overlayLastError: undefined,
+        isTransparentWindowEnabled: mode === 'muse_overlay',
+        previousAppScreenBeforeNativeWallpaper:
+          mode === 'off' && state.wallpaperMode === 'native_wallpaper'
+            ? undefined
+            : state.previousAppScreenBeforeNativeWallpaper,
+        restoredAppScreenAfterNativeWallpaperOff:
+          restoredScreen ?? state.restoredAppScreenAfterNativeWallpaperOff,
+        wallpaperMode: mode,
+      };
+    });
   },
   exitWallpaperMode: () => {
     clearOverlayClickThroughDelay();
     void exitPlatformNativeWallpaperMode();
     void exitPlatformOverlayMode();
-    set({
-      isClickThroughEnabled: false,
-      isTransparentWindowEnabled: false,
-      overlayLastError: undefined,
-      wallpaperMode: 'off',
+    set((state) => {
+      const restoredScreen = state.previousAppScreenBeforeNativeWallpaper;
+      return {
+        currentScreen: restoredScreen ?? state.currentScreen,
+        isClickThroughEnabled: false,
+        isTransparentWindowEnabled: false,
+        nativeWallpaperStatus: {
+          ...state.nativeWallpaperStatus,
+          appScreen: restoredScreen ?? state.currentScreen,
+          restoredAppScreenAfterNativeWallpaperOff: restoredScreen,
+          nativeWallpaperChangedAppScreen: false,
+        },
+        overlayLastError: undefined,
+        previousAppScreenBeforeNativeWallpaper: undefined,
+        restoredAppScreenAfterNativeWallpaperOff: restoredScreen,
+        wallpaperMode: 'off',
+      };
     });
   },
   setAlwaysOnTopEnabled: (enabled) => {
@@ -255,7 +289,38 @@ export const useAppStore = create<AppStore>((set) => ({
     }
     set({ isTransparentWindowEnabled: enabled });
   },
-  applyNativeWallpaperStatus: (nativeWallpaperStatus) => set({ nativeWallpaperStatus }),
+  applyNativeWallpaperStatus: (nativeWallpaperStatus) =>
+    set((state) => {
+      const nativeWallpaperStopped =
+        state.wallpaperMode === 'native_wallpaper' &&
+        nativeWallpaperStatus.active === false &&
+        nativeWallpaperStatus.probeAttached === false &&
+        nativeWallpaperStatus.nativeProbeActive === false &&
+        nativeWallpaperStatus.fallbackActive === false;
+      const restoredScreen = nativeWallpaperStopped
+        ? state.previousAppScreenBeforeNativeWallpaper
+        : undefined;
+
+      return {
+        currentScreen: restoredScreen ?? state.currentScreen,
+        nativeWallpaperStatus: {
+          ...nativeWallpaperStatus,
+          appScreen: restoredScreen ?? state.currentScreen,
+          previousAppScreenBeforeNativeWallpaper: nativeWallpaperStopped
+            ? undefined
+            : state.previousAppScreenBeforeNativeWallpaper,
+          restoredAppScreenAfterNativeWallpaperOff:
+            restoredScreen ?? state.restoredAppScreenAfterNativeWallpaperOff,
+          nativeWallpaperChangedAppScreen: false,
+        },
+        previousAppScreenBeforeNativeWallpaper: nativeWallpaperStopped
+          ? undefined
+          : state.previousAppScreenBeforeNativeWallpaper,
+        restoredAppScreenAfterNativeWallpaperOff:
+          restoredScreen ?? state.restoredAppScreenAfterNativeWallpaperOff,
+        wallpaperMode: nativeWallpaperStopped ? 'off' : state.wallpaperMode,
+      };
+    }),
   applyPlatformOverlayState: (overlayState) =>
     set({
       isAlwaysOnTopEnabled: overlayState.alwaysOnTopEnabled,
@@ -322,6 +387,16 @@ export const useAppStore = create<AppStore>((set) => ({
           : false,
       isTransparentWindowEnabled: false,
       overlayLastError: undefined,
+      currentScreen:
+        state.wallpaperMode === 'native_wallpaper' && state.previousAppScreenBeforeNativeWallpaper
+          ? state.previousAppScreenBeforeNativeWallpaper
+          : state.currentScreen,
+      previousAppScreenBeforeNativeWallpaper:
+        state.wallpaperMode === 'native_wallpaper' ? undefined : state.previousAppScreenBeforeNativeWallpaper,
+      restoredAppScreenAfterNativeWallpaperOff:
+        state.wallpaperMode === 'native_wallpaper'
+          ? state.previousAppScreenBeforeNativeWallpaper
+          : state.restoredAppScreenAfterNativeWallpaperOff,
       wallpaperMode:
         state.wallpaperMode === 'stage' || state.wallpaperMode === 'native_wallpaper'
           ? 'off'

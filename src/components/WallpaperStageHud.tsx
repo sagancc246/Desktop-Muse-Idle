@@ -145,6 +145,13 @@ export function WallpaperStageHud({ onExit }: WallpaperStageHudProps) {
             {nativeWallpaperStatus.mainStageVisible ? 'visible' : 'hidden'}
           </small>
           <small>
+            Control: {nativeWallpaperStatus.controlViewVisible ? 'visible' : 'hidden'} / Bounds:{' '}
+            {nativeWallpaperStatus.controlViewWindowBounds
+              ? JSON.stringify(nativeWallpaperStatus.controlViewWindowBounds)
+              : 'n/a'} / Blocks desktop:{' '}
+            {nativeWallpaperStatus.mainWindowMayBlockDesktopClicks ? 'suspected' : 'false'}
+          </small>
+          <small>
             Back surface UI: {nativeWallpaperStatus.wallpaperSurfaceUiSuppressed ? 'hidden' : 'visible'} /
             Exit: {nativeWallpaperStatus.nativeWallpaperSurfaceExitButtonVisible ? 'surface' : 'control'} /
             Click-through: {nativeWallpaperStatus.wallpaperSurfaceClickThroughExpected ? 'expected' : 'n/a'}

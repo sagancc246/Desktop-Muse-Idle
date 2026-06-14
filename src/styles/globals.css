@@ -226,18 +226,201 @@ select:focus-visible,
 }
 
 .native-probe-control-mode {
-  background: rgba(7, 8, 16, 0.82);
+  background: rgba(7, 8, 16, 0.92);
+  gap: 0;
+  height: 100vh;
+  padding: 0;
+  width: 100vw;
 }
 
 .native-probe-workspace {
   align-items: start;
-  grid-template-columns: minmax(420px, 720px);
+  display: flex;
   justify-content: end;
+  min-height: 100%;
+  padding: 0;
 }
 
 .native-probe-panel-stack {
   max-height: calc(100vh - 150px);
   min-width: min(720px, 100%);
+}
+
+.native-wallpaper-control-view {
+  -webkit-app-region: no-drag;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  padding: 14px;
+  width: 100%;
+}
+
+.native-control-titlebar {
+  -webkit-app-region: drag;
+  align-items: center;
+  background: rgba(15, 18, 42, 0.92);
+  border: 1px solid rgba(145, 132, 221, 0.24);
+  border-radius: 10px;
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: space-between;
+  min-height: 58px;
+  padding: 9px 10px 9px 13px;
+}
+
+.native-control-titlebar h1 {
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: 0;
+  margin: 0;
+}
+
+.native-control-window-actions,
+.native-control-primary-actions {
+  -webkit-app-region: no-drag;
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.native-control-window-actions button,
+.native-control-primary-actions button {
+  background: rgba(42, 43, 76, 0.72);
+  border: 1px solid rgba(131, 128, 191, 0.34);
+  border-radius: 10px;
+  color: #f6f3ff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  min-height: 32px;
+  padding: 7px 11px;
+}
+
+.native-control-window-actions button:hover,
+.native-control-primary-actions button:hover {
+  border-color: rgba(140, 220, 255, 0.62);
+}
+
+.native-control-window-actions .native-control-close {
+  background: rgba(116, 33, 69, 0.68);
+  border-color: rgba(255, 135, 174, 0.42);
+  font-size: 16px;
+  min-width: 30px;
+  padding: 4px 8px;
+}
+
+.native-control-summary {
+  -webkit-app-region: no-drag;
+  background: rgba(11, 13, 31, 0.78);
+  border: 1px solid rgba(145, 132, 221, 0.18);
+  border-radius: 12px;
+  color: var(--text-soft);
+  display: grid;
+  gap: 5px;
+  font-size: 13px;
+  line-height: 1.4;
+  padding: 10px 12px;
+}
+
+.native-control-summary strong {
+  color: #8cdcff;
+}
+
+.native-control-primary-actions {
+  flex: 0 0 auto;
+}
+
+.native-control-mode-row {
+  -webkit-app-region: no-drag;
+  align-items: center;
+  background: rgba(11, 13, 31, 0.62);
+  border: 1px solid rgba(145, 132, 221, 0.16);
+  border-radius: 10px;
+  color: var(--text-soft);
+  display: flex;
+  flex: 0 0 auto;
+  gap: 7px;
+  font-size: 11px;
+  padding: 6px 8px;
+}
+
+.native-control-mode-row span {
+  font-weight: 700;
+  margin-right: auto;
+}
+
+.native-control-mode-row button {
+  background: rgba(42, 43, 76, 0.72);
+  border: 1px solid rgba(131, 128, 191, 0.34);
+  border-radius: 9px;
+  color: #f6f3ff;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  min-height: 28px;
+  padding: 5px 9px;
+}
+
+.native-control-mode-row button.active {
+  border-color: rgba(140, 220, 255, 0.66);
+  color: #8cdcff;
+}
+
+.native-wallpaper-control-diagnostics {
+  -webkit-app-region: no-drag;
+  background: rgba(11, 13, 31, 0.68);
+  border: 1px solid rgba(145, 132, 221, 0.18);
+  border-radius: 10px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 7px 9px;
+}
+
+.native-wallpaper-control-diagnostics summary {
+  color: #f1dcff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.native-wallpaper-control-diagnostics .native-wallpaper-diagnostics {
+  grid-template-columns: 1fr;
+  max-height: 170px;
+  overflow: auto;
+}
+
+.native-wallpaper-control-diagnostics .native-wallpaper-actions {
+  margin-top: 6px;
+}
+
+.native-wallpaper-control-view .wallpaper-mode-panel {
+  -webkit-app-region: no-drag;
+  flex: 0 0 auto;
+  padding: 14px;
+}
+
+.native-wallpaper-control-view .panel-heading {
+  margin-bottom: 12px;
+}
+
+.native-wallpaper-control-view .wallpaper-mode-copy {
+  -webkit-app-region: no-drag;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.native-wallpaper-control-view button,
+.native-wallpaper-control-view input,
+.native-wallpaper-control-view select,
+.native-wallpaper-control-view textarea,
+.native-wallpaper-control-view details,
+.native-wallpaper-control-view summary {
+  -webkit-app-region: no-drag;
 }
 
 .native-wallpaper-surface-mode button,

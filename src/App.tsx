@@ -6,6 +6,7 @@ import { MusePanel } from './components/MusePanel';
 import { MuseOverlayHud } from './components/MuseOverlayHud';
 import { MuseUnlockModal } from './components/MuseUnlockModal';
 import { NeonBackground } from './components/NeonBackground';
+import { NativeWallpaperControlView } from './components/NativeWallpaperControlView';
 import { OfflineRewardModal } from './components/OfflineRewardModal';
 import { PinballBackground } from './components/PinballBackground';
 import { RebootPanel } from './components/RebootPanel';
@@ -34,6 +35,9 @@ import type { CornerHitPosition } from './types/game';
 const isNativeWallpaperRenderer =
   typeof window !== 'undefined' &&
   new URLSearchParams(window.location.search).get('nativeWallpaperRenderer') === '1';
+const isNativeWallpaperControlRenderer =
+  typeof window !== 'undefined' &&
+  new URLSearchParams(window.location.search).get('nativeWallpaperControl') === '1';
 
 const CreditsModal = lazy(() =>
   import('./components/CreditsModal').then(({ CreditsModal }) => ({ default: CreditsModal })),
@@ -112,6 +116,7 @@ export default function App() {
   const stageScale = useStageScale();
   const nativeProbeActive = Boolean(
     !isNativeWallpaperRenderer &&
+      !isNativeWallpaperControlRenderer &&
       wallpaperMode === 'native_wallpaper' &&
       (nativeWallpaperStatus.nativeProbeActive ||
         (nativeWallpaperStatus.probeAttached && nativeWallpaperStatus.needsManualVerification)),
@@ -124,14 +129,15 @@ export default function App() {
   );
   const isWallpaperStageMode =
     isNativeWallpaperRenderer ||
-    wallpaperMode === 'stage' ||
+    (!isNativeWallpaperControlRenderer && wallpaperMode === 'stage') ||
     (wallpaperMode === 'native_wallpaper' && !nativeDisplayActive);
-  const isNativeWallpaperMode = isNativeWallpaperRenderer || wallpaperMode === 'native_wallpaper';
+  const isNativeWallpaperMode =
+    isNativeWallpaperRenderer || isNativeWallpaperControlRenderer || wallpaperMode === 'native_wallpaper';
   const isMuseOverlayMode = wallpaperMode === 'muse_overlay';
   const renderSurface = isNativeWallpaperRenderer
     ? 'native_wallpaper_surface'
-    : nativeProbeActive
-      ? 'main_window'
+    : isNativeWallpaperControlRenderer || nativeProbeActive
+      ? 'control_view'
       : isMuseOverlayMode
         ? 'overlay'
         : isWallpaperStageMode
@@ -333,7 +339,10 @@ export default function App() {
       } else if (event.key.toLowerCase() === 'f') {
         event.preventDefault();
         toggleFocusMode();
-      } else if (event.key === 'Escape' && wallpaperMode !== 'off') {
+      } else if (
+        event.key === 'Escape' &&
+        (wallpaperMode !== 'off' || isNativeWallpaperControlRenderer)
+      ) {
         event.preventDefault();
         exitWallpaperMode();
       } else if (event.key === 'Escape' && isFocusMode) {
@@ -361,7 +370,15 @@ export default function App() {
 
   let screenContent;
 
-  if (!isNativeWallpaperRenderer && currentScreen === 'title') {
+  if (isNativeWallpaperControlRenderer || nativeProbeActive) {
+    screenContent = (
+      <div className="app-shell native-probe-control-mode">
+        <main className="workspace native-probe-workspace">
+          <NativeWallpaperControlView />
+        </main>
+      </div>
+    );
+  } else if (!isNativeWallpaperRenderer && currentScreen === 'title') {
     screenContent = (
       <TitleScreen
         onContinue={() => {
@@ -386,25 +403,6 @@ export default function App() {
     screenContent = <CreditsModal onBack={() => setScreen('title')} />;
   } else if (!isNativeWallpaperRenderer && currentScreen === 'stats') {
     screenContent = <StatsPanel onBack={closeStats} />;
-  } else if (nativeProbeActive) {
-    screenContent = (
-      <div className="app-shell native-probe-control-mode">
-        <NeonBackground />
-        <ResourceBar
-          onFocus={toggleFocusMode}
-          onSettings={() => openSettings('game')}
-          onStats={() => openStats('game')}
-          onWallpaperStage={toggleWallpaperStageMode}
-          wallpaperMode={wallpaperMode}
-        />
-        <main className="workspace native-probe-workspace">
-          <div className="side-panel-stack native-probe-panel-stack">
-            <WallpaperModePanel />
-          </div>
-        </main>
-        {wallpaperSettings.showStageHud ? <WallpaperStageHud onExit={exitWallpaperMode} /> : null}
-      </div>
-    );
   } else {
     screenContent = (
       <div
@@ -500,6 +498,10 @@ export default function App() {
         ) : null}
       </div>
     );
+  }
+
+  if (isNativeWallpaperControlRenderer) {
+    return <Suspense fallback={<LazyStageFallback />}>{screenContent}</Suspense>;
   }
 
   return (

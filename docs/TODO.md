@@ -300,6 +300,55 @@ Next TODO:
   - Confirm Control View Exit Wallpaper removes the back wallpaper.
   - Confirm desktop icon clicks, `Win + D`, Alt+Tab/taskbar absence, OFF, `Esc`, app quit, and ghost cleanup.
   - Keep `attached:false` until the full manual checklist passes.
+- Native Desktop Wallpaper 0.1.13 Control View recovery pending:
+  - Build a fresh package and confirm packaged helper reports `0.1.13`.
+  - Confirm Native Wallpaper ON shows a small foreground Control View with Exit/OFF, Copy diagnostics, mode selector, and native status.
+  - Confirm Control View does not cover the full primary screen.
+  - Confirm `mainWindowMayBlockDesktopClicks:false`, `mainWindowCoversPrimaryScreen:false`, and `controlViewVisible:true`.
+  - Confirm Control View outside area allows desktop icon clicks, desktop right-click menu, and desktop drag selection.
+  - Confirm `renderSurface: control_view` in the main window and `native_wallpaper_surface` only for the back wallpaper renderer.
+  - Confirm Native Wallpaper ON does not reset the app to title.
+  - Confirm OFF/Exit/Esc restores the previous app screen.
+  - Confirm Start/Continue after OFF shows Muse, background, and `GameCanvas`.
+  - Confirm WorkerW back wallpaper remains visible after `Win + D`, and app quit leaves no ghost window.
+  - Keep `attached:false` until the full manual checklist passes.
+- Native Desktop Wallpaper 0.1.14 Control View UX pending:
+  - Build a fresh package and confirm packaged helper reports `0.1.14`.
+  - Confirm Native Wallpaper ON shows only Muse/background on the back surface.
+  - Confirm the foreground is a small `Native Wallpaper Control` panel with titlebar, `Minimize`, right-top close/Exit, Copy Diagnostics, mode selector, and native status.
+  - Confirm the Control View can be dragged to a new position.
+  - Confirm `Minimize` minimizes only the Control View and the back wallpaper remains visible.
+  - Confirm the taskbar can restore the minimized Control View.
+  - Confirm the right-top close button and `Exit Wallpaper` both stop the native wallpaper, clean helper/host/window state, and restore the pre-Native app screen.
+  - Confirm diagnostics show `controlViewMode:native_wallpaper_control`, `controlViewMovable:true`, `controlViewDraggable:true`, `controlViewMinimizeButtonVisible:true`, `controlViewCloseButtonVisible:true`, and `controlViewCloseAction:exit_native_wallpaper`.
+  - Confirm normal GameCanvas / Wallpaper Stage / Muse Overlay do not appear in front while the native probe is active.
+  - Confirm desktop icon clicks, desktop right-click, `Win + D`, app quit, and ghost cleanup still behave correctly.
+  - Keep `attached:false` until the full manual checklist passes.
+- Native Desktop Wallpaper 0.1.15 Control View window resize / menu suppression / compact layout pending:
+  - Build a fresh package and confirm packaged helper reports `0.1.15`.
+  - Confirm Native Wallpaper ON shows Muse/background only on the back surface and no operation UI.
+  - Confirm the foreground Control View BrowserWindow actually resizes to a small panel around `480x320`.
+  - Confirm File/Edit/View/Window menu chrome is not visible while the Control View is active.
+  - Confirm there is no large blank space above the compact Control View content.
+  - Confirm the compact Control View contains titlebar, Minimize, right-top close, Exit Wallpaper, Copy Diagnostics, compact mode row, and collapsible diagnostics.
+  - Confirm diagnostics show `controlViewWindowResized:true`, `controlViewMenuBarVisible:false`, `menuBarSuppressedForControlView:true`, `controlViewLayoutCompact:true`, `controlViewLargeBlankSuppressed:true`, `mainGameLayoutMounted:false`, `wallpaperStageLayoutMounted:false`, and `nativeWallpaperControlViewMounted:true`.
+  - Confirm Minimize affects only the Control View and the back wallpaper remains visible.
+  - Confirm right-top close / Exit Wallpaper / OFF / Esc clean up the host/helper/window and restore the previous app screen and window bounds.
+  - Confirm app quit leaves no ghost window.
+  - Keep `attached:false` until the full manual checklist passes.
+- Native Desktop Wallpaper 0.1.16 dedicated NativeWallpaperControlWindow pending:
+  - Build a fresh package and confirm packaged helper reports `0.1.16`.
+  - Confirm Native Wallpaper ON shows Muse/background only on the back surface.
+  - Confirm the foreground is a separate frameless `Native Wallpaper Control` BrowserWindow, not a resized normal app window.
+  - Confirm the normal `mainWindow` is hidden while Native Wallpaper is active and restored after OFF/Exit.
+  - Confirm Control Window text and buttons are readable at `560x400`.
+  - Confirm only `Minimize`, `Exit Wallpaper`, and `Copy Diagnostics` are shown as primary controls.
+  - Confirm no File/Edit/View/Window menu chrome appears.
+  - Confirm titlebar drag moves the Control Window and buttons remain clickable.
+  - Confirm `Minimize` minimizes only the Control Window and the back wallpaper remains visible.
+  - Confirm `Exit Wallpaper`, `Esc`, Native Wallpaper OFF, and app quit close the Control Window, remove the back wallpaper, restore mainWindow, and leave no ghost windows.
+  - Confirm diagnostics show `nativeWallpaperControlWindowCreated:true`, `nativeWallpaperControlWindowVisible:true`, `nativeWallpaperControlWindowFrameless:true`, `nativeWallpaperControlWindowDraggable:true`, `nativeWallpaperControlWindowRoute:nativeWallpaperControl=1`, `nativeWallpaperControlWindowButtonCount:3`, `duplicateControlButtonsDetected:false`, `mainWindowHiddenForNativeWallpaper:true`, and `mainWindowRestoredAfterNativeWallpaper:true` after exit.
+  - Keep `attached:false` until the full manual checklist passes.
 - Release-before manual check: verify `Win + D`, `Alt + Tab`, desktop-icon layering/clicks, taskbar presence, startup 3-second Click Through safety guide, `Ctrl + Shift + M` recovery, Click Through ON pass-through, Click Through OFF Muse Tap/HUD button interaction, HUD Last Error, and Esc restoration in the packaged Windows build.
 - Release-before manual check: verify Native Desktop Wallpaper Mode on local Windows Electron after the real WorkerW bridge is implemented; check `Win + D`, icon back-layer rendering, icon clicks, Alt + Tab/taskbar absence, app-behind behavior, and Exit restoration.
 - Current MVP manual check: confirm Windows Electron reports Native Wallpaper fallback cleanly and returns to normal mode without leaving a hidden Wallpaper window.

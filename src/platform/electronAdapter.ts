@@ -42,6 +42,11 @@ export const electronAdapter: PlatformAdapter = {
       ok: true,
       mode: 'fallback_stage',
     },
+  minimizeNativeWallpaperControlView: async () =>
+    bridge()?.minimizeNativeWallpaperControlView?.() ?? {
+      ok: false,
+      reason: 'Electron platform bridge is unavailable.',
+    },
   getNativeWallpaperStatus: async () =>
     bridge()?.getNativeWallpaperStatus() ?? fallbackNativeWallpaperStatus,
   getOverlayStatus: async () => bridge()?.getOverlayStatus() ?? fallbackOverlayStatus,

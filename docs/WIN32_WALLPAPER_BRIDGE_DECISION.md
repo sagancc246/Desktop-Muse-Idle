@@ -271,6 +271,42 @@ Decision for `0.1.12`:
 - Add diagnostics that prove the back surface has no interactive UI while the Control View has the exit control.
 - Continue to keep `attached:false`, `probeAttached:true`, and `needsManualVerification:true` until the full checklist passes.
 
+## 0.1.13 Control View Recovery
+
+Packaged `0.1.12` confirmed that the wallpaper surface / Control View split was only partial:
+
+- The back surface showed Muse/background only.
+- `Exit Wallpaper` no longer appeared on the back surface.
+- The foreground Control View could be missing or hard to find.
+- The foreground main window could still cover the desktop and block icon clicks.
+- Returning from Native Wallpaper could leave the app at title or with normal UI but no Muse/background/canvas.
+
+Decision for `0.1.13`:
+
+- Keep the WorkerW child native host path as a probe only.
+- Make the foreground main window an explicit small Control View while native probe is active.
+- Restore the previous main-window geometry and app screen after OFF/Exit/Esc/fallback.
+- Prioritize Control View rendering over title/settings/game screen branches while `nativeProbeActive`.
+- Add diagnostics for window bounds, primary-screen coverage, click blocking, app-screen restoration, and normal-game visibility.
+
+## 0.1.14 Control View UX
+
+Packaged `0.1.13` improved the foreground state enough that only a small Control View remained, but the operation panel itself was still awkward:
+
+- The panel behaved as a fixed foreground window.
+- There was no clear in-app titlebar or right-top close action.
+- Hiding the panel required `Win + D` instead of a normal minimize affordance.
+- Exit/diagnostics needed to stay in the foreground Control View, not on the visual-only wallpaper surface.
+
+Decision for `0.1.14`:
+
+- Keep Native Wallpaper as a manual-verification probe with `attached:false`, `probeAttached:true`, and `needsManualVerification:true`.
+- Add a dedicated draggable `Native Wallpaper Control` titlebar inside the foreground Control View.
+- Add explicit `Minimize` and right-top `Exit Wallpaper` controls.
+- Minimize only the Control View; keep the WorkerW child wallpaper probe alive behind desktop icons.
+- Keep cleanup routed through the existing Native Wallpaper OFF/Exit path so host/helper/window cleanup and previous app-screen restoration are preserved.
+- Add diagnostics for Control View movement, draggable region, minimize/close button visibility, minimized state, bounds, and restore target screen.
+
 ## Manual Verification After Real Attach
 
 Run the packaged Windows build and verify:

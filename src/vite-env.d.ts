@@ -7,6 +7,7 @@ interface DesktopMusePlatformBridge {
   exitOverlayMode: () => Promise<boolean>;
   enterNativeWallpaperMode: () => Promise<NativeWallpaperResult>;
   exitNativeWallpaperMode: () => Promise<NativeWallpaperResult>;
+  minimizeNativeWallpaperControlView?: () => Promise<{ ok: boolean; minimized?: boolean; reason?: string }>;
   getNativeWallpaperStatus: () => Promise<NativeWallpaperStatus>;
   inspectNativeWallpaper?: () => Promise<NativeWallpaperStatus>;
   getOverlayStatus: () => Promise<OverlayStatus>;

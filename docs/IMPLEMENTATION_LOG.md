@@ -639,3 +639,48 @@ Verification results on 2026-06-05:
 - Added CSS safeguards so buttons/inputs/selects/sliders and native wallpaper actions are hidden on `.native-wallpaper-surface-mode`.
 - The foreground native probe Control View remains responsible for Exit, Native Wallpaper OFF, Copy diagnostics, mode selection, settings, and status text.
 - Manual verification is still required; `attached:true` is not promoted in this version.
+
+## Native Wallpaper 0.1.13 Control View Recovery
+
+- Bumped `wallpaper-helper` to `0.1.13`; native host behavior remains probe-only.
+- Recorded the `0.1.12` packaged result: the back wallpaper surface correctly hid `Exit Wallpaper`, but the foreground Control View could be lost, the main window could still block desktop clicks, and returning from Native Wallpaper could leave the normal game canvas/background missing.
+- Added a dedicated native wallpaper Control View window state in Electron. When a native probe is active, the main window is restored from minimized/fullscreen/maximized state, resized to a small right-side control panel, and kept focused/visible.
+- Added restoration of the previous main-window bounds/minimum size/resizable/always-on-top state when Native Wallpaper exits or falls back.
+- Changed renderer priority so `nativeProbeActive` always renders Control View, regardless of whether the app screen state is title/settings/game.
+- Tightened render surface diagnostics: main window reports `renderSurface: "control_view"`, while only `nativeWallpaperRenderer=1` is treated as `native_wallpaper_surface`.
+- Added app-screen restoration diagnostics and store state: `previousAppScreenBeforeNativeWallpaper`, `restoredAppScreenAfterNativeWallpaperOff`, `nativeWallpaperChangedAppScreen`, and canvas suppression reason.
+- Added desktop click-blocking diagnostics: main/control bounds, primary-screen coverage, suspected desktop click blocking, Electron ignore-mouse-events, native host transparent/no-activate/toolwindow flags, and normal game visibility flags.
+- `attached:true` is still not promoted; `probeAttached:true` and `needsManualVerification:true` remain the packaged verification state.
+
+## Native Wallpaper 0.1.14 Control View UX
+
+- Bumped `wallpaper-helper` to `0.1.14`; native host behavior remains probe-only and `attached:true` is still not promoted.
+- Treated the foreground Native Wallpaper Control View as a small normal operation panel rather than a fixed foreground layout.
+- Added a dedicated `NativeWallpaperControlView` with a titlebar-style drag region, `Minimize`, right-top `Exit Wallpaper` close action, Copy Diagnostics, mode selector, and native status.
+- Added Electron IPC for minimizing only the Control View while keeping the WorkerW child native wallpaper probe alive.
+- Added Control View diagnostics: `controlViewMode`, `controlViewMovable`, `controlViewDraggable`, `controlViewMinimizeButtonVisible`, `controlViewCloseButtonVisible`, `controlViewCloseAction`, `controlViewMinimized`, `controlViewBounds`, and `controlViewRestoreTargetScreen`.
+- Reduced the Control View initial size and kept it right-side aligned so it should not cover the primary screen or block desktop clicks outside the panel.
+- Removed the foreground WallpaperStageHud from native probe Control View rendering so the front surface remains one small operation panel.
+- The back native wallpaper surface remains visual-only; interactive UI stays in the foreground Control View.
+
+## Native Wallpaper 0.1.15 Control View Window Resize / Menu Suppression / Compact Layout
+
+- Bumped `wallpaper-helper` to `0.1.15`; native host behavior remains probe-only and `attached:true` is still not promoted.
+- Recorded the `0.1.14` packaged result: the back native wallpaper surface no longer showed operation UI, but the foreground Control View still lived inside a normal large BrowserWindow with a visible File/Edit/View/Window menu and excess blank space.
+- When a native probe becomes active, Electron now saves the main window bounds, maximized/minimized/fullscreen state, resizable state, always-on-top state, menu object, and menu bar visibility.
+- The foreground main window is resized to a compact Control View target (`480x320`, right-top aligned), exits fullscreen/maximized state, disables resizing, and lowers the minimum size so the packaged window can actually shrink.
+- Control View menu chrome is suppressed with `setMenu(null)`, `setMenuBarVisibility(false)`, and `setAutoHideMenuBar(true)`.
+- Native Wallpaper OFF / Exit / Esc / app quit cleanup restores the saved window bounds, resizable/minimum-size state, always-on-top state, menu, menu bar visibility, and previous minimized/maximized/fullscreen state.
+- The Control View renderer no longer mounts the normal `WallpaperModePanel`; it uses a compact titlebar, summary, Exit/Copy buttons, compact mode row, and collapsible diagnostics area.
+- Added diagnostics for saved/restored main window state, menu suppression, compact layout, large blank suppression, and whether main game / wallpaper stage / native control layouts are mounted.
+
+## Native Wallpaper 0.1.16 Dedicated NativeWallpaperControlWindow
+
+- Bumped `wallpaper-helper` to `0.1.16`; native host behavior remains probe-only and `attached:true` is still not promoted.
+- Recorded the `0.1.15` packaged result: back-surface rendering continued, but forcing the existing `mainWindow` into a Control View still inherited normal app window/layout behavior, produced tiny text, duplicate controls, and did not drag reliably.
+- Replaced the main-window resize approach with a dedicated frameless `Native Wallpaper Control` BrowserWindow loaded with `nativeWallpaperControl=1`.
+- Native Wallpaper ON now hides the normal `mainWindow` after saving its bounds/state, creates the dedicated Control Window, and keeps the WorkerW child wallpaper probe alive behind the desktop.
+- Native Wallpaper OFF / Exit / Esc / app quit now closes the Control Window and restores the saved main-window bounds/state/screen.
+- The dedicated Control Window mounts only `NativeWallpaperControlView`, bypassing the normal `appViewport` / 1920x1080 game stage / GameCanvas / Wallpaper Stage layouts.
+- Reduced Control View buttons to `Minimize`, `Exit Wallpaper`, and `Copy Diagnostics`; duplicate close/off/mode buttons are intentionally omitted.
+- Added dedicated Control Window diagnostics: creation/visibility/bounds, frameless/draggable route, button count, duplicate button detection, main-window hidden/restored flags.

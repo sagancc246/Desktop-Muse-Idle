@@ -23,6 +23,10 @@ export async function exitPlatformNativeWallpaperMode() {
   return platformAdapter.exitNativeWallpaperMode?.();
 }
 
+export async function minimizePlatformNativeWallpaperControlView() {
+  return platformAdapter.minimizeNativeWallpaperControlView?.();
+}
+
 export async function getPlatformNativeWallpaperStatus() {
   return platformAdapter.getNativeWallpaperStatus?.();
 }

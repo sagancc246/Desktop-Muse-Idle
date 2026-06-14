@@ -9,7 +9,11 @@ const wallpaperModeLabels: Record<WallpaperMode, string> = {
   muse_overlay: 'Muse Overlay',
 };
 
-export function WallpaperModePanel() {
+interface WallpaperModePanelProps {
+  showNativeStatus?: boolean;
+}
+
+export function WallpaperModePanel({ showNativeStatus = true }: WallpaperModePanelProps) {
   const wallpaperMode = useAppStore((state) => state.wallpaperMode);
   const nativeWallpaperStatus = useAppStore((state) => state.nativeWallpaperStatus);
   const setWallpaperMode = useAppStore((state) => state.setWallpaperMode);
@@ -86,7 +90,7 @@ export function WallpaperModePanel() {
           Control View for Exit, settings, and diagnostics.
         </p>
       ) : null}
-      {wallpaperMode === 'native_wallpaper' ? (
+      {showNativeStatus && wallpaperMode === 'native_wallpaper' ? (
         <NativeWallpaperStatus className="wallpaper-mode-copy" />
       ) : null}
     </section>

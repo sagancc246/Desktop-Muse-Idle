@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('desktopMusePlatform', {
     ipcRenderer.invoke('desktop-muse-idle:set-transparent-window', Boolean(enabled)),
   enterNativeWallpaperMode: () => ipcRenderer.invoke('wallpaper:enter-native'),
   exitNativeWallpaperMode: () => ipcRenderer.invoke('wallpaper:exit-native'),
+  minimizeNativeWallpaperControlView: () => ipcRenderer.invoke('wallpaper:minimize-control-view'),
   getNativeWallpaperStatus: () => ipcRenderer.invoke('wallpaper:get-status'),
   inspectNativeWallpaper: () => ipcRenderer.invoke('wallpaper:inspect-native'),
   onNativeWallpaperStatus: (callback) => {
