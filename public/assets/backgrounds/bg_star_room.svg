@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs><radialGradient id="sky" cx="50%" cy="32%" r="70%"><stop offset="0" stop-color="#2c5f8d"/><stop offset=".55" stop-color="#101d3d"/><stop offset="1" stop-color="#060812"/></radialGradient></defs>
+  <rect width="1920" height="1080" fill="url(#sky)"/>
+  <g fill="#dff8ff" opacity=".75">
+    <circle cx="260" cy="180" r="4"/><circle cx="420" cy="310" r="3"/><circle cx="760" cy="170" r="5"/><circle cx="1120" cy="260" r="3"/><circle cx="1500" cy="160" r="5"/><circle cx="1660" cy="360" r="4"/>
+  </g>
+  <rect y="700" width="1920" height="380" fill="#111329"/>
+  <path d="M720 720h480l120 360H600z" fill="#20264c"/>
+  <circle cx="960" cy="560" r="150" fill="none" stroke="#8cdcff" stroke-width="10" opacity=".55"/>
+  <text x="960" y="890" fill="#b7eeff" font-family="Arial,sans-serif" font-size="42" text-anchor="middle">Star Room Placeholder</text>
+</svg>

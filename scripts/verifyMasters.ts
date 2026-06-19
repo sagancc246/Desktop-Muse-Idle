@@ -1,7 +1,9 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { backgrounds, initialBackgroundId, initialUnlockedBackgroundIds } from '../src/data/backgrounds';
+import { capsules } from '../src/data/capsules';
 import { initialActiveMuseIds, initialUnlockedMuseIds, muses } from '../src/data/muses';
+import { monsterAssets } from '../src/data/monsters';
 import {
   getStageRewardClaimKey,
   migrateLegacyStageRewardClaims,
@@ -43,6 +45,8 @@ const stageIds = new Set(stages.map((stage) => stage.id));
 const museIds = new Set(muses.map((muse) => muse.id));
 const skinIds = new Set(museSkins.map((skin) => skin.id));
 const backgroundIds = new Set(backgrounds.map((background) => background.id));
+const capsuleIds = new Set(capsules.map((capsule) => capsule.id));
+const monsterIds = new Set(monsterAssets.map((monster) => monster.id));
 const skillIds = new Set(Object.keys(skills));
 
 function validateUniqueIds(scope: string, ids: string[]): void {
@@ -75,8 +79,8 @@ function validateUnlockCondition(scope: string, condition: UnlockCondition): voi
     case 'capsule':
       if (condition.targetId !== undefined && !isNonEmptyString(condition.targetId)) {
         addError(report, scope, 'capsule targetId must be a non-empty string when provided');
-      } else {
-        addWarning(report, scope, 'capsule reference cannot be checked until capsules master exists');
+      } else if (condition.targetId !== undefined && !capsuleIds.has(condition.targetId)) {
+        addError(report, scope, `capsule targetId ${condition.targetId} not found in capsules`);
       }
       return;
     case 'shard_exchange':
@@ -124,8 +128,8 @@ function validateReward(scope: string, reward: Reward): void {
       return;
     case 'capsule':
       if (!isNonEmptyString(reward.id)) addError(report, scope, 'capsule reward id is required');
+      else if (!capsuleIds.has(reward.id)) addError(report, scope, `reward capsule:${reward.id} not found in capsules`);
       if (!isPositiveNumber(reward.amount)) addError(report, scope, 'capsule reward amount must be positive');
-      addWarning(report, scope, `capsule:${reward.id} cannot be checked until capsules master exists`);
       return;
     case 'memory':
     case 'shard':
@@ -143,6 +147,8 @@ validateUniqueIds('stages', stages.map((stage) => stage.id));
 validateUniqueIds('muses', muses.map((muse) => muse.id));
 validateUniqueIds('skins', museSkins.map((skin) => skin.id));
 validateUniqueIds('backgrounds', backgrounds.map((background) => background.id));
+validateUniqueIds('capsules', capsules.map((capsule) => capsule.id));
+validateUniqueIds('monsters', monsterAssets.map((monster) => monster.id));
 validateUniqueIds('skills', Object.values(skills).map((skill) => skill.id));
 validateUniqueIds('upgrades', upgradeIds);
 
@@ -223,6 +229,16 @@ for (const background of backgrounds) {
 }
 if (initialUnlockedBackgroundIds.length === 0) addError(report, 'backgrounds', 'at least one initial background is required');
 
+for (const monster of monsterAssets) {
+  const scope = `monsters:${monster.id}`;
+  if (!monsterIds.has(monster.id)) addError(report, scope, `monster id ${monster.id} is not registered`);
+  if (!isNonEmptyString(monster.name)) addError(report, scope, 'name must not be empty');
+  if (!isNonEmptyString(monster.spriteAsset)) addError(report, scope, 'spriteAsset must not be empty');
+  else if (!assetPathExists(monster.spriteAsset)) addError(report, scope, `sprite asset not found: ${monster.spriteAsset}`);
+  if (!isNonEmptyString(monster.fallbackSpriteAsset)) addError(report, scope, 'fallbackSpriteAsset must not be empty');
+  else if (!assetPathExists(monster.fallbackSpriteAsset)) addError(report, scope, `fallback sprite asset not found: ${monster.fallbackSpriteAsset}`);
+}
+
 for (const skill of Object.values(skills)) {
   const scope = `skills:${skill.id}`;
   if (!isNonNegativeNumber(skill.durationMs)) addError(report, scope, 'durationMs must be non-negative');
@@ -286,5 +302,7 @@ if (report.errors.length > 0) {
   console.log(`Muses: ${muses.length}`);
   console.log(`Skins: ${museSkins.length}`);
   console.log(`Backgrounds: ${backgrounds.length}`);
+  console.log(`Capsules: ${capsules.length}`);
+  console.log(`Monsters: ${monsterAssets.length}`);
   console.log(`Warnings: ${report.warnings.length}`);
 }

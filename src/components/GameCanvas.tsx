@@ -40,6 +40,7 @@ import { useAppStore } from '../store/useAppStore';
 import { useGameStore } from '../store/useGameStore';
 import { playCornerHitSound, playMuseTapVoice, prepareAudioSystem } from '../systems/audioSystem';
 import { fallbackBackgroundImagePath, warnAssetFallbackOnce } from '../systems/assetFallbacks';
+import { resolveMonsterSpriteAsset } from '../systems/monsterAssetResolver';
 import type { CornerHitPosition, MotionIntensity, Muse } from '../types/game';
 
 interface BurstParticle {
@@ -223,7 +224,9 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
       let isBackgroundImageReady = false;
       const activeMuses = new Map<string, ActiveMuseBody>();
       const vegaBumperRewardAtByPair = new Map<string, number>();
-      const memorySlimeAssetPath = './assets/monsters/memory_slime.png';
+      const memorySlimeAsset = resolveMonsterSpriteAsset('memory_slime');
+      const memorySlimeAssetPath = memorySlimeAsset.assetPath;
+      const memorySlimeFallbackAssetPath = memorySlimeAsset.fallbackAssetPath;
       let memorySlimeTexture: Texture | null = null;
       let isMemorySlimeTextureReady = false;
       let debugLastEvent = 'GameCanvas ready';
@@ -262,11 +265,20 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
         try {
           applyMemorySlimeTexture(await Assets.load<Texture>(memorySlimeAssetPath));
         } catch {
-          isMemorySlimeTextureReady = false;
           warnAssetFallbackOnce(
             'monster-icon:memory_slime',
-            `Monster asset missing at ${memorySlimeAssetPath}; using circle fallback.`,
+            `Monster asset missing at ${memorySlimeAssetPath}; using Memory Slime fallback asset.`,
           );
+
+          try {
+            applyMemorySlimeTexture(await Assets.load<Texture>(memorySlimeFallbackAssetPath));
+          } catch {
+            isMemorySlimeTextureReady = false;
+            warnAssetFallbackOnce(
+              'monster-icon:memory_slime:fallback',
+              `Monster fallback asset missing at ${memorySlimeFallbackAssetPath}; using circle fallback.`,
+            );
+          }
         }
       };
 

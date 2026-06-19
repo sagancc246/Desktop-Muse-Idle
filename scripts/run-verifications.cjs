@@ -149,6 +149,7 @@ async function main() {
     // priority3 and verify:save-migrations intentionally point to the same migration suite.
     await runNpm('verify:priority3');
     await runNpm('verify:masters');
+    await runNpm('verify:memory-slime-fallback');
     return;
   }
 
