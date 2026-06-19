@@ -60,11 +60,16 @@ interface TapEffect {
 interface ActiveMuseBody {
   runtimeId: string;
   muse: Muse;
+  monsterId: 'memory_slime';
   body: BounceBody;
   baseRadius: number;
   isClone: boolean;
   glow: Graphics;
-  icon: Graphics;
+  icon: Container;
+  fallbackIcon: Graphics;
+  slimeSprite: Sprite;
+  squashAxis: 'x' | 'y' | 'corner' | null;
+  squashRemaining: number;
 }
 
 interface GameCanvasProps {
@@ -218,6 +223,9 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
       let isBackgroundImageReady = false;
       const activeMuses = new Map<string, ActiveMuseBody>();
       const vegaBumperRewardAtByPair = new Map<string, number>();
+      const memorySlimeAssetPath = './assets/monsters/memory_slime.png';
+      let memorySlimeTexture: Texture | null = null;
+      let isMemorySlimeTextureReady = false;
       let debugLastEvent = 'GameCanvas ready';
       let debugLastEventAt: number | null = null;
       let debugStatusElapsedMs = 0;
@@ -239,6 +247,39 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
       };
       const radii: Record<string, number> = { lumi: 46, astra: 40, noir: 43, vega: 44 };
       let handleMuseTap = (_runtime: ActiveMuseBody) => undefined;
+
+      const applyMemorySlimeTexture = (texture: Texture) => {
+        memorySlimeTexture = texture;
+        isMemorySlimeTextureReady = true;
+        for (const runtime of activeMuses.values()) {
+          runtime.slimeSprite.texture = texture;
+          runtime.slimeSprite.visible = true;
+          runtime.fallbackIcon.visible = false;
+        }
+      };
+
+      const loadMemorySlimeTexture = async () => {
+        try {
+          applyMemorySlimeTexture(await Assets.load<Texture>(memorySlimeAssetPath));
+        } catch {
+          isMemorySlimeTextureReady = false;
+          warnAssetFallbackOnce(
+            'monster-icon:memory_slime',
+            `Monster asset missing at ${memorySlimeAssetPath}; using circle fallback.`,
+          );
+        }
+      };
+
+      const createMemorySlimeVisual = () => {
+        const icon = new Container();
+        const fallbackIcon = new Graphics();
+        const slimeSprite = new Sprite(memorySlimeTexture ?? Texture.EMPTY);
+        slimeSprite.anchor.set(0.5);
+        slimeSprite.visible = isMemorySlimeTextureReady;
+        fallbackIcon.visible = !isMemorySlimeTextureReady;
+        icon.addChild(fallbackIcon, slimeSprite);
+        return { fallbackIcon, icon, slimeSprite };
+      };
 
       const getMuseIconAsset = (muse: Muse) =>
         getEquippedSkinForMuse(muse.id, useGameStore.getState().equippedSkinByMuseId)?.iconAsset ??
@@ -327,14 +368,20 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
         body.vx *= index === 1 ? -1 : 1;
         body.vy *= index === 2 ? -1 : 1;
 
+        const visual = createMemorySlimeVisual();
         const runtime = {
           runtimeId: muse.id,
           muse,
+          monsterId: 'memory_slime' as const,
           body,
           baseRadius: radius,
           isClone: false,
           glow: new Graphics(),
-          icon: new Graphics(),
+          icon: visual.icon,
+          fallbackIcon: visual.fallbackIcon,
+          slimeSprite: visual.slimeSprite,
+          squashAxis: null,
+          squashRemaining: 0,
         };
         runtime.icon.eventMode = 'static';
         runtime.icon.cursor = 'pointer';
@@ -422,6 +469,7 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
         const runtime: ActiveMuseBody = {
           runtimeId,
           muse: source.muse,
+          monsterId: 'memory_slime',
           body: {
             ...source.body,
             radius: baseRadius,
@@ -431,7 +479,9 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
           baseRadius,
           isClone: true,
           glow: new Graphics(),
-          icon: new Graphics(),
+          ...createMemorySlimeVisual(),
+          squashAxis: null,
+          squashRemaining: 0,
         };
         rotateBodyVelocity(runtime.body, directionOffset);
         museLayer.addChild(runtime.glow, runtime.icon);
@@ -524,7 +574,7 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
       const drawMuses = (pulseTime = 0) => {
         bumperNotice.visible = false;
         for (const runtime of activeMuses.values()) {
-          const { body, muse, icon, glow } = runtime;
+          const { body, muse, icon, glow, fallbackIcon, slimeSprite } = runtime;
           const palette = getMusePalette(muse);
           const scale = body.radius / 46;
           const isVegaBumperActive =
@@ -549,22 +599,88 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
             bumperNotice.visible = true;
             bumperNotice.alpha = 0.74 + Math.sin(pulseTime * 5.2) * 0.16;
           }
-          icon
+          icon.position.set(body.x, body.y);
+          const squashProgress =
+            runtime.squashRemaining > 0 ? Math.min(1, runtime.squashRemaining / 0.16) : 0;
+          const squashEase = Math.sin(squashProgress * Math.PI * 0.5);
+          const cornerPop = runtime.squashAxis === 'corner' ? 1 + 0.2 * squashEase : 1;
+          const squashX =
+            runtime.squashAxis === 'x'
+              ? 0.82 + 0.18 * (1 - squashEase)
+              : runtime.squashAxis === 'y'
+                ? 1.16 - 0.16 * (1 - squashEase)
+                : cornerPop;
+          const squashY =
+            runtime.squashAxis === 'y'
+              ? 0.82 + 0.18 * (1 - squashEase)
+              : runtime.squashAxis === 'x'
+                ? 1.16 - 0.16 * (1 - squashEase)
+                : cornerPop;
+          icon.scale.set(squashX, squashY);
+          fallbackIcon
             .clear()
-            .circle(body.x, body.y, body.radius)
+            .circle(0, 0, body.radius)
             .fill({ color: palette.fill })
             .stroke({
               color: isVegaBumperActive ? 0xffd681 : palette.outline,
               alpha: isVegaBumperActive ? 0.94 : 0.76,
               width: isVegaBumperActive ? 4 : 2,
             })
-            .circle(body.x, body.y - 8 * scale, 17 * scale)
+            .circle(0, -8 * scale, 17 * scale)
             .fill({ color: palette.figure, alpha: 0.84 })
-            .roundRect(body.x - 24 * scale, body.y + 12 * scale, 48 * scale, 21 * scale, 10 * scale)
+            .roundRect(-24 * scale, 12 * scale, 48 * scale, 21 * scale, 10 * scale)
             .fill({ color: palette.figure, alpha: 0.84 });
+          if (isMemorySlimeTextureReady) {
+            const textureSize = Math.max(slimeSprite.texture.width, slimeSprite.texture.height, 1);
+            const targetSize = body.radius * 2.35;
+            const spriteScale = targetSize / textureSize;
+            slimeSprite.scale.set(spriteScale);
+            slimeSprite.visible = true;
+            fallbackIcon.visible = false;
+          } else {
+            slimeSprite.visible = false;
+            fallbackIcon.visible = true;
+          }
           glow.alpha = runtime.isClone ? 0.5 : 1;
           icon.alpha = runtime.isClone ? 0.58 : 1;
         }
+      };
+
+      const triggerSlimeImpact = (
+        runtime: ActiveMuseBody,
+        collision: { hitXWall: boolean; hitYWall: boolean; isCornerHit: boolean },
+      ) => {
+        runtime.squashAxis = collision.isCornerHit
+          ? 'corner'
+          : collision.hitXWall
+            ? 'x'
+            : collision.hitYWall
+              ? 'y'
+              : null;
+        runtime.squashRemaining = collision.isCornerHit ? 0.24 : 0.16;
+      };
+
+      const triggerSlimeCornerBurst = (runtime: ActiveMuseBody) => {
+        const maxLife = 0.46;
+        const graphic = new Graphics()
+          .circle(runtime.body.x, runtime.body.y, runtime.body.radius + 14)
+          .stroke({ color: 0x7dffff, alpha: 0.9, width: 4 })
+          .circle(runtime.body.x, runtime.body.y, runtime.body.radius + 28)
+          .stroke({ color: 0xffd681, alpha: 0.58, width: 2 });
+
+        for (let index = 0; index < 8; index += 1) {
+          const angle = (Math.PI * 2 * index) / 8;
+          graphic
+            .circle(
+              runtime.body.x + Math.cos(angle) * (runtime.body.radius + 23),
+              runtime.body.y + Math.sin(angle) * (runtime.body.radius + 23),
+              3.4,
+            )
+            .fill({ color: index % 2 === 0 ? 0x7dffff : 0xffd681, alpha: 0.92 });
+        }
+
+        tapEffectLayer.addChild(graphic);
+        tapEffects.push({ graphic, life: maxLife, maxLife });
       };
 
       const triggerCornerEffects = (
@@ -926,6 +1042,7 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
 
       drawArena();
       void updateBackground(useGameStore.getState().currentBackgroundId);
+      void loadMemorySlimeTexture();
       skillNotice.position.set(app.screen.width / 2, app.screen.height * 0.29);
       syncMuseBodies(useGameStore.getState().activeMuseIds);
       drawMuses();
@@ -1056,6 +1173,7 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
           runtime.body = result.body;
 
           if (result.bounced) {
+            triggerSlimeImpact(runtime, result.collision);
             const wallRewardMultiplier = getCloneWallRewardMultiplier(runtime.isClone);
             const bounceReward = Math.max(
               1,
@@ -1083,6 +1201,7 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
                 unlockedSkillNodes.lucky_corner > 0 ? 'lucky_corner' : 'corner_hit';
               recordCornerHit(cornerReward);
               triggerCornerHitFlash(cornerPosition);
+              triggerSlimeCornerBurst(runtime);
               triggerCornerEffects(
                 bounceReward + cornerReward,
                 runtime.body,
@@ -1167,6 +1286,14 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
         }
         const deltaSeconds = deltaMs / 1_000;
         pulseTime += deltaSeconds;
+        for (const runtime of activeMuses.values()) {
+          if (runtime.squashRemaining > 0) {
+            runtime.squashRemaining = Math.max(0, runtime.squashRemaining - deltaSeconds);
+            if (runtime.squashRemaining === 0) {
+              runtime.squashAxis = null;
+            }
+          }
+        }
         effectManager.update(deltaSeconds);
         if (skillNoticeTime > 0) {
           skillNoticeTime -= deltaSeconds;

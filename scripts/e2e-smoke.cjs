@@ -86,6 +86,10 @@ async function main() {
 
   await click('Settings');
   await waitFor('Settings opens', async () => (await text()).includes('SETTINGS'));
+  await assert('Settings includes display mode choices', async () => {
+    const visible = await text();
+    return visible.includes('Display Mode') && visible.includes('ウィンドウ') && visible.includes('フルスクリーン');
+  });
   await click('Back');
   await click('Gallery');
   await waitFor('Gallery opens', async () => (await text()).includes('Still Gallery'));

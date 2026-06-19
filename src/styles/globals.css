@@ -41,6 +41,104 @@ button {
   font: inherit;
 }
 
+.electron-window-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  width: 100%;
+}
+
+.electron-window-root.has-titlebar .appViewport {
+  flex: 1 1 auto;
+  height: calc(100vh - 36px);
+  min-height: 0;
+}
+
+.electron-window-root.fullscreen .appViewport {
+  height: 100vh;
+}
+
+.window-titlebar {
+  -webkit-app-region: drag;
+  app-region: drag;
+  align-items: center;
+  background:
+    linear-gradient(90deg, rgba(13, 16, 36, 0.96), rgba(20, 18, 45, 0.96)),
+    #0d1024;
+  border-bottom: 1px solid rgba(145, 132, 221, 0.24);
+  color: #ebe8fa;
+  display: flex;
+  flex: 0 0 36px;
+  height: 36px;
+  justify-content: space-between;
+  min-height: 36px;
+  padding: 0 6px 0 14px;
+  user-select: none;
+  width: 100%;
+  z-index: 20;
+}
+
+.electron-window-root.fullscreen .window-titlebar {
+  left: 0;
+  opacity: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+  transform: translateY(-30px);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+
+.electron-window-root.fullscreen .window-titlebar:hover,
+.electron-window-root.fullscreen .window-titlebar:focus-within {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.window-titlebar-title {
+  color: #cfc9ea;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.window-titlebar-actions {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+  align-items: center;
+  display: flex;
+  gap: 4px;
+  height: 100%;
+}
+
+.window-titlebar-actions button {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: #d9d5ef;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 15px;
+  height: 30px;
+  justify-content: center;
+  padding: 0;
+  width: 42px;
+}
+
+.window-titlebar-actions button:hover {
+  background: rgba(140, 220, 255, 0.14);
+  color: #ffffff;
+}
+
+.window-titlebar-actions .window-titlebar-close:hover {
+  background: rgba(218, 65, 107, 0.78);
+}
+
 button:focus-visible,
 input:focus-visible,
 select:focus-visible,

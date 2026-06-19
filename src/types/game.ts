@@ -153,6 +153,8 @@ export type EffectsQuality = 'low' | 'medium' | 'high';
 
 export type MotionIntensity = 'low' | 'medium' | 'high';
 
+export type WindowDisplayMode = 'windowed' | 'fullscreen';
+
 export type WallpaperMode = 'off' | 'stage' | 'muse_overlay' | 'native_wallpaper';
 
 export interface OverlayWindowPreferences {
@@ -188,6 +190,7 @@ export interface AppSettings {
   language: Language;
   effectsQuality: EffectsQuality;
   motionIntensity: MotionIntensity;
+  windowDisplayMode: WindowDisplayMode;
   autoSaveEnabled: boolean;
 }
 

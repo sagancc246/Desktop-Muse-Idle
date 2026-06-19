@@ -2,7 +2,22 @@
 
 const { contextBridge, ipcRenderer } = require('electron');
 
+const displayModes = new Set(['windowed', 'fullscreen']);
+const normalizeDisplayMode = (mode) => (displayModes.has(mode) ? mode : 'windowed');
+
+const desktopMuse = {
+  quitApp: () => ipcRenderer.invoke('app:quit'),
+  getDisplayMode: () => ipcRenderer.invoke('window:get-display-mode'),
+  minimizeWindow: () => ipcRenderer.invoke('window:minimize'),
+  setDisplayMode: (mode) =>
+    ipcRenderer.invoke('window:set-display-mode', normalizeDisplayMode(mode)),
+  toggleFullscreen: () => ipcRenderer.invoke('window:toggle-fullscreen'),
+};
+
+contextBridge.exposeInMainWorld('desktopMuse', desktopMuse);
+
 contextBridge.exposeInMainWorld('desktopMusePlatform', {
+  ...desktopMuse,
   enterOverlayMode: () => ipcRenderer.invoke('desktop-muse-idle:enter-overlay-mode'),
   exitOverlayMode: () => ipcRenderer.invoke('desktop-muse-idle:exit-overlay-mode'),
   setAlwaysOnTop: (enabled) =>

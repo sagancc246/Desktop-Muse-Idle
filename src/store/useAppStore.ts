@@ -7,6 +7,7 @@ import {
   getPlatformNativeWallpaperStatus,
   getPlatformOverlayStatus,
   isElectronOverlayAvailable,
+  setPlatformDisplayMode,
   setPlatformAlwaysOnTop,
   setPlatformClickThrough,
   setPlatformTransparentWindow,
@@ -19,7 +20,7 @@ import {
   saveWallpaperSettings as saveStoredWallpaperSettings,
 } from '../systems/settingsStorage';
 import { clearTutorialSeen, loadTutorialSeen, saveTutorialSeen } from '../systems/tutorialSystem';
-import type { AppSettings, WallpaperMode, WallpaperSettings } from '../types/game';
+import type { AppSettings, WallpaperMode, WallpaperSettings, WindowDisplayMode } from '../types/game';
 
 export type AppScreen = 'title' | 'game' | 'settings' | 'gallery' | 'credits' | 'stats';
 
@@ -68,6 +69,7 @@ interface AppStore {
   toggleFocusMode: () => void;
   exitFocusMode: () => void;
   updateSettings: (settings: Partial<AppSettings>) => void;
+  setWindowDisplayMode: (mode: WindowDisplayMode) => void;
 }
 
 const initialSettings = loadSettings();
@@ -456,4 +458,23 @@ export const useAppStore = create<AppStore>((set) => ({
       saveSettings(settings);
       return { settings };
     }),
+  setWindowDisplayMode: (mode) => {
+    const state = useAppStore.getState();
+    const displayModeLocked =
+      state.wallpaperMode === 'native_wallpaper' ||
+      state.nativeWallpaperStatus.active === true ||
+      state.nativeWallpaperStatus.probeAttached === true ||
+      state.nativeWallpaperStatus.nativeProbeActive === true;
+
+    if (displayModeLocked) {
+      return;
+    }
+
+    const settings = { ...state.settings, windowDisplayMode: mode };
+    saveSettings(settings);
+    set({ settings });
+    void setPlatformDisplayMode(mode).catch(() => {
+      // Browser preview and partial Electron bridges must remain safe no-ops.
+    });
+  },
 }));

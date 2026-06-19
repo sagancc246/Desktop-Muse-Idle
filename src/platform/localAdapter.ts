@@ -1,6 +1,9 @@
 import type { PlatformAdapter } from './platformAdapter';
 
 const noop = async () => undefined;
+const getDisplayMode = async () => 'windowed' as const;
+const setDisplayMode = async (mode: 'windowed' | 'fullscreen') => mode;
+const toggleFullscreen = async () => 'windowed' as const;
 const unsupportedNativeWallpaper = async () => ({
   ok: false,
   mode: 'unsupported' as const,
@@ -29,6 +32,11 @@ const getOverlayStatus = async () => ({
 
 export const localAdapter: PlatformAdapter = {
   platformId: 'local',
+  quitApp: noop,
+  getDisplayMode,
+  minimizeWindow: noop,
+  setDisplayMode,
+  toggleFullscreen,
   enterOverlayMode: noop,
   exitOverlayMode: noop,
   enterNativeWallpaperMode: unsupportedNativeWallpaper,

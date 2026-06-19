@@ -1,3 +1,5 @@
+import type { WindowDisplayMode } from '../types/game';
+
 export interface OverlayStatus {
   active: boolean;
   alwaysOnTop: boolean;
@@ -236,10 +238,19 @@ export interface NativeWallpaperStatus {
   workerWSelectionOrder?: unknown[];
   warnings?: string[];
   dryRun?: boolean;
+  displayMode?: WindowDisplayMode;
+  displayModeLocked?: boolean;
+  electronApiAvailable?: boolean;
+  quitAvailable?: boolean;
 }
 
 export interface PlatformAdapter {
   readonly platformId: 'electron' | 'local' | 'steam';
+  quitApp?: () => Promise<void>;
+  getDisplayMode?: () => Promise<WindowDisplayMode>;
+  minimizeWindow?: () => Promise<void>;
+  setDisplayMode?: (mode: WindowDisplayMode) => Promise<WindowDisplayMode>;
+  toggleFullscreen?: () => Promise<WindowDisplayMode>;
   enterOverlayMode?: () => Promise<void>;
   exitOverlayMode?: () => Promise<void>;
   enterNativeWallpaperMode?: () => Promise<NativeWallpaperResult>;

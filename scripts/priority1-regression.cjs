@@ -173,6 +173,10 @@ async function main() {
     const text = await visibleText();
     return text.includes('Manual Save') && text.includes('Last Saved: Not saved yet');
   });
+  await assert('Settings shows Windowed and Fullscreen display mode choices', async () => {
+    const text = await visibleText();
+    return text.includes('Display Mode') && text.includes('ウィンドウ') && text.includes('フルスクリーン');
+  });
   await clickButton('Back');
   await waitFor('Settings returns to title', async () => (await visibleText()).includes('Prototype Build'));
 

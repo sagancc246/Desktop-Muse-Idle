@@ -1,6 +1,7 @@
 import type { NativeWallpaperStatus, OverlayStatus, PlatformAdapter } from './platformAdapter';
 
 const bridge = () => window.desktopMusePlatform;
+const appBridge = () => window.desktopMuse;
 const fallbackOverlayStatus: OverlayStatus = {
   active: false,
   alwaysOnTop: false,
@@ -25,6 +26,18 @@ const fallbackNativeWallpaperStatus: NativeWallpaperStatus = {
 
 export const electronAdapter: PlatformAdapter = {
   platformId: 'electron',
+  quitApp: async () => {
+    await (appBridge()?.quitApp() ?? bridge()?.quitApp?.());
+  },
+  getDisplayMode: async () =>
+    (await (appBridge()?.getDisplayMode() ?? bridge()?.getDisplayMode?.())) ?? 'windowed',
+  minimizeWindow: async () => {
+    await (appBridge()?.minimizeWindow() ?? bridge()?.minimizeWindow?.());
+  },
+  setDisplayMode: async (mode) =>
+    (await (appBridge()?.setDisplayMode(mode) ?? bridge()?.setDisplayMode?.(mode))) ?? mode,
+  toggleFullscreen: async () =>
+    (await (appBridge()?.toggleFullscreen() ?? bridge()?.toggleFullscreen?.())) ?? 'windowed',
   enterOverlayMode: async () => {
     await bridge()?.enterOverlayMode();
   },

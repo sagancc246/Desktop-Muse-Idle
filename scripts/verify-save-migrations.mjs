@@ -56,6 +56,7 @@ globalThis.window = { localStorage: storage };
 const saveSystem = await importBundledModule('./src/systems/saveSystem.ts');
 const settingsSystem = await importBundledModule('./src/systems/settingsSystem.ts');
 const settingsStorage = await importBundledModule('./src/systems/settingsStorage.ts');
+const electronAdapterModule = await importBundledModule('./src/platform/electronAdapter.ts');
 const skins = await importBundledModule('./src/data/skins.ts');
 const stages = await importBundledModule('./src/data/stages.ts');
 const backgrounds = await importBundledModule('./src/data/backgrounds.ts');
@@ -148,6 +149,7 @@ storeJson(storage, settingsStorageKey, legacySettings);
 assert.deepEqual(settingsSystem.loadSettings(), {
   ...legacySettings,
   motionIntensity: 'medium',
+  windowDisplayMode: 'windowed',
 });
 
 storeJson(storage, settingsStorageKey, incompleteSettings);
@@ -292,6 +294,31 @@ assert.deepEqual(settingsStorage.loadWallpaperSettings(), {
   fps: 60,
   bgmEnabled: true,
 });
+
+const desktopMuseCalls = [];
+globalThis.window.desktopMuse = {
+  async quitApp() {
+    desktopMuseCalls.push(['quitApp']);
+  },
+  async getDisplayMode() {
+    desktopMuseCalls.push(['getDisplayMode']);
+    return 'fullscreen';
+  },
+  async setDisplayMode(mode) {
+    desktopMuseCalls.push(['setDisplayMode', mode]);
+    return mode;
+  },
+};
+assert.equal(await electronAdapterModule.electronAdapter.getDisplayMode(), 'fullscreen');
+assert.equal(await electronAdapterModule.electronAdapter.setDisplayMode('fullscreen'), 'fullscreen');
+assert.equal(await electronAdapterModule.electronAdapter.setDisplayMode('windowed'), 'windowed');
+await electronAdapterModule.electronAdapter.quitApp();
+assert.deepEqual(desktopMuseCalls, [
+  ['getDisplayMode'],
+  ['setDisplayMode', 'fullscreen'],
+  ['setDisplayMode', 'windowed'],
+  ['quitApp'],
+]);
 
 saveSystem.saveGameState(saveSystem.createNewGameState());
 const persistedGameSave = storage.getItem(saveStorageKey);

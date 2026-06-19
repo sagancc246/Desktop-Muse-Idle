@@ -1,8 +1,22 @@
 /// <reference types="vite/client" />
 
 import type { NativeWallpaperResult, NativeWallpaperStatus, OverlayStatus } from './platform/platformAdapter';
+import type { WindowDisplayMode } from './types/game';
+
+interface DesktopMuseBridge {
+  getDisplayMode: () => Promise<WindowDisplayMode>;
+  minimizeWindow: () => Promise<void>;
+  quitApp: () => Promise<void>;
+  setDisplayMode: (mode: WindowDisplayMode) => Promise<WindowDisplayMode>;
+  toggleFullscreen: () => Promise<WindowDisplayMode>;
+}
 
 interface DesktopMusePlatformBridge {
+  getDisplayMode?: () => Promise<WindowDisplayMode>;
+  minimizeWindow?: () => Promise<void>;
+  quitApp?: () => Promise<void>;
+  setDisplayMode?: (mode: WindowDisplayMode) => Promise<WindowDisplayMode>;
+  toggleFullscreen?: () => Promise<WindowDisplayMode>;
   enterOverlayMode: () => Promise<boolean>;
   exitOverlayMode: () => Promise<boolean>;
   enterNativeWallpaperMode: () => Promise<NativeWallpaperResult>;
@@ -21,6 +35,7 @@ interface DesktopMusePlatformBridge {
 
 declare global {
   interface Window {
+    desktopMuse?: DesktopMuseBridge;
     desktopMusePlatform?: DesktopMusePlatformBridge;
   }
 }

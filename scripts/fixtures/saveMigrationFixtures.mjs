@@ -39,6 +39,7 @@ export const savedSettings = {
   language: 'en',
   effectsQuality: 'high',
   motionIntensity: 'low',
+  windowDisplayMode: 'fullscreen',
   autoSaveEnabled: false,
 };
 

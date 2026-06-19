@@ -13,6 +13,14 @@ const {
 const { createWallpaperWindow } = require('./wallpaperWindow.cjs');
 
 const developmentUrl = process.env.VITE_DEV_SERVER_URL;
+const normalWindowDefaultBounds = {
+  width: 1280,
+  height: 720,
+};
+const normalWindowMinBounds = {
+  width: 960,
+  height: 540,
+};
 let mainWindow = null;
 let overlayState = null;
 let overlayLastError = null;
@@ -24,6 +32,7 @@ let suppressNativeWallpaperControlCloseStatus = false;
 let nativeWallpaperControlWindowState = null;
 let lastNativeWallpaperControlRestore = null;
 let controlViewRestoreLastResult = null;
+let normalWindowDisplayMode = 'windowed';
 let nativeWallpaperStatus = {
   active: false,
   appVersion: app.getVersion(),
@@ -38,7 +47,64 @@ let nativeWallpaperStatus = {
     process.platform === 'win32' ? undefined : 'Native wallpaper is only available on Windows.',
   nativeAttached: false,
   supported: process.platform === 'win32',
+  displayMode: 'windowed',
+  displayModeLocked: false,
+  electronApiAvailable: true,
+  quitAvailable: true,
 };
+
+function normalizeDisplayMode(mode) {
+  return mode === 'fullscreen' ? 'fullscreen' : 'windowed';
+}
+
+function getDisplayModeForWindow(win) {
+  if (win && !win.isDestroyed() && win === mainWindow) {
+    return normalWindowDisplayMode;
+  }
+
+  return win && !win.isDestroyed() && win.isFullScreen() ? 'fullscreen' : 'windowed';
+}
+
+function ensureNormalWindowBounds(win, { forceDefaultSize = false } = {}) {
+  if (!win || win.isDestroyed()) {
+    return false;
+  }
+
+  if (win.isMinimized()) {
+    win.restore();
+  }
+  if (win.isMaximized()) {
+    win.unmaximize();
+  }
+
+  const [width, height] = win.getSize();
+  const needsSizeReset = width < normalWindowMinBounds.width || height < normalWindowMinBounds.height;
+
+  if (!forceDefaultSize && !needsSizeReset) {
+    return false;
+  }
+
+  const display = screen.getDisplayMatching(win.getBounds());
+  const workArea = display.workArea;
+  win.setBounds({
+    x: Math.round(workArea.x + (workArea.width - normalWindowDefaultBounds.width) / 2),
+    y: Math.round(workArea.y + (workArea.height - normalWindowDefaultBounds.height) / 2),
+    width: normalWindowDefaultBounds.width,
+    height: normalWindowDefaultBounds.height,
+  });
+  return true;
+}
+
+function isDisplayModeLocked() {
+  return Boolean(
+    nativeWallpaperStatus.active ||
+      nativeWallpaperStatus.nativeProbeActive ||
+      nativeWallpaperStatus.probeAttached ||
+      nativeWallpaperStatus.nativeAttached ||
+      nativeWallpaperWindow ||
+      nativeWallpaperControlWindow,
+  );
+}
 
 function sameHwnd(left, right) {
   if (!left || !right) {
@@ -700,13 +766,23 @@ function exitNativeWallpaperControlView() {
 }
 
 function getNativeWallpaperStatus() {
-  return nativeWallpaperStatus;
+  return {
+    ...nativeWallpaperStatus,
+    displayMode: getDisplayModeForWindow(mainWindow),
+    displayModeLocked: isDisplayModeLocked(),
+    electronApiAvailable: true,
+    quitAvailable: true,
+  };
 }
 
 function setNativeWallpaperStatus(updates) {
   nativeWallpaperStatus = {
     ...nativeWallpaperStatus,
     ...updates,
+    displayMode: getDisplayModeForWindow(mainWindow),
+    displayModeLocked: isDisplayModeLocked(),
+    electronApiAvailable: true,
+    quitAvailable: true,
   };
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('wallpaper:native-status', nativeWallpaperStatus);
@@ -1240,6 +1316,96 @@ ipcMain.handle('desktop-muse-idle:enter-overlay-mode', () => {
   enterOverlayMode();
   return true;
 });
+ipcMain.handle('app:quit', () => {
+  app.quit();
+});
+ipcMain.handle('window:get-display-mode', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  return getDisplayModeForWindow(win);
+});
+ipcMain.handle('window:minimize', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win.isDestroyed()) {
+    return false;
+  }
+
+  win.minimize();
+  return true;
+});
+ipcMain.handle('window:set-display-mode', (event, mode) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const nextMode = normalizeDisplayMode(mode);
+
+  if (!win || win.isDestroyed()) {
+    return 'windowed';
+  }
+
+  if (isDisplayModeLocked()) {
+    return getDisplayModeForWindow(win);
+  }
+
+  if (nextMode === 'fullscreen') {
+    normalWindowDisplayMode = 'fullscreen';
+    win.setFullScreen(true);
+  } else {
+    normalWindowDisplayMode = 'windowed';
+    if (win.isFullScreen()) {
+      win.once('leave-full-screen', () => ensureNormalWindowBounds(win, { forceDefaultSize: true }));
+      win.setFullScreen(false);
+      setTimeout(() => ensureNormalWindowBounds(win, { forceDefaultSize: true }), 250);
+    } else {
+      ensureNormalWindowBounds(win, { forceDefaultSize: true });
+    }
+  }
+
+  setNativeWallpaperStatus({
+    displayMode: nextMode,
+    displayModeLocked: false,
+  });
+  return nextMode;
+});
+ipcMain.handle('window:toggle-fullscreen', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+
+  if (!win || win.isDestroyed()) {
+    return 'windowed';
+  }
+
+  if (isDisplayModeLocked()) {
+    return getDisplayModeForWindow(win);
+  }
+
+  if (win.isFullScreen()) {
+    normalWindowDisplayMode = 'windowed';
+    win.once('leave-full-screen', () => ensureNormalWindowBounds(win, { forceDefaultSize: true }));
+    win.setFullScreen(false);
+    setTimeout(() => ensureNormalWindowBounds(win, { forceDefaultSize: true }), 250);
+    setNativeWallpaperStatus({
+      displayMode: 'windowed',
+      displayModeLocked: false,
+    });
+    return 'windowed';
+  }
+
+  if (getDisplayModeForWindow(win) === 'fullscreen') {
+    normalWindowDisplayMode = 'windowed';
+    win.setFullScreen(false);
+    ensureNormalWindowBounds(win, { forceDefaultSize: true });
+    setNativeWallpaperStatus({
+      displayMode: 'windowed',
+      displayModeLocked: false,
+    });
+    return 'windowed';
+  }
+
+  normalWindowDisplayMode = 'fullscreen';
+  win.setFullScreen(true);
+  setNativeWallpaperStatus({
+    displayMode: 'fullscreen',
+    displayModeLocked: false,
+  });
+  return 'fullscreen';
+});
 ipcMain.handle('desktop-muse-idle:exit-overlay-mode', () => {
   exitOverlayMode();
   return true;
@@ -1274,11 +1440,12 @@ ipcMain.handle('wallpaper:helper-status', () => getWallpaperHelperStatus());
 function createWindow() {
   mainWindow = new BrowserWindow({
     title: 'Desktop Muse Idle',
-    width: 1280,
-    height: 820,
-    minWidth: 1120,
-    minHeight: 720,
+    width: normalWindowDefaultBounds.width,
+    height: normalWindowDefaultBounds.height,
+    minWidth: normalWindowMinBounds.width,
+    minHeight: normalWindowMinBounds.height,
     autoHideMenuBar: true,
+    frame: false,
     backgroundColor: '#00000000',
     transparent: true,
     webPreferences: {
@@ -1288,6 +1455,10 @@ function createWindow() {
       sandbox: true,
     },
   });
+  mainWindow.setMinimumSize(normalWindowMinBounds.width, normalWindowMinBounds.height);
+  mainWindow.setAspectRatio(16 / 9);
+  ensureNormalWindowBounds(mainWindow);
+  mainWindow.once('ready-to-show', () => ensureNormalWindowBounds(mainWindow));
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https://') || url.startsWith('http://')) {

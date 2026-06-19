@@ -4,7 +4,7 @@ import { NativeWallpaperStatus } from './NativeWallpaperStatus';
 import { useAppStore } from '../store/useAppStore';
 import { useGameStore } from '../store/useGameStore';
 import { localize } from '../systems/localization';
-import { isElectronOverlayAvailable } from '../platform/platform';
+import { isElectronDisplayModeAvailable, isElectronOverlayAvailable } from '../platform/platform';
 import type {
   EffectsQuality,
   Language,
@@ -36,6 +36,7 @@ export function SettingsModal({ onBack, onStats }: SettingsModalProps) {
     (state) => state.setTransparentWindowEnabled,
   );
   const updateSettings = useAppStore((state) => state.updateSettings);
+  const setWindowDisplayMode = useAppStore((state) => state.setWindowDisplayMode);
   const replayTutorial = useAppStore((state) => state.replayTutorial);
   const resetSaveData = useGameStore((state) => state.resetSaveData);
   const manualSave = useGameStore((state) => state.manualSave);
@@ -60,6 +61,11 @@ export function SettingsModal({ onBack, onStats }: SettingsModalProps) {
         minute: '2-digit',
       }).format(new Date(lastSavedAt))
     : 'Not saved yet';
+  const displayModeLocked =
+    wallpaperMode === 'native_wallpaper' ||
+    nativeWallpaperStatus.active === true ||
+    nativeWallpaperStatus.probeAttached === true ||
+    nativeWallpaperStatus.nativeProbeActive === true;
 
   useFocusTrap(settingsPanelRef, !showResetConfirm);
   useFocusTrap(resetDialogRef, showResetConfirm);
@@ -175,6 +181,25 @@ export function SettingsModal({ onBack, onStats }: SettingsModalProps) {
               <option value="high">high</option>
             </select>
           </label>
+          <label className="setting-row">
+            <span>Display Mode</span>
+            <select
+              aria-label="Display Mode"
+              disabled={displayModeLocked}
+              onChange={(event) =>
+                setWindowDisplayMode(event.target.value as typeof settings.windowDisplayMode)
+              }
+              value={settings.windowDisplayMode}
+            >
+              <option value="windowed">ウィンドウ</option>
+              <option value="fullscreen">フルスクリーン</option>
+            </select>
+          </label>
+          {displayModeLocked && (
+            <p className="settings-help">
+              Native Wallpaper Mode is active, so display mode changes are locked.
+            </p>
+          )}
           <div className="setting-row toggle-row">
             <span>Auto Save</span>
             <button
@@ -343,7 +368,7 @@ export function SettingsModal({ onBack, onStats }: SettingsModalProps) {
           </div>
           <p className="settings-help">
             {isElectronOverlayAvailable()
-              ? 'Electron Overlay: transparency is automatic in Muse Overlay. Click Through can also be toggled with Ctrl + Shift + M.'
+              ? `Electron Overlay: transparency is automatic in Muse Overlay. Display Mode is ${isElectronDisplayModeAvailable() ? 'available' : 'not available in this bridge'}. Click Through can also be toggled with Ctrl + Shift + M.`
               : 'Web Preview: Electron window controls are unavailable and remain safe no-ops.'}
           </p>
           <div className="setting-row toggle-row">

@@ -19,6 +19,7 @@ import { TitleScreen } from './components/TitleScreen';
 import { UpgradePanel } from './components/UpgradePanel';
 import { WallpaperModePanel } from './components/WallpaperModePanel';
 import { WallpaperStageHud } from './components/WallpaperStageHud';
+import { WindowTitleBar } from './components/WindowTitleBar';
 import { STAGE_HEIGHT, STAGE_WIDTH, useStageScale } from './hooks/useStageScale';
 import { calculateOfflineReward } from './game/offlineReward';
 import { useAppStore } from './store/useAppStore';
@@ -26,9 +27,12 @@ import { useGameStore } from './store/useGameStore';
 import { setWallpaperBgmMuted } from './systems/audioSystem';
 import {
   isElectronOverlayAvailable,
+  isElectronWindowControlsAvailable,
+  getPlatformDisplayMode,
   onPlatformNativeWallpaperStatus,
   onPlatformOverlayExitRequested,
   onPlatformOverlayState,
+  setPlatformDisplayMode,
 } from './platform/platform';
 import type { CornerHitPosition } from './types/game';
 
@@ -96,6 +100,7 @@ export default function App() {
   const autoSaveEnabled = useAppStore((state) => state.settings.autoSaveEnabled);
   const language = useAppStore((state) => state.settings.language);
   const motionIntensity = useAppStore((state) => state.settings.motionIntensity);
+  const windowDisplayMode = useAppStore((state) => state.settings.windowDisplayMode);
   const startNewGame = useGameStore((state) => state.startNewGame);
   const continueGame = useGameStore((state) => state.continueGame);
   const autoSave = useGameStore((state) => state.autoSave);
@@ -113,6 +118,7 @@ export default function App() {
   const lastCornerHitFlash = useGameStore((state) => state.lastCornerHitFlash);
   const [pinballCornerHit, setPinballCornerHit] = useState<CornerHitPosition | null>(null);
   const [galleryOpenRequestKey, setGalleryOpenRequestKey] = useState(0);
+  const [currentDisplayMode, setCurrentDisplayMode] = useState(windowDisplayMode);
   const stageScale = useStageScale();
   const nativeProbeActive = Boolean(
     !isNativeWallpaperRenderer &&
@@ -158,6 +164,20 @@ export default function App() {
     !pendingStageClear &&
     !pendingBackfillRewards &&
     !newlyUnlockedMuseIds[0];
+  const shouldShowWindowTitleBar =
+    isElectronWindowControlsAvailable() &&
+    !isNativeWallpaperRenderer &&
+    !isNativeWallpaperControlRenderer &&
+    !nativeProbeActive &&
+    wallpaperMode === 'off';
+
+  useEffect(() => {
+    void getPlatformDisplayMode().then((mode) => {
+      if (mode) {
+        setCurrentDisplayMode(mode);
+      }
+    });
+  }, []);
 
   useEffect(() => {
     if (!lastCornerHitFlash) {
@@ -271,6 +291,21 @@ export default function App() {
   useEffect(() => {
     useGameStore.getState().refreshMemoryPerSecond(motionIntensity);
   }, [motionIntensity]);
+
+  useEffect(() => {
+    if (isNativeWallpaperRenderer || isNativeWallpaperControlRenderer || wallpaperMode === 'native_wallpaper') {
+      return;
+    }
+
+    if (windowDisplayMode !== 'fullscreen') {
+      setCurrentDisplayMode('windowed');
+      return;
+    }
+
+    void setPlatformDisplayMode('fullscreen').then((mode) => {
+      setCurrentDisplayMode(mode ?? 'fullscreen');
+    });
+  }, [wallpaperMode, windowDisplayMode]);
 
   useEffect(() => {
     setWallpaperBgmMuted(wallpaperMode !== 'off' && !wallpaperSettings.bgmEnabled);
@@ -505,7 +540,15 @@ export default function App() {
   }
 
   return (
-    <div className={`appViewport${isMuseOverlayMode ? ' muse-overlay-viewport' : ''}`}>
+    <div
+      className={`electron-window-root${shouldShowWindowTitleBar ? ' has-titlebar' : ''}${
+        currentDisplayMode === 'fullscreen' ? ' fullscreen' : ''
+      }`}
+    >
+      {shouldShowWindowTitleBar ? (
+        <WindowTitleBar displayMode={currentDisplayMode} onDisplayModeChange={setCurrentDisplayMode} />
+      ) : null}
+      <div className={`appViewport${isMuseOverlayMode ? ' muse-overlay-viewport' : ''}`}>
       <div
         className="gameStage"
         style={{
@@ -516,6 +559,7 @@ export default function App() {
       >
         <Suspense fallback={<LazyStageFallback />}>{screenContent}</Suspense>
       </div>
+    </div>
     </div>
   );
 }

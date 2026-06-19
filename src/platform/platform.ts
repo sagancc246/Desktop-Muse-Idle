@@ -1,11 +1,47 @@
 import { electronAdapter } from './electronAdapter';
 import { localAdapter } from './localAdapter';
 import type { NativeWallpaperStatus, OverlayStatus, PlatformAdapter } from './platformAdapter';
+import type { WindowDisplayMode } from '../types/game';
 
 export const platformAdapter: PlatformAdapter =
-  typeof window !== 'undefined' && window.desktopMusePlatform ? electronAdapter : localAdapter;
+  typeof window !== 'undefined' && (window.desktopMusePlatform || window.desktopMuse)
+    ? electronAdapter
+    : localAdapter;
 
 export const isElectronOverlayAvailable = () => platformAdapter.platformId === 'electron';
+export const isElectronAppQuitAvailable = () =>
+  platformAdapter.platformId === 'electron' &&
+  typeof window !== 'undefined' &&
+  typeof window.desktopMuse?.quitApp === 'function';
+export const isElectronDisplayModeAvailable = () =>
+  platformAdapter.platformId === 'electron' &&
+  typeof window !== 'undefined' &&
+  typeof window.desktopMuse?.setDisplayMode === 'function';
+export const isElectronWindowControlsAvailable = () =>
+  platformAdapter.platformId === 'electron' &&
+  typeof window !== 'undefined' &&
+  typeof window.desktopMuse?.minimizeWindow === 'function' &&
+  typeof window.desktopMuse?.toggleFullscreen === 'function';
+
+export async function quitPlatformApp() {
+  await platformAdapter.quitApp?.();
+}
+
+export async function getPlatformDisplayMode() {
+  return platformAdapter.getDisplayMode?.();
+}
+
+export async function minimizePlatformWindow() {
+  await platformAdapter.minimizeWindow?.();
+}
+
+export async function setPlatformDisplayMode(mode: WindowDisplayMode) {
+  return platformAdapter.setDisplayMode?.(mode);
+}
+
+export async function togglePlatformFullscreen() {
+  return platformAdapter.toggleFullscreen?.();
+}
 
 export async function enterPlatformOverlayMode() {
   await platformAdapter.enterOverlayMode?.();

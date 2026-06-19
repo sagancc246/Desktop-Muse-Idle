@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { isElectronAppQuitAvailable, quitPlatformApp } from '../platform/platform';
 import { hasSaveData } from '../systems/saveSystem';
+import { useGameStore } from '../store/useGameStore';
 
 interface TitleScreenProps {
   onContinue: () => void;
@@ -21,6 +23,17 @@ export function TitleScreen({
   const [quitNotice, setQuitNotice] = useState(false);
   const startButtonRef = useRef<HTMLButtonElement>(null);
   const canContinue = hasSaveData();
+  const autoSave = useGameStore((state) => state.autoSave);
+
+  const handleQuit = () => {
+    if (!isElectronAppQuitAvailable()) {
+      setQuitNotice(true);
+      return;
+    }
+
+    autoSave();
+    void quitPlatformApp();
+  };
 
   useEffect(() => {
     const timerId = window.setTimeout(() => startButtonRef.current?.focus(), 0);
@@ -78,7 +91,7 @@ export function TitleScreen({
           <button
             aria-describedby={quitNotice ? 'quit-notice' : undefined}
             className="title-action"
-            onClick={() => setQuitNotice(true)}
+            onClick={handleQuit}
             type="button"
           >
             Quit
