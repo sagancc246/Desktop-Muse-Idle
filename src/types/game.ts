@@ -160,6 +160,7 @@ export interface MuseSkin {
 
 export interface MuseTapState {
   isTapBoostActive: boolean;
+  tapBoostStack: number;
   tapBoostEndsAt: number;
   tapCooldownEndsAt: number;
   lastTapVoiceId: string | null;

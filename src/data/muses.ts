@@ -156,6 +156,7 @@ export function createInitialMuseTapStates() {
       muse.id,
       {
         isTapBoostActive: false,
+        tapBoostStack: 0,
         tapBoostEndsAt: 0,
         tapCooldownEndsAt: 0,
         lastTapVoiceId: null,

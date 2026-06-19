@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { getBackgroundById } from '../data/backgrounds';
 import { calculateRebootFragments } from '../data/balance';
-import { museTapCooldownMs, museTapDurationMs } from '../data/balance';
 import { getMuseById } from '../data/muses';
 import {
   getStageRewardClaimKey,
@@ -28,6 +27,11 @@ import {
   calculateCornerReward,
   calculateOfflineMemoryPerSecond,
 } from '../game/rewardCalculator';
+import {
+  applyMuseTapBoost,
+  canApplyMuseTapBoost,
+  expireMuseTapBoost,
+} from '../game/tapActions';
 import {
   clearSaveData,
   createNewGameState,
@@ -706,8 +710,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       !muse ||
       !tapState ||
       !muse.tapVoices.some((tapVoice) => tapVoice.id === voiceId) ||
-      tapState.isTapBoostActive ||
-      now < tapState.tapCooldownEndsAt
+      !canApplyMuseTapBoost(tapState, now)
     ) {
       return false;
     }
@@ -715,12 +718,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set((state) => ({
       museTapStates: {
         ...state.museTapStates,
-        [museId]: {
-          isTapBoostActive: true,
-          tapBoostEndsAt: now + museTapDurationMs,
-          tapCooldownEndsAt: now + museTapCooldownMs,
-          lastTapVoiceId: voiceId,
-        },
+        [museId]: applyMuseTapBoost(state.museTapStates[museId], voiceId, now),
       },
     }));
     return true;
@@ -741,8 +739,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           Object.entries(state.museTapStates).map(([museId, tapState]) => [
             museId,
             {
-              ...tapState,
-              isTapBoostActive: tapState.isTapBoostActive && now < tapState.tapBoostEndsAt,
+              ...expireMuseTapBoost(tapState, now),
             },
           ]),
         ),
@@ -833,6 +830,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           {
             ...tapState,
             isTapBoostActive: false,
+            tapBoostStack: 0,
             tapBoostEndsAt: 0,
             tapCooldownEndsAt: 0,
           },
@@ -1064,12 +1062,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set((state) => ({
       museTapStates: {
         ...state.museTapStates,
-        [muse.id]: {
-          isTapBoostActive: true,
-          tapBoostEndsAt: now + museTapDurationMs,
-          tapCooldownEndsAt: now + museTapCooldownMs,
-          lastTapVoiceId: voiceId,
-        },
+        [muse.id]: applyMuseTapBoost(state.museTapStates[muse.id], voiceId, now),
       },
     }));
   },

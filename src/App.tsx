@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { FocusHud } from './components/FocusHud';
 import { BackfillRewardsModal } from './components/BackfillRewardsModal';
 import { FirstRunTutorial } from './components/FirstRunTutorial';
@@ -26,8 +26,8 @@ import { useAppStore } from './store/useAppStore';
 import { useGameStore } from './store/useGameStore';
 import { setWallpaperBgmMuted } from './systems/audioSystem';
 import {
+  isElectronDisplayModeAvailable,
   isElectronOverlayAvailable,
-  isElectronWindowControlsAvailable,
   getPlatformDisplayMode,
   onPlatformNativeWallpaperStatus,
   onPlatformOverlayExitRequested,
@@ -42,6 +42,39 @@ const isNativeWallpaperRenderer =
 const isNativeWallpaperControlRenderer =
   typeof window !== 'undefined' &&
   new URLSearchParams(window.location.search).get('nativeWallpaperControl') === '1';
+
+type AppRenderSurface =
+  | 'main_window'
+  | 'wallpaper_stage'
+  | 'overlay'
+  | 'control_view'
+  | 'native_wallpaper_surface';
+
+const fullscreenTitleBarAutoHideMs = 2_600;
+
+function canUseTitleBar(renderSurface: AppRenderSurface) {
+  return renderSurface === 'main_window' || renderSurface === 'wallpaper_stage';
+}
+
+function shouldShowTitleBar({
+  displayMode,
+  isFullscreenTitleBarVisible,
+  renderSurface,
+}: {
+  displayMode: 'windowed' | 'fullscreen';
+  isFullscreenTitleBarVisible: boolean;
+  renderSurface: AppRenderSurface;
+}) {
+  if (!canUseTitleBar(renderSurface)) {
+    return false;
+  }
+
+  if (displayMode === 'fullscreen') {
+    return isFullscreenTitleBarVisible;
+  }
+
+  return true;
+}
 
 const CreditsModal = lazy(() =>
   import('./components/CreditsModal').then(({ CreditsModal }) => ({ default: CreditsModal })),
@@ -119,6 +152,8 @@ export default function App() {
   const [pinballCornerHit, setPinballCornerHit] = useState<CornerHitPosition | null>(null);
   const [galleryOpenRequestKey, setGalleryOpenRequestKey] = useState(0);
   const [currentDisplayMode, setCurrentDisplayMode] = useState(windowDisplayMode);
+  const [isFullscreenTitleBarVisible, setFullscreenTitleBarVisible] = useState(true);
+  const fullscreenTitleBarTimerRef = useRef<number | null>(null);
   const stageScale = useStageScale();
   const nativeProbeActive = Boolean(
     !isNativeWallpaperRenderer &&
@@ -140,7 +175,7 @@ export default function App() {
   const isNativeWallpaperMode =
     isNativeWallpaperRenderer || isNativeWallpaperControlRenderer || wallpaperMode === 'native_wallpaper';
   const isMuseOverlayMode = wallpaperMode === 'muse_overlay';
-  const renderSurface = isNativeWallpaperRenderer
+  const renderSurface: AppRenderSurface = isNativeWallpaperRenderer
     ? 'native_wallpaper_surface'
     : isNativeWallpaperControlRenderer || nativeProbeActive
       ? 'control_view'
@@ -164,12 +199,58 @@ export default function App() {
     !pendingStageClear &&
     !pendingBackfillRewards &&
     !newlyUnlockedMuseIds[0];
-  const shouldShowWindowTitleBar =
-    isElectronWindowControlsAvailable() &&
-    !isNativeWallpaperRenderer &&
-    !isNativeWallpaperControlRenderer &&
-    !nativeProbeActive &&
-    wallpaperMode === 'off';
+  const isFullscreenDisplayMode = currentDisplayMode === 'fullscreen';
+  const canShowWindowTitleBar = canUseTitleBar(renderSurface);
+  const shouldShowWindowTitleBar = shouldShowTitleBar({
+    displayMode: currentDisplayMode,
+    isFullscreenTitleBarVisible,
+    renderSurface,
+  });
+  const shouldShowFullscreenRevealZone =
+    canShowWindowTitleBar && isFullscreenDisplayMode && !nativeWallpaperSurface;
+
+  const debugFullscreenTitleBar = (message: string) => {
+    if (!import.meta.env.DEV || typeof window === 'undefined') {
+      return;
+    }
+
+    if (new URLSearchParams(window.location.search).has('debugTitleBar')) {
+      console.debug(`[titlebar] ${message}`);
+    }
+  };
+
+  const clearFullscreenTitleBarTimer = () => {
+    if (fullscreenTitleBarTimerRef.current === null) {
+      return;
+    }
+
+    window.clearTimeout(fullscreenTitleBarTimerRef.current);
+    fullscreenTitleBarTimerRef.current = null;
+  };
+
+  const scheduleFullscreenTitleBarHide = () => {
+    clearFullscreenTitleBarTimer();
+
+    if (!isFullscreenDisplayMode || !canShowWindowTitleBar) {
+      return;
+    }
+
+    fullscreenTitleBarTimerRef.current = window.setTimeout(() => {
+      setFullscreenTitleBarVisible(false);
+      debugFullscreenTitleBar('fullscreen titlebar hidden');
+      fullscreenTitleBarTimerRef.current = null;
+    }, fullscreenTitleBarAutoHideMs);
+  };
+
+  const revealFullscreenTitleBar = (reason: string) => {
+    if (!isFullscreenDisplayMode) {
+      return;
+    }
+
+    setFullscreenTitleBarVisible(true);
+    debugFullscreenTitleBar(`fullscreen titlebar revealed by ${reason}`);
+    scheduleFullscreenTitleBarHide();
+  };
 
   useEffect(() => {
     void getPlatformDisplayMode().then((mode) => {
@@ -178,6 +259,41 @@ export default function App() {
       }
     });
   }, []);
+
+  useEffect(() => {
+    if (!isFullscreenDisplayMode) {
+      clearFullscreenTitleBarTimer();
+      setFullscreenTitleBarVisible(true);
+      return undefined;
+    }
+
+    setFullscreenTitleBarVisible(true);
+    scheduleFullscreenTitleBarHide();
+
+    return clearFullscreenTitleBarTimer;
+  }, [canShowWindowTitleBar, isFullscreenDisplayMode]);
+
+  useEffect(() => {
+    if (!isElectronDisplayModeAvailable() || !canShowWindowTitleBar) {
+      return undefined;
+    }
+
+    const intervalId = window.setInterval(() => {
+      void getPlatformDisplayMode().then((mode) => {
+        if (!mode || mode === currentDisplayMode) {
+          return;
+        }
+
+        if (currentDisplayMode === 'fullscreen' && mode === 'windowed') {
+          debugFullscreenTitleBar('unexpected fullscreen exit detected');
+        }
+
+        setCurrentDisplayMode(mode);
+      });
+    }, 1_000);
+
+    return () => window.clearInterval(intervalId);
+  }, [canShowWindowTitleBar, currentDisplayMode]);
 
   useEffect(() => {
     if (!lastCornerHitFlash) {
@@ -541,12 +657,33 @@ export default function App() {
 
   return (
     <div
-      className={`electron-window-root${shouldShowWindowTitleBar ? ' has-titlebar' : ''}${
-        currentDisplayMode === 'fullscreen' ? ' fullscreen' : ''
-      }`}
+      className={`electron-window-root${canShowWindowTitleBar ? ' has-titlebar' : ''}${
+        isFullscreenDisplayMode ? ' fullscreen' : ''
+      }${isFullscreenDisplayMode && !shouldShowWindowTitleBar ? ' titlebar-hidden' : ''}`}
     >
+      {shouldShowFullscreenRevealZone ? (
+        <div
+          aria-hidden="true"
+          className="fullscreen-titlebar-reveal-zone"
+          onMouseMove={() => revealFullscreenTitleBar('top zone')}
+          onPointerDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            revealFullscreenTitleBar('top zone');
+          }}
+        />
+      ) : null}
       {shouldShowWindowTitleBar ? (
-        <WindowTitleBar displayMode={currentDisplayMode} onDisplayModeChange={setCurrentDisplayMode} />
+        <WindowTitleBar
+          displayMode={currentDisplayMode}
+          onDisplayModeChange={(mode) => {
+            setCurrentDisplayMode(mode);
+            if (mode === 'windowed') {
+              debugFullscreenTitleBar('fullscreen exit requested by windowed button');
+            }
+          }}
+          onInteraction={scheduleFullscreenTitleBarHide}
+        />
       ) : null}
       <div className={`appViewport${isMuseOverlayMode ? ' muse-overlay-viewport' : ''}`}>
       <div

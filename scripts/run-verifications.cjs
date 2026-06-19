@@ -151,6 +151,7 @@ async function main() {
     await runNpm('verify:masters');
     await runNpm('verify:skills');
     await runNpm('verify:skill-effects');
+    await runNpm('verify:tap-actions');
     await runNpm('verify:memory-slime-fallback');
     return;
   }

@@ -1,3 +1,4 @@
+import type { MouseEvent, SyntheticEvent } from 'react';
 import { minimizePlatformWindow, quitPlatformApp, togglePlatformFullscreen } from '../platform/platform';
 import { useGameStore } from '../store/useGameStore';
 import type { WindowDisplayMode } from '../types/game';
@@ -5,6 +6,7 @@ import type { WindowDisplayMode } from '../types/game';
 interface WindowTitleBarProps {
   displayMode: WindowDisplayMode;
   onDisplayModeChange: (mode: WindowDisplayMode) => void;
+  onInteraction?: () => void;
 }
 
 function MinimizeIcon() {
@@ -59,16 +61,27 @@ function CloseIcon() {
   );
 }
 
-export function WindowTitleBar({ displayMode, onDisplayModeChange }: WindowTitleBarProps) {
+export function WindowTitleBar({
+  displayMode,
+  onDisplayModeChange,
+  onInteraction,
+}: WindowTitleBarProps) {
   const autoSave = useGameStore((state) => state.autoSave);
   const isFullscreen = displayMode === 'fullscreen';
   const fullscreenLabel = isFullscreen ? 'ウィンドウに戻す' : 'フルスクリーン';
 
-  const handleMinimize = () => {
+  const stopTitleBarEvent = (event: SyntheticEvent) => {
+    event.stopPropagation();
+    onInteraction?.();
+  };
+
+  const handleMinimize = (event: MouseEvent<HTMLButtonElement>) => {
+    stopTitleBarEvent(event);
     void minimizePlatformWindow();
   };
 
-  const handleToggleFullscreen = () => {
+  const handleToggleFullscreen = (event: MouseEvent<HTMLButtonElement>) => {
+    stopTitleBarEvent(event);
     void togglePlatformFullscreen().then((mode) => {
       if (mode) {
         onDisplayModeChange(mode);
@@ -76,13 +89,21 @@ export function WindowTitleBar({ displayMode, onDisplayModeChange }: WindowTitle
     });
   };
 
-  const handleQuit = () => {
+  const handleQuit = (event: MouseEvent<HTMLButtonElement>) => {
+    stopTitleBarEvent(event);
     autoSave();
     void quitPlatformApp();
   };
 
   return (
-    <header className="window-titlebar">
+    <header
+      className="window-titlebar"
+      onMouseMove={onInteraction}
+      onPointerDown={(event) => {
+        event.stopPropagation();
+        onInteraction?.();
+      }}
+    >
       <div className="window-titlebar-title">Desktop Muse Idle</div>
       <div className="window-titlebar-actions">
         <button aria-label="Minimize Window" onClick={handleMinimize} title="Minimize" type="button">

@@ -1,5 +1,14 @@
 import { useEffect, useRef } from 'react';
-import { Application, Assets, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
+import {
+  Application,
+  Assets,
+  Container,
+  Graphics,
+  Rectangle,
+  Sprite,
+  Text,
+  Texture,
+} from 'pixi.js';
 import {
   cloneSpawnMaxAttempts,
   cloneSpawnMinDistance,
@@ -20,6 +29,7 @@ import type { CornerEffectKind } from '../effects/effectTypes';
 import { createInitialBody, stepBounceBody, type BounceBody } from '../game/bouncePhysics';
 import {
   calculateBounceReward,
+  calculateBackgroundTapReward,
   calculateCornerReward,
   calculateMuseTapCornerRewardMultiplier,
   calculateNearCornerDistance,
@@ -34,6 +44,7 @@ import {
   getSkillSpeedMultiplier,
   isSkillActive,
 } from '../game/skillEffects';
+import { decideTapInput, getActiveTapBoostStack } from '../game/tapActions';
 import { findSafeCloneSpawnPosition } from '../game/spawnUtils';
 import { handleVegaBumperCollisions } from '../game/museCollision';
 import { useAppStore } from '../store/useAppStore';
@@ -58,6 +69,13 @@ interface TapEffect {
   maxLife: number;
 }
 
+interface FloatingTextEffect {
+  life: number;
+  maxLife: number;
+  text: Text;
+  vy: number;
+}
+
 interface ActiveMuseBody {
   runtimeId: string;
   muse: Muse;
@@ -67,6 +85,7 @@ interface ActiveMuseBody {
   isClone: boolean;
   glow: Graphics;
   icon: Container;
+  iconHitArea: Rectangle;
   fallbackIcon: Graphics;
   slimeSprite: Sprite;
   squashAxis: 'x' | 'y' | 'corner' | null;
@@ -96,6 +115,7 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
     let isInitialized = false;
     let unsubscribeStore: (() => void) | undefined;
     let removeDebugListeners: (() => void) | undefined;
+    let removeHostPointerListener: (() => void) | undefined;
     let removeVisibilityListener: (() => void) | undefined;
     let destroyEffectManager: (() => void) | undefined;
     const cleanupAudio = prepareAudioSystem();
@@ -219,7 +239,9 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
       let skillTickAccumulatorMs = 0;
       const particles: BurstParticle[] = [];
       const tapEffects: TapEffect[] = [];
+      const floatingTexts: FloatingTextEffect[] = [];
       const inset = 12;
+      let lastBackgroundTapAt = 0;
       let backgroundRequestId = 0;
       let isBackgroundImageReady = false;
       const activeMuses = new Map<string, ActiveMuseBody>();
@@ -250,6 +272,22 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
       };
       const radii: Record<string, number> = { lumi: 46, astra: 40, noir: 43, vega: 44 };
       let handleMuseTap = (_runtime: ActiveMuseBody) => undefined;
+
+      const isTapInputDebugEnabled = () => {
+        if (!import.meta.env.DEV || typeof window === 'undefined') {
+          return false;
+        }
+
+        return new URLSearchParams(window.location.search).has('debugTapInput');
+      };
+
+      const logTapInputDebug = (message: string, details?: Record<string, unknown>) => {
+        if (!isTapInputDebugEnabled()) {
+          return;
+        }
+
+        console.debug(`[tap-input] ${message}`, details ?? {});
+      };
 
       const applyMemorySlimeTexture = (texture: Texture) => {
         memorySlimeTexture = texture;
@@ -381,6 +419,7 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
         body.vy *= index === 2 ? -1 : 1;
 
         const visual = createMemorySlimeVisual();
+        const iconHitArea = new Rectangle(-radius, -radius, radius * 2, radius * 2);
         const runtime = {
           runtimeId: muse.id,
           muse,
@@ -390,6 +429,7 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
           isClone: false,
           glow: new Graphics(),
           icon: visual.icon,
+          iconHitArea,
           fallbackIcon: visual.fallbackIcon,
           slimeSprite: visual.slimeSprite,
           squashAxis: null,
@@ -397,7 +437,7 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
         };
         runtime.icon.eventMode = 'static';
         runtime.icon.cursor = 'pointer';
-        runtime.icon.on('pointertap', () => handleMuseTap(runtime));
+        runtime.icon.hitArea = iconHitArea;
         museLayer.addChild(runtime.glow, runtime.icon);
         return runtime;
       };
@@ -478,6 +518,7 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
         });
         const directionOffset =
           (Math.random() < 0.5 ? -1 : 1) * (8 + Math.random() * 22);
+        const iconHitArea = new Rectangle(-baseRadius, -baseRadius, baseRadius * 2, baseRadius * 2);
         const runtime: ActiveMuseBody = {
           runtimeId,
           muse: source.muse,
@@ -491,10 +532,12 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
           baseRadius,
           isClone: true,
           glow: new Graphics(),
+          iconHitArea,
           ...createMemorySlimeVisual(),
           squashAxis: null,
           squashRemaining: 0,
         };
+        runtime.icon.hitArea = iconHitArea;
         rotateBodyVelocity(runtime.body, directionOffset);
         museLayer.addChild(runtime.glow, runtime.icon);
         activeMuses.set(runtimeId, runtime);
@@ -586,7 +629,7 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
       const drawMuses = (pulseTime = 0) => {
         bumperNotice.visible = false;
         for (const runtime of activeMuses.values()) {
-          const { body, muse, icon, glow, fallbackIcon, slimeSprite } = runtime;
+          const { body, muse, icon, iconHitArea, glow, fallbackIcon, slimeSprite } = runtime;
           const palette = getMusePalette(muse);
           const scale = body.radius / 46;
           const isVegaBumperActive =
@@ -612,6 +655,10 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
             bumperNotice.alpha = 0.74 + Math.sin(pulseTime * 5.2) * 0.16;
           }
           icon.position.set(body.x, body.y);
+          iconHitArea.x = -body.radius;
+          iconHitArea.y = -body.radius;
+          iconHitArea.width = body.radius * 2;
+          iconHitArea.height = body.radius * 2;
           const squashProgress =
             runtime.squashRemaining > 0 ? Math.min(1, runtime.squashRemaining / 0.16) : 0;
           const squashEase = Math.sin(squashProgress * Math.PI * 0.5);
@@ -803,11 +850,37 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
 
         tapEffectLayer.addChild(graphic);
         tapEffects.push({ graphic, life: maxLife, maxLife });
-        tapNotice.text = `BOOST!\n${subtitle}`;
+        tapNotice.text = `SPEED +\n${subtitle}`;
         tapNotice.position.set(runtime.body.x, runtime.body.y - runtime.body.radius - 39);
         tapNotice.visible = true;
         tapNotice.alpha = 1;
         tapNoticeTime = maxLife;
+      };
+
+      const triggerFloatingMemoryText = (x: number, y: number, reward: number) => {
+        const maxLife = 0.72;
+        const text = new Text({
+          text: `+${reward.toLocaleString()} Memory`,
+          style: {
+            fill: 0x8cdcff,
+            fontFamily: 'Arial, sans-serif',
+            fontSize: 15,
+            fontWeight: 'bold',
+            stroke: { color: 0x142044, width: 4 },
+          },
+        });
+        text.anchor.set(0.5);
+        text.position.set(x, y);
+        cornerTextLayer.addChild(text);
+        floatingTexts.push({ life: maxLife, maxLife, text, vy: -34 });
+
+        const sparkle = new Graphics()
+          .circle(x, y, 8)
+          .stroke({ color: 0x8cdcff, alpha: 0.82, width: 2 })
+          .circle(x, y, 3)
+          .fill({ color: 0xffd681, alpha: 0.85 });
+        tapEffectLayer.addChild(sparkle);
+        tapEffects.push({ graphic: sparkle, life: 0.42, maxLife: 0.42 });
       };
 
       handleMuseTap = (runtime) => {
@@ -836,11 +909,140 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
         const directionDegrees =
           (Math.random() * 2 - 1) * getTapDirectionChangeDegrees(settings.motionIntensity);
         rotateBodyVelocity(runtime.body, directionDegrees);
+        runtime.squashAxis = 'corner';
+        runtime.squashRemaining = 0.22;
         triggerTapEffects(
           runtime,
           settings.language === 'ja' ? tapVoice.subtitleJa : tapVoice.subtitleEn,
         );
         playMuseTapVoice(tapVoice, settings.seVolume * seVolumeScale);
+      };
+
+      const isGameplayClickBlocked = (event: PointerEvent) => {
+        const target = event.target;
+        if (!(target instanceof Element)) {
+          logTapInputDebug('ignored because target is not an Element');
+          return true;
+        }
+
+        if (document.querySelector('[aria-modal="true"]')) {
+          logTapInputDebug('ignored because modal open');
+          return true;
+        }
+
+        if (
+          target.closest(
+            'button, input, select, textarea, a, [role="button"], .window-titlebar, .modal-close',
+          )
+        ) {
+          logTapInputDebug('ignored because UI target', {
+            tagName: target.tagName,
+            className: target instanceof HTMLElement ? target.className : '',
+          });
+          return true;
+        }
+
+        return false;
+      };
+
+      const getStagePointFromPointer = (event: PointerEvent) => {
+        const rect = host.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) {
+          return null;
+        }
+
+        return {
+          x: ((event.clientX - rect.left) / rect.width) * app.screen.width,
+          y: ((event.clientY - rect.top) / rect.height) * app.screen.height,
+        };
+      };
+
+      const findTappedMuse = (x: number, y: number) => {
+        for (const runtime of activeMuses.values()) {
+          if (runtime.isClone) {
+            continue;
+          }
+
+          const distance = Math.hypot(runtime.body.x - x, runtime.body.y - y);
+          if (distance <= runtime.body.radius * 1.18) {
+            return runtime;
+          }
+        }
+
+        return null;
+      };
+
+      const grantBackgroundTapMemory = (x: number, y: number, now: number) => {
+        if (presentationModeRef.current !== 'normal') {
+          logTapInputDebug('ignored because presentation mode', {
+            presentationMode: presentationModeRef.current,
+          });
+          return;
+        }
+
+        const { wallpaperMode } = useAppStore.getState();
+        if (wallpaperMode !== 'off') {
+          logTapInputDebug('ignored because wallpaper mode', { wallpaperMode });
+          return;
+        }
+
+        const decision = decideTapInput({
+          hitCharacter: false,
+          lastBackgroundTapAt,
+          now,
+        });
+
+        if (!decision.shouldGrantBackgroundReward) {
+          logTapInputDebug('ignored because background cooldown', {
+            lastBackgroundTapAt,
+            now,
+          });
+          return;
+        }
+
+        const { addMemory, characterSkillLevels, unlockedSkillNodes, upgrades } =
+          useGameStore.getState();
+        const { motionIntensity } = useAppStore.getState().settings;
+        const reward = calculateBackgroundTapReward(
+          upgrades,
+          unlockedSkillNodes,
+          motionIntensity,
+          characterSkillLevels,
+        );
+
+        lastBackgroundTapAt = now;
+        addMemory(reward);
+        logTapInputDebug('background click fired', {
+          reward,
+          x,
+          y,
+        });
+        triggerFloatingMemoryText(x, y, reward);
+      };
+
+      const handleHostPointerDown = (event: PointerEvent) => {
+        if (event.button !== 0 || isGameplayClickBlocked(event)) {
+          return;
+        }
+
+        const point = getStagePointFromPointer(event);
+        if (!point) {
+          logTapInputDebug('ignored because host bounds unavailable');
+          return;
+        }
+
+        const tappedMuse = findTappedMuse(point.x, point.y);
+        if (tappedMuse) {
+          logTapInputDebug('slime click fired', {
+            museId: tappedMuse.muse.id,
+            x: point.x,
+            y: point.y,
+          });
+          handleMuseTap(tappedMuse);
+          return;
+        }
+
+        grantBackgroundTapMemory(point.x, point.y, Date.now());
       };
 
       const setBodySpeedToward = (
@@ -1055,6 +1257,11 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
       }
 
       drawArena();
+      app.stage.eventMode = 'static';
+      app.stage.hitArea = new Rectangle(0, 0, app.screen.width, app.screen.height);
+      host.addEventListener('pointerdown', handleHostPointerDown);
+      removeHostPointerListener = () =>
+        host.removeEventListener('pointerdown', handleHostPointerDown);
       void updateBackground(useGameStore.getState().currentBackgroundId);
       void loadMemorySlimeTexture();
       skillNotice.position.set(app.screen.width / 2, app.screen.height * 0.29);
@@ -1167,10 +1374,11 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
           runtime.body.radius =
             runtime.baseRadius *
             getSkillScale(runtime.muse, !runtime.isClone && isSkillActive(skillStates, runtime.muse.id));
-          const isTapBoostActive =
-            !runtime.isClone &&
-            museTapStates[runtime.muse.id]?.isTapBoostActive === true &&
-            Date.now() < museTapStates[runtime.muse.id].tapBoostEndsAt;
+          const now = Date.now();
+          const tapBoostStack = runtime.isClone
+            ? 0
+            : getActiveTapBoostStack(museTapStates[runtime.muse.id], now);
+          const isTapBoostActive = tapBoostStack > 0;
           const result = stepBounceBody(
             runtime.body,
             { width: app.screen.width, height: app.screen.height, inset },
@@ -1178,7 +1386,7 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
               calculateVisualSpeedMultiplier(
                 upgrades,
                 skillSpeedMultiplier,
-                isTapBoostActive,
+                tapBoostStack,
                 motionIntensity,
                 characterSkillLevels,
               ),
@@ -1366,6 +1574,18 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
             tapEffects.splice(index, 1);
           }
         }
+        for (let index = floatingTexts.length - 1; index >= 0; index -= 1) {
+          const floatingText = floatingTexts[index];
+          floatingText.life -= deltaSeconds;
+          floatingText.text.y += floatingText.vy * deltaSeconds;
+          floatingText.text.alpha = Math.max(0, floatingText.life / floatingText.maxLife);
+
+          if (floatingText.life <= 0) {
+            cornerTextLayer.removeChild(floatingText.text);
+            floatingText.text.destroy();
+            floatingTexts.splice(index, 1);
+          }
+        }
         debugStatusElapsedMs += deltaMs;
         if (debugStatusElapsedMs >= 500) {
           debugStatusElapsedMs = 0;
@@ -1383,6 +1603,7 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
       cleanupAudio();
       unsubscribeStore?.();
       removeDebugListeners?.();
+      removeHostPointerListener?.();
       removeVisibilityListener?.();
       destroyEffectManager?.();
       if (!isInitialized) {

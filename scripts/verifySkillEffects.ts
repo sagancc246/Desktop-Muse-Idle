@@ -111,7 +111,7 @@ for (const skillId of Object.keys(maxedLevels[characterId])) {
 }
 const upgrades = createInitialUpgrades();
 upgrades.speed_tune.level = 20;
-const visualSpeed = calculateVisualSpeedMultiplier(upgrades, 1, false, 'medium', maxedLevels);
+const visualSpeed = calculateVisualSpeedMultiplier(upgrades, 1, 0, 'medium', maxedLevels);
 assert.equal(Number.isFinite(visualSpeed), true);
 assert.equal(visualSpeed > 0, true);
 assert.equal(visualSpeed <= getVisualSpeedCap('medium'), true);

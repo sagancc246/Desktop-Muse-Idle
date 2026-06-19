@@ -1,4 +1,5 @@
 import {
+  backgroundTapWallRewardRate,
   baseCornerReward,
   baseMemoryPerBounce,
   museTapCornerRewardMultiplier,
@@ -8,6 +9,7 @@ import {
   museTapSpeedMultiplierHigh,
   museTapSpeedMultiplierLow,
   museTapSpeedMultiplierMedium,
+  museTapSpeedMultiplierCap,
   offlineBounceFrequencyPerSecond,
   vegaBumperCloneRewardMultiplier,
   vegaBumperRewardMultiplier,
@@ -42,16 +44,24 @@ export function getVisualSpeedCap(motionIntensity: MotionIntensity): number {
   return visualSpeedMultiplierMaxMedium;
 }
 
-export function getMuseTapSpeedMultiplier(motionIntensity: MotionIntensity): number {
+export function getMuseTapSpeedMultiplier(
+  motionIntensity: MotionIntensity,
+  tapBoostStack = 1,
+): number {
+  const stack = Math.max(0, Math.floor(tapBoostStack));
+  if (stack <= 0) {
+    return 1;
+  }
+
   if (motionIntensity === 'low') {
-    return museTapSpeedMultiplierLow;
+    return Math.min(museTapSpeedMultiplierCap, Math.pow(museTapSpeedMultiplierLow, stack));
   }
 
   if (motionIntensity === 'high') {
-    return museTapSpeedMultiplierHigh;
+    return Math.min(museTapSpeedMultiplierCap, Math.pow(museTapSpeedMultiplierHigh, stack));
   }
 
-  return museTapSpeedMultiplierMedium;
+  return Math.min(museTapSpeedMultiplierCap, Math.pow(museTapSpeedMultiplierMedium, stack));
 }
 
 export function getSpeedTuneInternalYieldMultiplier(
@@ -115,19 +125,40 @@ export function calculateSpeedMultiplier(upgrades: UpgradeCollection): number {
 export function calculateVisualSpeedMultiplier(
   upgrades: UpgradeCollection,
   temporarySkillMultiplier: number,
-  isTapBoostActive: boolean,
+  tapBoostStack: number,
   motionIntensity: MotionIntensity,
   characterSkillLevels?: CharacterSkillLevels,
 ): number {
-  const tapMultiplier = isTapBoostActive ? getMuseTapSpeedMultiplier(motionIntensity) : 1;
+  const tapMultiplier = getMuseTapSpeedMultiplier(motionIntensity, tapBoostStack);
   const characterMultiplier = resolveCharacterSkillEffects(
     characterSkillLevels,
   ).visualSpeedMultiplier;
+  const baseCap = getVisualSpeedCap(motionIntensity);
+  const cappedBaseMultiplier = Math.min(
+    baseCap,
+    calculateSpeedMultiplier(upgrades) * temporarySkillMultiplier * characterMultiplier,
+  );
 
   return Math.min(
-    getVisualSpeedCap(motionIntensity),
-    calculateSpeedMultiplier(upgrades) * temporarySkillMultiplier * tapMultiplier * characterMultiplier,
+    baseCap * museTapSpeedMultiplierCap,
+    cappedBaseMultiplier * tapMultiplier,
   );
+}
+
+export function calculateBackgroundTapReward(
+  upgrades: UpgradeCollection,
+  unlockedSkillNodes: Record<string, number>,
+  motionIntensity: MotionIntensity,
+  characterSkillLevels?: CharacterSkillLevels,
+): number {
+  const wallReward = calculateBounceReward(
+    upgrades,
+    unlockedSkillNodes,
+    motionIntensity,
+    characterSkillLevels,
+  );
+
+  return Math.max(1, Math.floor(wallReward * backgroundTapWallRewardRate));
 }
 
 export function calculateMuseTapCornerRewardMultiplier(
