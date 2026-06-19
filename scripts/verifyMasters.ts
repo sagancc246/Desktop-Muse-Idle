@@ -9,7 +9,7 @@ import {
   migrateLegacyStageRewardClaims,
   type Reward,
 } from '../src/data/rewards';
-import { skills } from '../src/data/skills';
+import { characterSkillEffectTypes, characterSkillNodes, memorySlimeCharacterId, skills } from '../src/data/skills';
 import {
   createInitialEquippedSkinByMuseId,
   initialUnlockedSkinIds,
@@ -150,6 +150,7 @@ validateUniqueIds('backgrounds', backgrounds.map((background) => background.id))
 validateUniqueIds('capsules', capsules.map((capsule) => capsule.id));
 validateUniqueIds('monsters', monsterAssets.map((monster) => monster.id));
 validateUniqueIds('skills', Object.values(skills).map((skill) => skill.id));
+validateUniqueIds('characterSkills', characterSkillNodes.map((skillNode) => skillNode.id));
 validateUniqueIds('upgrades', upgradeIds);
 
 const stageNumbers = stages.flatMap((stage) => {
@@ -246,6 +247,39 @@ for (const skill of Object.values(skills)) {
 }
 for (const [skillId, skill] of Object.entries(skills)) {
   if (skill.id !== skillId) addError(report, `skills:${skillId}`, `definition id is ${skill.id}`);
+}
+const characterSkillIds = new Set(characterSkillNodes.map((skillNode) => skillNode.id));
+const allowedCharacterSkillEffects = new Set(characterSkillEffectTypes);
+for (const skillNode of characterSkillNodes) {
+  const scope = `characterSkills:${skillNode.id}`;
+  if (!monsterIds.has(skillNode.characterId)) addError(report, scope, `characterId ${skillNode.characterId} not found in monsters`);
+  if (!isNonEmptyString(skillNode.name)) addError(report, scope, 'name must not be empty');
+  if (!isNonEmptyString(skillNode.description)) addError(report, scope, 'description must not be empty');
+  if (!isNonEmptyString(skillNode.branch)) addError(report, scope, 'branch must not be empty');
+  if (!isPositiveNumber(skillNode.cost)) addError(report, scope, 'cost must be positive');
+  if (!Number.isInteger(skillNode.maxLevel) || skillNode.maxLevel <= 0) addError(report, scope, 'maxLevel must be a positive integer');
+  if (!Array.isArray(skillNode.prerequisites)) addError(report, scope, 'prerequisites must be an array');
+  else {
+    for (const requiredId of skillNode.prerequisites) {
+      if (!characterSkillIds.has(requiredId)) addError(report, scope, `prerequisite ${requiredId} not found`);
+    }
+  }
+  if (!Array.isArray(skillNode.effects) || skillNode.effects.length === 0) addError(report, scope, 'effects must not be empty');
+  else {
+    for (const effect of skillNode.effects) {
+      if (!allowedCharacterSkillEffects.has(effect.type)) addError(report, scope, `unsupported effect ${effect.type}`);
+      if (!isPositiveNumber(effect.value)) addError(report, scope, `effect ${effect.type} value must be positive`);
+    }
+  }
+  if (!isNonNegativeNumber(skillNode.position?.x) || !isNonNegativeNumber(skillNode.position?.y)) {
+    addError(report, scope, 'position must contain non-negative x/y');
+  }
+}
+const memorySlimeSkillCount = characterSkillNodes.filter(
+  (skillNode) => skillNode.characterId === memorySlimeCharacterId,
+).length;
+if (memorySlimeSkillCount < 10 || memorySlimeSkillCount > 13) {
+  addError(report, 'characterSkills:memory_slime', `expected 10-13 nodes, found ${memorySlimeSkillCount}`);
 }
 for (const upgradeId of upgradeIds) {
   const upgrade = upgradeDefinitions[upgradeId];

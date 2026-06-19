@@ -9,6 +9,7 @@ import {
   presentReward,
 } from '../data/rewards';
 import { getEquippedSkinForMuse, getSkinById } from '../data/skins';
+import { getCharacterSkillNodeById } from '../data/skills';
 import { getSkillNodeById } from '../data/skillTree';
 import { getNextStage, getStageById, initialStageId, stages } from '../data/stages';
 import { calculateUpgradeCost } from '../data/upgrades';
@@ -74,6 +75,7 @@ function withOfflineRate(
       nextState.unlockedSkillNodes,
       nextState.activeMuseIds,
       motionIntensity,
+      nextState.characterSkillLevels,
     ),
   };
 }
@@ -776,6 +778,38 @@ export const useGameStore = create<GameStore>((set, get) => ({
     saveGameState(get(), getCurrentMotionIntensity());
   },
 
+  unlockCharacterSkillNode: (characterId, skillNodeId) => {
+    set((state) => {
+      const skillNode = getCharacterSkillNodeById(characterId, skillNodeId);
+
+      if (!skillNode) {
+        return state;
+      }
+
+      const characterLevels = state.characterSkillLevels[characterId] ?? {};
+      const level = characterLevels[skillNode.id] ?? 0;
+      const prerequisitesMet = skillNode.prerequisites.every(
+        (requiredNodeId) => (characterLevels[requiredNodeId] ?? 0) > 0,
+      );
+
+      if (!prerequisitesMet || level >= skillNode.maxLevel || state.fragments < skillNode.cost) {
+        return state;
+      }
+
+      return withOfflineRate(state, {
+        fragments: state.fragments - skillNode.cost,
+        characterSkillLevels: {
+          ...state.characterSkillLevels,
+          [characterId]: {
+            ...characterLevels,
+            [skillNode.id]: level + 1,
+          },
+        },
+      });
+    });
+    saveGameState(get(), getCurrentMotionIntensity());
+  },
+
   reboot: () => {
     const gainedFragments = calculateRebootFragments(get().memory);
 
@@ -920,11 +954,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
         state.upgrades,
         state.unlockedSkillNodes,
         motionIntensity,
+        state.characterSkillLevels,
       );
       const cornerReward = calculateCornerReward(
         state.upgrades,
         state.unlockedSkillNodes,
         motionIntensity,
+        state.characterSkillLevels,
       );
 
       const progress = applyCornerHitProgress(state);

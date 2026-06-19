@@ -28,6 +28,40 @@ export interface SkillNode {
   effectValue: number;
 }
 
+export type CharacterSkillBranch = 'memory' | 'motion' | 'corner' | 'archive';
+
+export type CharacterSkillEffectType =
+  | 'bounce_reward_multiplier'
+  | 'corner_reward_multiplier'
+  | 'visual_speed_multiplier'
+  | 'offline_reward_multiplier'
+  | 'near_corner_distance_bonus';
+
+export interface CharacterSkillEffect {
+  type: CharacterSkillEffectType;
+  value: number;
+}
+
+export interface CharacterSkillPosition {
+  x: number;
+  y: number;
+}
+
+export interface CharacterSkillNode {
+  id: string;
+  characterId: string;
+  name: string;
+  description: string;
+  branch: CharacterSkillBranch;
+  cost: number;
+  maxLevel: number;
+  prerequisites: string[];
+  effects: CharacterSkillEffect[];
+  position: CharacterSkillPosition;
+}
+
+export type CharacterSkillLevels = Record<string, Record<string, number>>;
+
 export interface UpgradeDefinition {
   id: UpgradeId;
   name: string;
@@ -253,6 +287,7 @@ export interface GameState {
   fragments: number;
   capsuleCount: number;
   unlockedSkillNodes: Record<string, number>;
+  characterSkillLevels: CharacterSkillLevels;
   rebootCount: number;
   saveStatus: SaveStatus;
   lastSavedAt: number | null;
@@ -285,6 +320,7 @@ export interface SaveData {
   fragments: number;
   capsuleCount?: number;
   unlockedSkillNodes: Record<string, number>;
+  characterSkillLevels?: CharacterSkillLevels;
   rebootCount: number;
   lastSavedAt: number;
   stats?: GameStats;
@@ -321,6 +357,7 @@ export interface GameActions {
   activateMuseTap: (museId: string, voiceId: string, now: number) => boolean;
   tickMuseTapStates: (now: number) => void;
   unlockSkillNode: (skillNodeId: string) => void;
+  unlockCharacterSkillNode: (characterId: string, skillNodeId: string) => void;
   reboot: () => boolean;
   manualSave: () => void;
   autoSave: () => void;

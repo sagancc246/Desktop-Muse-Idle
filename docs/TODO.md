@@ -23,6 +23,16 @@ Next automation candidates:
 
 Still requires manual verification:
 
+- Memory Slime Skill Tree visual QA is pending. Implementation and automated validation exist,
+  but the following checks have not been confirmed by real manual UI inspection:
+  - Open the modal from the `Memory Slime Tree` button.
+  - Confirm all 12 nodes fit within the tree view.
+  - Confirm prerequisite lines are visually aligned with their nodes.
+  - Confirm locked, unlockable, and acquired states are easy to distinguish.
+  - Confirm nodes cannot be acquired when Fragment is insufficient.
+  - Confirm acquiring a node consumes Fragment and persists the acquired state.
+  - Confirm acquired nodes are restored after app restart.
+  - Confirm speed, Near Corner assist, and offline reward effects do not feel too strong.
 - Long-duration Focus Mode, Wallpaper Stage Mode, and Muse Overlay Mode performance on real desktop hardware.
 - Visual quality, animation smoothness, and effect readability.
 - Packaged Windows verification of the newly implemented Electron transparent Overlay window behavior.

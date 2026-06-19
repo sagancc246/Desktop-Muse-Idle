@@ -887,8 +887,10 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
       const moveRuntimeNearCornerMiss = (runtime: ActiveMuseBody) => {
         const minX = inset + runtime.body.radius;
         const minY = inset + runtime.body.radius;
+        const { characterSkillLevels, unlockedSkillNodes } = useGameStore.getState();
         const nearDistance = calculateNearCornerDistance(
-          useGameStore.getState().unlockedSkillNodes,
+          unlockedSkillNodes,
+          characterSkillLevels,
         );
         const offsetY = Math.max(14, Math.min(nearDistance * 0.6, nearDistance - 4));
         runtime.body.x = minX + 1;
@@ -1144,6 +1146,7 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
           activateMuseSkill,
           skillStates,
           unlockedSkillNodes,
+          characterSkillLevels,
           museTapStates,
         } = useGameStore.getState();
         const { motionIntensity } = useAppStore.getState().settings;
@@ -1177,9 +1180,13 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
                 skillSpeedMultiplier,
                 isTapBoostActive,
                 motionIntensity,
+                characterSkillLevels,
               ),
             {
-              nearCornerDistance: calculateNearCornerDistance(unlockedSkillNodes),
+              nearCornerDistance: calculateNearCornerDistance(
+                unlockedSkillNodes,
+                characterSkillLevels,
+              ),
             },
           );
           runtime.body = result.body;
@@ -1190,7 +1197,12 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
             const bounceReward = Math.max(
               1,
               Math.floor(
-                calculateBounceReward(upgrades, unlockedSkillNodes, motionIntensity) *
+                calculateBounceReward(
+                  upgrades,
+                  unlockedSkillNodes,
+                  motionIntensity,
+                  characterSkillLevels,
+                ) *
                   runtime.muse.memoryMultiplier *
                   wallRewardMultiplier,
               ),
@@ -1202,7 +1214,12 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
               const cornerReward = Math.max(
                 1,
                 Math.floor(
-                  calculateCornerReward(upgrades, unlockedSkillNodes, motionIntensity) *
+                  calculateCornerReward(
+                    upgrades,
+                    unlockedSkillNodes,
+                    motionIntensity,
+                    characterSkillLevels,
+                  ) *
                     runtime.muse.cornerMultiplier *
                     cornerRewardMultiplier *
                     calculateMuseTapCornerRewardMultiplier(isTapBoostActive, motionIntensity),
@@ -1260,6 +1277,7 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
             upgrades,
             unlockedSkillNodes,
             motionIntensity,
+            characterSkillLevels,
           );
           const bumperResults = handleVegaBumperCollisions({
             bounds: { width: app.screen.width, height: app.screen.height, inset },

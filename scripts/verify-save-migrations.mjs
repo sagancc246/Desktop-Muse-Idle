@@ -69,6 +69,8 @@ assert.equal(muses.muses.length, 4);
 assert.equal(skins.museSkins.length, 8);
 assert.equal(backgrounds.backgrounds.length, 6);
 assert.deepEqual(Object.keys(skills.skills), ['clone', 'speed_up', 'giant', 'muse_bumper']);
+assert.equal(skills.memorySlimeSkillNodes.length >= 10, true);
+assert.equal(skills.memorySlimeSkillNodes.length <= 13, true);
 assert.equal(backgrounds.initialBackgroundId, 'bg_default_room');
 assert.equal(muses.getMuseById('vega').unlockCondition.targetId, 'stage-5');
 assert.equal(
@@ -104,6 +106,7 @@ assert.deepEqual(coreState.unlockedSkinIds, skins.initialUnlockedSkinIds);
 assert.deepEqual(coreState.equippedSkinByMuseId, skins.createInitialEquippedSkinByMuseId());
 assert.equal(coreState.fragments, 0);
 assert.equal(coreState.capsuleCount, 0);
+assert.deepEqual(coreState.characterSkillLevels, skills.createInitialCharacterSkillLevels());
 assert.equal(coreState.rebootCount, 0);
 assert.equal(coreState.pendingOfflineReward, null);
 
@@ -127,7 +130,29 @@ assert.equal(expandedState.capsuleCount, 0);
 assert.equal(expandedState.unlockedSkillNodes.bounce_memory_1, 1);
 assert.equal(expandedState.unlockedSkillNodes.passive_cache, 1);
 assert.equal(expandedState.unlockedSkillNodes.removed_skill, undefined);
+assert.deepEqual(expandedState.characterSkillLevels, skills.createInitialCharacterSkillLevels());
 assert.equal(expandedState.rebootCount, 2);
+
+storeJson(storage, saveStorageKey, {
+  ...legacyCoreSave,
+  characterSkillLevels: {
+    memory_slime: {
+      memory_slime_core: 99,
+      memory_slime_gloss: -1,
+      memory_slime_cache_bubble: 'bad-level',
+      removed_skill: 1,
+    },
+    removed_character: {
+      memory_slime_core: 1,
+    },
+  },
+});
+const invalidCharacterSkillState = saveSystem.loadGameState();
+assert.equal(invalidCharacterSkillState.characterSkillLevels.memory_slime.memory_slime_core, 1);
+assert.equal(invalidCharacterSkillState.characterSkillLevels.memory_slime.memory_slime_gloss, 0);
+assert.equal(invalidCharacterSkillState.characterSkillLevels.memory_slime.memory_slime_cache_bubble, 0);
+assert.equal(invalidCharacterSkillState.characterSkillLevels.memory_slime.removed_skill, undefined);
+assert.equal(invalidCharacterSkillState.characterSkillLevels.removed_character, undefined);
 
 storeJson(storage, saveStorageKey, {
   ...legacyCoreSave,
@@ -214,11 +239,13 @@ resetBoundaryState.memory = 999;
 resetBoundaryState.capsuleCount = 3;
 resetBoundaryState.claimedRewardIds = ['stage-2:lumi_pastel', 'stage-2:lumi_pastel'];
 resetBoundaryState.claimedStageRewardIds = ['stage-2', 'stage-2'];
+resetBoundaryState.characterSkillLevels.memory_slime.memory_slime_core = 1;
 saveSystem.saveGameState(resetBoundaryState);
 const capsuleState = saveSystem.loadGameState();
 assert.equal(capsuleState.capsuleCount, 3);
 assert.deepEqual(capsuleState.claimedRewardIds, ['stage-2:lumi_pastel']);
 assert.deepEqual(capsuleState.claimedStageRewardIds, ['stage-2']);
+assert.equal(capsuleState.characterSkillLevels.memory_slime.memory_slime_core, 1);
 
 storeJson(storage, saveStorageKey, {
   ...legacyCoreSave,
@@ -324,6 +351,7 @@ saveSystem.saveGameState(saveSystem.createNewGameState());
 const persistedGameSave = storage.getItem(saveStorageKey);
 assert.equal(persistedGameSave.includes('wallpaperMode'), false);
 assert.equal(persistedGameSave.includes('wallpaperSettings'), false);
+assert.equal(persistedGameSave.includes('characterSkillLevels'), true);
 
 console.log(
   'Save migration verification passed: empty storage, legacy/malformed saves, claimed stage rewards, reward fallback, skin fallback, settings, wallpaper settings, and reset storage separation.',

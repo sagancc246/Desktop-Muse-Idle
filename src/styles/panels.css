@@ -1702,6 +1702,143 @@
   cursor: default;
 }
 
+.character-skill-modal {
+  width: 1180px;
+}
+
+.character-skill-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -8px 0 16px;
+}
+
+.character-skill-summary span {
+  background: rgba(140, 220, 255, 0.09);
+  border: 1px solid rgba(140, 220, 255, 0.24);
+  border-radius: 999px;
+  color: var(--cyan);
+  font-size: 11px;
+  font-weight: 800;
+  padding: 6px 10px;
+}
+
+.character-skill-tree {
+  background:
+    linear-gradient(rgba(140, 220, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(188, 137, 255, 0.04) 1px, transparent 1px),
+    rgba(10, 13, 31, 0.72);
+  background-size: 52px 52px;
+  border: 1px solid rgba(138, 134, 211, 0.2);
+  border-radius: 18px;
+  height: 520px;
+  overflow: auto;
+  position: relative;
+}
+
+.character-skill-lines {
+  height: 520px;
+  left: 0;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  width: 1040px;
+}
+
+.character-skill-lines line {
+  stroke: rgba(138, 134, 211, 0.24);
+  stroke-linecap: round;
+  stroke-width: 3;
+}
+
+.character-skill-lines line.active {
+  stroke: rgba(140, 220, 255, 0.62);
+}
+
+.character-skill-node {
+  background: rgba(18, 21, 48, 0.94);
+  border: 1px solid rgba(138, 134, 211, 0.24);
+  border-radius: 12px;
+  box-shadow: 0 14px 36px rgba(2, 4, 14, 0.35);
+  min-height: 128px;
+  padding: 11px;
+  position: absolute;
+  width: 146px;
+}
+
+.character-skill-node.locked {
+  filter: grayscale(0.6);
+  opacity: 0.66;
+}
+
+.character-skill-node.unlockable {
+  border-color: rgba(255, 214, 129, 0.58);
+}
+
+.character-skill-node.acquired {
+  border-color: rgba(140, 220, 255, 0.55);
+  box-shadow: 0 0 24px rgba(80, 224, 255, 0.16);
+}
+
+.character-skill-node-heading {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.character-skill-node-heading span,
+.character-skill-node-heading strong {
+  color: var(--cyan);
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.character-skill-node h2 {
+  color: #fff7ff;
+  font-size: 14px;
+  margin: 8px 0 6px;
+}
+
+.character-skill-node p,
+.character-skill-node small {
+  color: var(--text-soft);
+  display: block;
+  font-size: 10px;
+  line-height: 1.35;
+  margin: 5px 0;
+}
+
+.character-skill-node small:last-of-type {
+  color: #ffd681;
+}
+
+.character-skill-node button {
+  background: rgba(111, 67, 163, 0.34);
+  border: 1px solid rgba(188, 137, 255, 0.42);
+  border-radius: 8px;
+  color: #f1dcff;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 800;
+  margin-top: 7px;
+  padding: 7px 8px;
+  width: 100%;
+}
+
+.character-skill-node.unlockable button {
+  background: rgba(255, 214, 129, 0.16);
+  border-color: rgba(255, 214, 129, 0.44);
+  color: #ffe2a0;
+}
+
+.character-skill-node button:disabled {
+  background: rgba(42, 43, 76, 0.65);
+  border-color: rgba(131, 128, 191, 0.22);
+  color: #77768e;
+  cursor: default;
+}
+
 .muse-tap-state {
   align-items: center;
   border-top: 1px solid rgba(138, 134, 211, 0.14);

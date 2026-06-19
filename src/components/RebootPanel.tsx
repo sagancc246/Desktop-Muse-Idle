@@ -5,9 +5,13 @@ import { useGameStore } from '../store/useGameStore';
 const SkillTreePanel = lazy(() =>
   import('./SkillTreePanel').then(({ SkillTreePanel }) => ({ default: SkillTreePanel })),
 );
+const SkillTreeModal = lazy(() =>
+  import('./SkillTreeModal').then(({ SkillTreeModal }) => ({ default: SkillTreeModal })),
+);
 
 export function RebootPanel() {
   const [isSkillTreeOpen, setIsSkillTreeOpen] = useState(false);
+  const [isCharacterSkillTreeOpen, setIsCharacterSkillTreeOpen] = useState(false);
   const memory = useGameStore((state) => state.memory);
   const fragments = useGameStore((state) => state.fragments);
   const rebootCount = useGameStore((state) => state.rebootCount);
@@ -47,6 +51,13 @@ export function RebootPanel() {
             Skill Tree
           </button>
           <button
+            className="placeholder-action skill-tree-open"
+            onClick={() => setIsCharacterSkillTreeOpen(true)}
+            type="button"
+          >
+            Memory Slime Tree
+          </button>
+          <button
             className="reboot-action"
             disabled={!canReboot}
             onClick={handleReboot}
@@ -67,6 +78,19 @@ export function RebootPanel() {
           }
         >
           <SkillTreePanel onClose={() => setIsSkillTreeOpen(false)} />
+        </Suspense>
+      ) : null}
+      {isCharacterSkillTreeOpen ? (
+        <Suspense
+          fallback={
+            <div className="skill-tree-backdrop">
+              <div className="lazy-panel-loading panel" role="status">
+                Loading Memory Slime Tree...
+              </div>
+            </div>
+          }
+        >
+          <SkillTreeModal onClose={() => setIsCharacterSkillTreeOpen(false)} />
         </Suspense>
       ) : null}
     </>

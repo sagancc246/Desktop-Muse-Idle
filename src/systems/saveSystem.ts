@@ -25,6 +25,7 @@ import {
 } from '../data/skins';
 import { createInitialUpgrades, upgradeIds } from '../data/upgrades';
 import { createInitialSkillNodes, skillNodes } from '../data/skillTree';
+import { characterSkillNodes, createInitialCharacterSkillLevels } from '../data/skills';
 import { calculateOfflineReward } from '../game/offlineReward';
 import { calculateOfflineMemoryPerSecond } from '../game/rewardCalculator';
 import { createInitialSkillStates } from '../game/skillEffects';
@@ -63,6 +64,7 @@ type CompatibleSaveData = Pick<
       | 'fragments'
       | 'capsuleCount'
       | 'unlockedSkillNodes'
+      | 'characterSkillLevels'
       | 'rebootCount'
       | 'lastSavedAt'
       | 'stats'
@@ -264,6 +266,33 @@ function restoreSkillTreeState(
   };
 }
 
+function restoreCharacterSkillLevels(
+  data: CompatibleSaveData,
+): Pick<GameState, 'characterSkillLevels'> {
+  const storedCharacters =
+    data.characterSkillLevels && typeof data.characterSkillLevels === 'object'
+      ? data.characterSkillLevels
+      : {};
+  const characterSkillLevels = createInitialCharacterSkillLevels();
+
+  for (const skillNode of characterSkillNodes) {
+    const storedLevels = storedCharacters[skillNode.characterId];
+    const level =
+      storedLevels && typeof storedLevels === 'object'
+        ? storedLevels[skillNode.id]
+        : undefined;
+
+    if (Number.isInteger(level) && isNonNegativeNumber(level)) {
+      characterSkillLevels[skillNode.characterId][skillNode.id] = Math.min(
+        Math.floor(level),
+        skillNode.maxLevel,
+      );
+    }
+  }
+
+  return { characterSkillLevels };
+}
+
 function restoreSkinState(
   data: CompatibleSaveData,
 ): Pick<GameState, 'unlockedSkinIds' | 'equippedSkinByMuseId'> {
@@ -321,6 +350,7 @@ export function createNewGameState(motionIntensity: MotionIntensity = 'medium'):
     fragments: 0,
     capsuleCount: 0,
     unlockedSkillNodes: createInitialSkillNodes(),
+    characterSkillLevels: createInitialCharacterSkillLevels(),
     rebootCount: 0,
     saveStatus: 'idle',
     lastSavedAt: null,
@@ -338,6 +368,7 @@ export function createNewGameState(motionIntensity: MotionIntensity = 'medium'):
     state.unlockedSkillNodes,
     state.activeMuseIds,
     motionIntensity,
+    state.characterSkillLevels,
   );
 
   return state;
@@ -415,6 +446,7 @@ export function loadGameState({
       skillStates: createInitialSkillStates(),
       museTapStates: createInitialMuseTapStates(),
       ...restoreSkillTreeState(parsedData),
+      ...restoreCharacterSkillLevels(parsedData),
       capsuleCount: isNonNegativeNumber(parsedData.capsuleCount)
         ? Math.floor(parsedData.capsuleCount)
         : 0,
@@ -433,6 +465,7 @@ export function loadGameState({
       restoredState.unlockedSkillNodes,
       restoredState.activeMuseIds,
       motionIntensity,
+      restoredState.characterSkillLevels,
     );
 
     if (!applyOfflineReward) {
@@ -446,6 +479,7 @@ export function loadGameState({
       memoryPerSecond: parsedData.memoryPerSecond,
       now,
       unlockedSkillNodes: restoredState.unlockedSkillNodes,
+      characterSkillLevels: restoredState.characterSkillLevels,
     });
 
     return offlineReward
@@ -483,6 +517,7 @@ export function saveGameState(
       state.unlockedSkillNodes,
       state.activeMuseIds,
       motionIntensity,
+      state.characterSkillLevels,
     ),
     totalBounces: state.totalBounces,
     totalCornerHits: state.totalCornerHits,
@@ -505,6 +540,7 @@ export function saveGameState(
     fragments: state.fragments,
     capsuleCount: state.capsuleCount,
     unlockedSkillNodes: state.unlockedSkillNodes,
+    characterSkillLevels: state.characterSkillLevels,
     rebootCount: state.rebootCount,
     lastSavedAt: savedAt,
     stats: state.stats,

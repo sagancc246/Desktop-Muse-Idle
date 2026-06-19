@@ -1,12 +1,13 @@
 import { offlineRewardCapSeconds, offlineRewardRate } from '../data/balance';
 import { calculateOfflineRewardMultiplier } from './rewardCalculator';
-import type { OfflineRewardSummary } from '../types/game';
+import type { CharacterSkillLevels, OfflineRewardSummary } from '../types/game';
 
 interface OfflineRewardParams {
   lastSavedAt: number | undefined;
   memoryPerSecond: number;
   now: number;
   unlockedSkillNodes: Record<string, number>;
+  characterSkillLevels?: CharacterSkillLevels;
 }
 
 export function calculateOfflineReward({
@@ -14,6 +15,7 @@ export function calculateOfflineReward({
   memoryPerSecond,
   now,
   unlockedSkillNodes,
+  characterSkillLevels,
 }: OfflineRewardParams): OfflineRewardSummary | null {
   if (
     lastSavedAt === undefined ||
@@ -27,7 +29,7 @@ export function calculateOfflineReward({
 
   const fullElapsedSeconds = Math.max(0, (now - lastSavedAt) / 1_000);
   const elapsedSeconds = Math.min(fullElapsedSeconds, offlineRewardCapSeconds);
-  const multiplier = calculateOfflineRewardMultiplier(unlockedSkillNodes);
+  const multiplier = calculateOfflineRewardMultiplier(unlockedSkillNodes, characterSkillLevels);
   const memoryEarned = Math.floor(memoryPerSecond * elapsedSeconds * offlineRewardRate * multiplier);
 
   if (memoryEarned <= 0) {
