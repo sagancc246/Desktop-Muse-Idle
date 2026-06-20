@@ -1,4 +1,17 @@
-import type { Stage } from '../types/game';
+import { defaultEnemyTypeId } from './enemies';
+import type { Stage, StageClearConditionType, StageEnemyConfig } from '../types/game';
+
+const createEnemyStageConfig = (
+  maxActiveEnemies: number,
+  targetDefeatCount: number,
+): StageEnemyConfig => ({
+  maxActiveEnemies,
+  targetDefeatCount,
+  enemyTypes: [defaultEnemyTypeId],
+  enemyHpMultiplier: 1,
+  dropMultiplier: 1,
+  clearConditionType: 'enemy_defeats',
+});
 
 export const stages: Stage[] = [
   {
@@ -6,6 +19,8 @@ export const stages: Stage[] = [
     name: 'Stage 1',
     description: 'Find the rhythm of the first corners.',
     cornerHitGoal: 100,
+    clearConditionType: 'enemy_defeats',
+    enemyConfig: createEnemyStageConfig(1, 3),
     rewards: [
       { rewardId: 'memory_500', type: 'memory', amount: 500 },
       { rewardId: 'cozy_room', type: 'background', id: 'bg_cozy_room' },
@@ -16,6 +31,8 @@ export const stages: Stage[] = [
     name: 'Stage 2',
     description: 'Keep the muse bouncing through a longer session.',
     cornerHitGoal: 300,
+    clearConditionType: 'enemy_defeats',
+    enemyConfig: createEnemyStageConfig(2, 5),
     rewards: [
       { rewardId: 'lumi_pastel', type: 'skin', id: 'lumi_pastel' },
       { rewardId: 'astra', type: 'muse', id: 'astra' },
@@ -26,6 +43,8 @@ export const stages: Stage[] = [
     name: 'Stage 3',
     description: 'Reach the neon rhythm and prepare for the final unlock.',
     cornerHitGoal: 500,
+    clearConditionType: 'enemy_defeats',
+    enemyConfig: createEnemyStageConfig(2, 8),
     rewards: [
       { rewardId: 'neon_room', type: 'background', id: 'bg_neon_room' },
     ],
@@ -35,6 +54,8 @@ export const stages: Stage[] = [
     name: 'Stage 4',
     description: 'Settle into the night and unlock the late-game Muse.',
     cornerHitGoal: 700,
+    clearConditionType: 'enemy_defeats',
+    enemyConfig: createEnemyStageConfig(2, 10),
     rewards: [
       { rewardId: 'night_room', type: 'background', id: 'bg_night_room' },
       { rewardId: 'noir', type: 'muse', id: 'noir' },
@@ -45,6 +66,8 @@ export const stages: Stage[] = [
     name: 'Stage 5',
     description: 'Redirect the field and unlock Vega.',
     cornerHitGoal: 900,
+    clearConditionType: 'enemy_defeats',
+    enemyConfig: createEnemyStageConfig(2, 12),
     rewards: [{ rewardId: 'vega', type: 'muse', id: 'vega' }],
   },
   {
@@ -52,6 +75,8 @@ export const stages: Stage[] = [
     name: 'Stage 6',
     description: 'Build a stable Memory reserve.',
     cornerHitGoal: 1_200,
+    clearConditionType: 'enemy_defeats',
+    enemyConfig: createEnemyStageConfig(3, 15),
     rewards: [{ rewardId: 'memory_10000', type: 'memory', amount: 10_000 }],
   },
   {
@@ -59,6 +84,8 @@ export const stages: Stage[] = [
     name: 'Stage 7',
     description: 'Reach the cyber pinball field.',
     cornerHitGoal: 1_500,
+    clearConditionType: 'enemy_defeats',
+    enemyConfig: createEnemyStageConfig(3, 18),
     rewards: [
       { rewardId: 'astra_cyber', type: 'skin', id: 'astra_cyber' },
       { rewardId: 'pinball_neon', type: 'background', id: 'bg_pinball_neon' },
@@ -69,6 +96,8 @@ export const stages: Stage[] = [
     name: 'Stage 8',
     description: 'Open the observatory beyond the night.',
     cornerHitGoal: 1_900,
+    clearConditionType: 'enemy_defeats',
+    enemyConfig: createEnemyStageConfig(3, 21),
     rewards: [{ rewardId: 'star_room', type: 'background', id: 'bg_star_room' }],
   },
   {
@@ -76,6 +105,8 @@ export const stages: Stage[] = [
     name: 'Stage 9',
     description: 'Prepare a pair of future Muse Capsules.',
     cornerHitGoal: 2_300,
+    clearConditionType: 'enemy_defeats',
+    enemyConfig: createEnemyStageConfig(3, 24),
     rewards: [{ rewardId: 'muse_capsule_2', type: 'capsule', id: 'muse_capsule', amount: 2 }],
   },
   {
@@ -83,6 +114,8 @@ export const stages: Stage[] = [
     name: 'Stage 10',
     description: 'Complete the v1.0 route and prepare for Reboot.',
     cornerHitGoal: 3_000,
+    clearConditionType: 'enemy_defeats',
+    enemyConfig: createEnemyStageConfig(3, 30),
     rewards: [{ rewardId: 'memory_100000', type: 'memory', amount: 100_000 }],
   },
 ];
@@ -114,4 +147,25 @@ export function getNextStage(stageId: string): Stage | undefined {
 
 export function createInitialStageCornerHits(): Record<string, number> {
   return Object.fromEntries(stages.map((stage) => [stage.id, 0]));
+}
+
+export function createInitialStageDefeatCounts(): Record<string, number> {
+  return Object.fromEntries(stages.map((stage) => [stage.id, 0]));
+}
+
+export function getStageClearConditionType(stage: Stage): StageClearConditionType {
+  return stage.clearConditionType ?? 'corner_hits';
+}
+
+export function getStageEnemyConfig(stage: Stage): StageEnemyConfig {
+  return (
+    stage.enemyConfig ?? {
+      maxActiveEnemies: 1,
+      targetDefeatCount: 3,
+      enemyTypes: [defaultEnemyTypeId],
+      enemyHpMultiplier: 1,
+      dropMultiplier: 1,
+      clearConditionType: 'enemy_defeats',
+    }
+  );
 }

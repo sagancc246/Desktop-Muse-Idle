@@ -1,12 +1,20 @@
 import { getSkinById } from '../data/skins';
 import { getBackgroundById } from '../data/backgrounds';
 import { getMuseById } from '../data/muses';
-import { getNextStage, getStageById, initialStageId, stages } from '../data/stages';
+import {
+  getNextStage,
+  getStageById,
+  getStageClearConditionType,
+  getStageEnemyConfig,
+  initialStageId,
+  stages,
+} from '../data/stages';
 import { useGameStore } from '../store/useGameStore';
 
 export function StagePanel() {
   const currentStageId = useGameStore((state) => state.currentStageId);
   const stageCornerHits = useGameStore((state) => state.stageCornerHits);
+  const stageDefeatCounts = useGameStore((state) => state.stageDefeatCounts);
   const clearedStages = useGameStore((state) => state.clearedStages);
   const currentStage = getStageById(currentStageId) ?? getStageById(initialStageId);
 
@@ -14,8 +22,18 @@ export function StagePanel() {
     return null;
   }
 
-  const progress = stageCornerHits[currentStage.id] ?? 0;
-  const completionPercent = Math.min((progress / currentStage.cornerHitGoal) * 100, 100);
+  const clearConditionType = getStageClearConditionType(currentStage);
+  const enemyConfig = getStageEnemyConfig(currentStage);
+  const progress =
+    clearConditionType === 'enemy_defeats'
+      ? stageDefeatCounts[currentStage.id] ?? 0
+      : stageCornerHits[currentStage.id] ?? 0;
+  const progressGoal =
+    clearConditionType === 'enemy_defeats'
+      ? enemyConfig.targetDefeatCount
+      : currentStage.cornerHitGoal;
+  const progressLabel = clearConditionType === 'enemy_defeats' ? 'Defeats' : 'Corner Hits';
+  const completionPercent = Math.min((progress / progressGoal) * 100, 100);
   const isComplete = clearedStages.includes(currentStage.id);
   const isFinalStageCleared = isComplete && !getNextStage(currentStage.id);
   const rewardLabels = currentStage.rewards
@@ -44,8 +62,8 @@ export function StagePanel() {
       </div>
       <p className="stage-description">{currentStage.description}</p>
       <div
-        aria-label={`${currentStage.name} Corner Hit progress`}
-        aria-valuemax={currentStage.cornerHitGoal}
+        aria-label={`${currentStage.name} ${progressLabel} progress`}
+        aria-valuemax={progressGoal}
         aria-valuemin={0}
         aria-valuenow={progress}
         className="stage-progress-track"
@@ -55,14 +73,15 @@ export function StagePanel() {
       </div>
       <div className="stage-progress-copy">
         <strong>{progress.toLocaleString()}</strong>
-        <span>/ {currentStage.cornerHitGoal.toLocaleString()} Corner Hits</span>
+        <span>/ {progressGoal.toLocaleString()} {progressLabel}</span>
       </div>
       <p className="stage-clear-count">
         Cleared {clearedStages.length} / {stages.length}
       </p>
       <p className="stage-rule-note">
-        Stage progress counts only true Corner Hits. Near Corners are guidance and do not advance
-        this goal.
+        {clearConditionType === 'enemy_defeats'
+          ? 'Defeat Memory Bugs to advance. Corner Hits still grant Memory and trigger rewards.'
+          : 'Stage progress counts only true Corner Hits. Near Corners are guidance and do not advance this goal.'}
       </p>
       {rewardLabels.length > 0 ? (
         <p className="stage-skin-reward">

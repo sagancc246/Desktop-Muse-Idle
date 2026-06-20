@@ -1,4 +1,10 @@
-import { getStageById, initialStageId, stages } from '../data/stages';
+import {
+  getStageById,
+  getStageClearConditionType,
+  getStageEnemyConfig,
+  initialStageId,
+  stages,
+} from '../data/stages';
 import { useGameStore } from '../store/useGameStore';
 
 interface FocusHudProps {
@@ -9,13 +15,23 @@ export function FocusHud({ onExit }: FocusHudProps) {
   const memory = useGameStore((state) => state.memory);
   const currentStageId = useGameStore((state) => state.currentStageId);
   const stageCornerHits = useGameStore((state) => state.stageCornerHits);
+  const stageDefeatCounts = useGameStore((state) => state.stageDefeatCounts);
   const currentStage = getStageById(currentStageId) ?? getStageById(initialStageId);
 
   if (!currentStage) {
     return null;
   }
 
-  const progress = stageCornerHits[currentStage.id] ?? 0;
+  const clearConditionType = getStageClearConditionType(currentStage);
+  const progress =
+    clearConditionType === 'enemy_defeats'
+      ? stageDefeatCounts[currentStage.id] ?? 0
+      : stageCornerHits[currentStage.id] ?? 0;
+  const progressGoal =
+    clearConditionType === 'enemy_defeats'
+      ? getStageEnemyConfig(currentStage).targetDefeatCount
+      : currentStage.cornerHitGoal;
+  const progressLabel = clearConditionType === 'enemy_defeats' ? 'Defeats' : 'Corner Hits';
   const stageNumber = stages.findIndex((stage) => stage.id === currentStage.id) + 1;
 
   return (
@@ -31,9 +47,9 @@ export function FocusHud({ onExit }: FocusHudProps) {
         </strong>
       </div>
       <div className="focus-hud-metric">
-        <span>Corner Hits</span>
+        <span>{progressLabel}</span>
         <strong>
-          {progress.toLocaleString()} / {currentStage.cornerHitGoal.toLocaleString()}
+          {progress.toLocaleString()} / {progressGoal.toLocaleString()}
         </strong>
       </div>
       <button className="focus-exit" onClick={onExit} type="button">

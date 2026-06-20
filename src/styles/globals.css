@@ -319,6 +319,17 @@ select:focus-visible,
   color: #ffd681;
 }
 
+.metric.memory-drop-pulse {
+  animation: metricMemoryDropPulse 360ms ease-out;
+  border-color: rgba(140, 220, 255, 0.82);
+  box-shadow: 0 0 24px rgba(51, 236, 255, 0.28);
+}
+
+.metric.memory-drop-pulse strong {
+  color: #e7ffff;
+  text-shadow: 0 0 14px rgba(51, 236, 255, 0.58);
+}
+
 @keyframes metricCornerPulse {
   0% {
     transform: scale(1);
@@ -326,6 +337,20 @@ select:focus-visible,
 
   28% {
     transform: scale(1.045);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes metricMemoryDropPulse {
+  0% {
+    transform: scale(1);
+  }
+
+  36% {
+    transform: scale(1.055);
   }
 
   100% {

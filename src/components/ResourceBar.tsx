@@ -26,6 +26,7 @@ export function ResourceBar({
   const saveStatus = useGameStore((state) => state.saveStatus);
   const manualSave = useGameStore((state) => state.manualSave);
   const [isCornerPulseActive, setIsCornerPulseActive] = useState(false);
+  const [isMemoryDropPulseActive, setIsMemoryDropPulseActive] = useState(false);
 
   useEffect(() => {
     if (!lastCornerHitFlash) {
@@ -37,8 +38,25 @@ export function ResourceBar({
     return () => window.clearTimeout(timerId);
   }, [lastCornerHitFlash?.occurredAt, lastCornerHitFlash]);
 
+  useEffect(() => {
+    const handleMemoryDropCollected = () => {
+      setIsMemoryDropPulseActive(false);
+      window.requestAnimationFrame(() => setIsMemoryDropPulseActive(true));
+      window.setTimeout(() => setIsMemoryDropPulseActive(false), 360);
+    };
+
+    window.addEventListener('desktop-muse:memory-drop-collected', handleMemoryDropCollected);
+    return () =>
+      window.removeEventListener('desktop-muse:memory-drop-collected', handleMemoryDropCollected);
+  }, []);
+
   const resources = [
-    { label: 'Memory', pulse: isCornerPulseActive, value: memory.toLocaleString() },
+    {
+      collectPulse: isMemoryDropPulseActive,
+      label: 'Memory',
+      pulse: isCornerPulseActive,
+      value: memory.toLocaleString(),
+    },
     { label: 'Memory/sec', value: memoryPerSecond.toLocaleString() },
     { label: 'Bounces', value: totalBounces.toLocaleString() },
     { label: 'Corner Hits', pulse: isCornerPulseActive, value: totalCornerHits.toLocaleString() },
@@ -55,7 +73,13 @@ export function ResourceBar({
       <div className="resource-actions">
         <div className="metrics" aria-label="Game resource display">
           {resources.map((resource) => (
-            <div className={`metric${resource.pulse ? ' corner-pulse' : ''}`} key={resource.label}>
+            <div
+              className={`metric${resource.pulse ? ' corner-pulse' : ''}${
+                resource.collectPulse ? ' memory-drop-pulse' : ''
+              }`}
+              data-memory-counter={resource.label === 'Memory' ? 'true' : undefined}
+              key={resource.label}
+            >
               <span>{resource.label}</span>
               <strong>{resource.value}</strong>
             </div>

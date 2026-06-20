@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { getStageById, initialStageId, stages } from '../data/stages';
+import {
+  getStageById,
+  getStageClearConditionType,
+  getStageEnemyConfig,
+  initialStageId,
+  stages,
+} from '../data/stages';
 import { useAppStore } from '../store/useAppStore';
 import { useGameStore } from '../store/useGameStore';
 
@@ -33,6 +39,7 @@ export function WallpaperStageHud({ onExit }: WallpaperStageHudProps) {
   const memory = useGameStore((state) => state.memory);
   const currentStageId = useGameStore((state) => state.currentStageId);
   const stageCornerHits = useGameStore((state) => state.stageCornerHits);
+  const stageDefeatCounts = useGameStore((state) => state.stageDefeatCounts);
   const nativeWallpaperStatus = useAppStore((state) => state.nativeWallpaperStatus);
   const wallpaperMode = useAppStore((state) => state.wallpaperMode);
   const wallpaperSettings = useAppStore((state) => state.wallpaperSettings);
@@ -70,8 +77,18 @@ export function WallpaperStageHud({ onExit }: WallpaperStageHudProps) {
     return null;
   }
 
-  const progress = stageCornerHits[currentStage.id] ?? 0;
-  const completionPercent = Math.min((progress / currentStage.cornerHitGoal) * 100, 100);
+  const clearConditionType = getStageClearConditionType(currentStage);
+  const progress =
+    clearConditionType === 'enemy_defeats'
+      ? stageDefeatCounts[currentStage.id] ?? 0
+      : stageCornerHits[currentStage.id] ?? 0;
+  const progressGoal =
+    clearConditionType === 'enemy_defeats'
+      ? getStageEnemyConfig(currentStage).targetDefeatCount
+      : currentStage.cornerHitGoal;
+  const progressLabel =
+    clearConditionType === 'enemy_defeats' ? 'Defeat Progress' : 'Corner Hit Progress';
+  const completionPercent = Math.min((progress / progressGoal) * 100, 100);
   const stageNumber = stages.findIndex((stage) => stage.id === currentStage.id) + 1;
 
   return (
@@ -89,11 +106,11 @@ export function WallpaperStageHud({ onExit }: WallpaperStageHudProps) {
           {stageNumber} / {stages.length} - {currentStage.name}
         </strong>
       </div>
-      <div className="wallpaper-stage-progress" aria-label="Current stage Corner Hit progress">
+      <div className="wallpaper-stage-progress" aria-label={`Current stage ${progressLabel}`}>
         <div>
-          <span>Corner Hit Progress</span>
+          <span>{progressLabel}</span>
           <strong>
-            {progress.toLocaleString()} / {currentStage.cornerHitGoal.toLocaleString()}
+            {progress.toLocaleString()} / {progressGoal.toLocaleString()}
           </strong>
         </div>
         <div className="wallpaper-stage-progress-track">

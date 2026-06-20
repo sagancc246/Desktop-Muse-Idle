@@ -40,6 +40,7 @@ export const savedSettings = {
   effectsQuality: 'high',
   motionIntensity: 'low',
   windowDisplayMode: 'fullscreen',
+  showCornerZones: true,
   autoSaveEnabled: false,
 };
 

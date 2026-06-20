@@ -175,6 +175,7 @@ assert.deepEqual(settingsSystem.loadSettings(), {
   ...legacySettings,
   motionIntensity: 'medium',
   windowDisplayMode: 'windowed',
+  showCornerZones: false,
 });
 
 storeJson(storage, settingsStorageKey, incompleteSettings);

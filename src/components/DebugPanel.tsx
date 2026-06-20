@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { rebootMemoryRequirement } from '../data/balance';
 import { muses } from '../data/muses';
 import { getSkinById, museSkins } from '../data/skins';
-import { getStageById } from '../data/stages';
+import { getStageById, getStageClearConditionType, getStageEnemyConfig } from '../data/stages';
 import { useAppStore } from '../store/useAppStore';
 import { useGameStore } from '../store/useGameStore';
 
@@ -44,6 +44,7 @@ export function DebugPanel({ onClose }: DebugPanelProps) {
   const fragments = useGameStore((state) => state.fragments);
   const currentStageId = useGameStore((state) => state.currentStageId);
   const stageCornerHits = useGameStore((state) => state.stageCornerHits);
+  const stageDefeatCounts = useGameStore((state) => state.stageDefeatCounts);
   const clearedStages = useGameStore((state) => state.clearedStages);
   const activeMuseIds = useGameStore((state) => state.activeMuseIds);
   const unlockedMuseIds = useGameStore((state) => state.unlockedMuseIds);
@@ -62,9 +63,19 @@ export function DebugPanel({ onClose }: DebugPanelProps) {
     useState<DebugCollisionStatus>(defaultCollisionStatus);
   const currentStage = getStageById(currentStageId);
   const debugSkinIds = ['lumi_pastel', 'astra_cyber', 'noir_gothic'];
-  const currentStageHits = currentStage ? stageCornerHits[currentStage.id] ?? 0 : 0;
+  const clearConditionType = currentStage ? getStageClearConditionType(currentStage) : 'corner_hits';
+  const currentStageProgress = currentStage
+    ? clearConditionType === 'enemy_defeats'
+      ? stageDefeatCounts[currentStage.id] ?? 0
+      : stageCornerHits[currentStage.id] ?? 0
+    : 0;
+  const currentStageGoal = currentStage
+    ? clearConditionType === 'enemy_defeats'
+      ? getStageEnemyConfig(currentStage).targetDefeatCount
+      : currentStage.cornerHitGoal
+    : 0;
   const stageProgress = currentStage
-    ? `${currentStageHits.toLocaleString()} / ${currentStage.cornerHitGoal.toLocaleString()}`
+    ? `${currentStageProgress.toLocaleString()} / ${currentStageGoal.toLocaleString()}`
     : 'No stage';
   const vegaSkillState = skillStates.vega;
   const vegaStatus = vegaSkillState?.activeRemainingMs

@@ -15,6 +15,7 @@ export const defaultSettings: AppSettings = {
   effectsQuality: 'medium',
   motionIntensity: 'medium',
   windowDisplayMode: 'windowed',
+  showCornerZones: false,
   autoSaveEnabled: true,
 };
 
@@ -66,6 +67,10 @@ function migrateSettings(value: unknown): AppSettings | null {
     windowDisplayMode: isWindowDisplayMode(settings.windowDisplayMode)
       ? settings.windowDisplayMode
       : defaultSettings.windowDisplayMode,
+    showCornerZones:
+      typeof settings.showCornerZones === 'boolean'
+        ? settings.showCornerZones
+        : defaultSettings.showCornerZones,
     autoSaveEnabled: settings.autoSaveEnabled,
   };
 }

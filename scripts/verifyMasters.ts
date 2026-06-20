@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { backgrounds, initialBackgroundId, initialUnlockedBackgroundIds } from '../src/data/backgrounds';
 import { capsules } from '../src/data/capsules';
+import { enemyMasters } from '../src/data/enemies';
 import { initialActiveMuseIds, initialUnlockedMuseIds, muses } from '../src/data/muses';
 import { monsterAssets } from '../src/data/monsters';
 import {
@@ -47,6 +48,7 @@ const skinIds = new Set(museSkins.map((skin) => skin.id));
 const backgroundIds = new Set(backgrounds.map((background) => background.id));
 const capsuleIds = new Set(capsules.map((capsule) => capsule.id));
 const monsterIds = new Set(monsterAssets.map((monster) => monster.id));
+const enemyIds = new Set(enemyMasters.map((enemy) => enemy.id));
 const skillIds = new Set(Object.keys(skills));
 
 function validateUniqueIds(scope: string, ids: string[]): void {
@@ -149,6 +151,7 @@ validateUniqueIds('skins', museSkins.map((skin) => skin.id));
 validateUniqueIds('backgrounds', backgrounds.map((background) => background.id));
 validateUniqueIds('capsules', capsules.map((capsule) => capsule.id));
 validateUniqueIds('monsters', monsterAssets.map((monster) => monster.id));
+validateUniqueIds('enemies', enemyMasters.map((enemy) => enemy.id));
 validateUniqueIds('skills', Object.values(skills).map((skill) => skill.id));
 validateUniqueIds('characterSkills', characterSkillNodes.map((skillNode) => skillNode.id));
 validateUniqueIds('upgrades', upgradeIds);
@@ -170,6 +173,37 @@ const claimKeys: string[] = [];
 for (const stage of stages) {
   const scope = `stages:${stage.id}`;
   if (!isPositiveNumber(stage.cornerHitGoal)) addError(report, scope, 'cornerHitGoal must be positive');
+  if (stage.clearConditionType !== undefined && !['corner_hits', 'enemy_defeats'].includes(stage.clearConditionType)) {
+    addError(report, scope, `unsupported clearConditionType ${stage.clearConditionType}`);
+  }
+  if (stage.clearConditionType === 'enemy_defeats') {
+    const enemyConfig = stage.enemyConfig;
+    if (!enemyConfig) {
+      addError(report, scope, 'enemyConfig is required for enemy_defeats stages');
+    } else {
+      if (!Number.isInteger(enemyConfig.maxActiveEnemies) || enemyConfig.maxActiveEnemies <= 0) {
+        addError(report, scope, 'enemyConfig.maxActiveEnemies must be a positive integer');
+      }
+      if (!Number.isInteger(enemyConfig.targetDefeatCount) || enemyConfig.targetDefeatCount <= 0) {
+        addError(report, scope, 'enemyConfig.targetDefeatCount must be a positive integer');
+      }
+      if (!Array.isArray(enemyConfig.enemyTypes) || enemyConfig.enemyTypes.length === 0) {
+        addError(report, scope, 'enemyConfig.enemyTypes must not be empty');
+      } else {
+        for (const enemyType of enemyConfig.enemyTypes) {
+          if (!enemyIds.has(enemyType)) {
+            addError(report, scope, `enemyConfig enemy type ${enemyType} not found in enemies`);
+          }
+        }
+      }
+      if (!isPositiveNumber(enemyConfig.enemyHpMultiplier)) {
+        addError(report, scope, 'enemyConfig.enemyHpMultiplier must be positive');
+      }
+      if (!isPositiveNumber(enemyConfig.dropMultiplier)) {
+        addError(report, scope, 'enemyConfig.dropMultiplier must be positive');
+      }
+    }
+  }
   if (!Array.isArray(stage.rewards)) {
     addError(report, scope, 'rewards must be an array');
     continue;
@@ -185,6 +219,16 @@ for (const stage of stages) {
     if (!isNonEmptyString(claimKey)) addError(report, `${scope}:reward:${index}`, 'claim key is empty');
     claimKeys.push(claimKey);
   });
+}
+
+for (const enemy of enemyMasters) {
+  const scope = `enemies:${enemy.id}`;
+  if (!isNonEmptyString(enemy.name)) addError(report, scope, 'name must not be empty');
+  if (!isPositiveNumber(enemy.radius)) addError(report, scope, 'radius must be positive');
+  if (!isPositiveNumber(enemy.maxHp)) addError(report, scope, 'maxHp must be positive');
+  if (!isNonNegativeNumber(enemy.hitCooldownMs)) addError(report, scope, 'hitCooldownMs must be non-negative');
+  if (!isPositiveNumber(enemy.dropAmount)) addError(report, scope, 'dropAmount must be positive');
+  if (!isPositiveNumber(enemy.spawnWeight)) addError(report, scope, 'spawnWeight must be positive');
 }
 for (const duplicate of findDuplicates(globalRewardIds)) addError(report, 'stages', `duplicate global rewardId ${duplicate}`);
 for (const duplicate of findDuplicates(claimKeys)) addError(report, 'stages', `duplicate claim key ${duplicate}`);
@@ -330,7 +374,7 @@ if (report.errors.length > 0) {
 } else {
   const rewardCount = stages.reduce((total, stage) => total + stage.rewards.length, 0);
   console.log('\n✅ Master validation passed');
-  console.log(`Validated ${stages.length + rewardCount + muses.length + museSkins.length + backgrounds.length} master records`);
+  console.log(`Validated ${stages.length + rewardCount + muses.length + museSkins.length + backgrounds.length + enemyMasters.length} master records`);
   console.log(`Stages: ${stages.length}`);
   console.log(`Rewards: ${rewardCount}`);
   console.log(`Muses: ${muses.length}`);
@@ -338,5 +382,6 @@ if (report.errors.length > 0) {
   console.log(`Backgrounds: ${backgrounds.length}`);
   console.log(`Capsules: ${capsules.length}`);
   console.log(`Monsters: ${monsterAssets.length}`);
+  console.log(`Enemies: ${enemyMasters.length}`);
   console.log(`Warnings: ${report.warnings.length}`);
 }

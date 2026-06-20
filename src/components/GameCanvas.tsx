@@ -13,6 +13,19 @@ import {
   cloneSpawnMaxAttempts,
   cloneSpawnMinDistance,
   cloneSpawnWallPadding,
+  cornerHitAssistZonePx,
+  cornerHitCooldownMs,
+  memoryBugDropCollectArrivalRadius,
+  memoryBugDropCollectDisableMs,
+  memoryBugDropCollectMouseSpeedMultiplier,
+  memoryBugDropCollectSpeed,
+  memoryBugDropCollectTouchRadius,
+  memoryBugDropMuseCollectPadding,
+  memoryBugDropCountMax,
+  memoryBugDropCountMin,
+  memoryBugDropMaxVisible,
+  memoryBugDropValue,
+  memoryBugRespawnMs,
   museTapDirectionChangeDegreeHigh,
   museTapDirectionChangeDegreeLow,
   museTapDirectionChangeDegreeMedium,
@@ -22,11 +35,14 @@ import {
   wallpaperLowEffectParticleMultiplier,
 } from '../data/balance';
 import { getBackgroundById } from '../data/backgrounds';
+import { defaultEnemyTypeId, getEnemyMasterById, type EnemyMaster } from '../data/enemies';
 import { getMuseById } from '../data/muses';
 import { getEquippedSkinForMuse } from '../data/skins';
+import { getStageById, getStageEnemyConfig, initialStageId } from '../data/stages';
 import { createEffectManager } from '../effects/effectManager';
 import type { CornerEffectKind } from '../effects/effectTypes';
 import { createInitialBody, stepBounceBody, type BounceBody } from '../game/bouncePhysics';
+import { getCollisionLimits } from '../game/cornerHitDetector';
 import {
   calculateBounceReward,
   calculateBackgroundTapReward,
@@ -74,6 +90,50 @@ interface FloatingTextEffect {
   maxLife: number;
   text: Text;
   vy: number;
+}
+
+interface EnemyView {
+  body: Graphics;
+  hpBack: Graphics;
+  hpFill: Graphics;
+  label: Text;
+}
+
+interface MemoryBugEnemy {
+  defeatedAt: number | null;
+  dropAmount: number;
+  hitFlashRemaining: number;
+  hp: number;
+  id: string;
+  isAlive: boolean;
+  lastHitAt: number;
+  maxHp: number;
+  radius: number;
+  respawnAt: number;
+  type: string;
+  view: EnemyView;
+  x: number;
+  y: number;
+}
+
+interface MemoryDrop {
+  canCollectAt: number;
+  collectSource: 'mouse' | 'muse' | null;
+  collectSpeed: number;
+  collectStartedAt: number | null;
+  collectTargetX: number | null;
+  collectTargetY: number | null;
+  createdAt: number;
+  graphic: Graphics;
+  id: string;
+  radius: number;
+  rotationSpeed: number;
+  state: 'falling' | 'settled' | 'collecting';
+  value: number;
+  vx: number;
+  vy: number;
+  x: number;
+  y: number;
 }
 
 interface ActiveMuseBody {
@@ -162,7 +222,10 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
       backgroundImage.visible = false;
       backgroundImage.mask = backgroundMask;
       const grid = new Graphics();
+      const cornerZoneLayer = new Graphics();
       const cornerGlowLayer = new Container();
+      const memoryDropLayer = new Container();
+      const enemyLayer = new Container();
       const museLayer = new Container();
       const particleLayer = new Container();
       const tapEffectLayer = new Container();
@@ -214,7 +277,10 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
         backgroundImage,
         backgroundMask,
         grid,
+        cornerZoneLayer,
         cornerGlowLayer,
+        memoryDropLayer,
+        enemyLayer,
         museLayer,
         particleLayer,
         tapEffectLayer,
@@ -242,9 +308,16 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
       const floatingTexts: FloatingTextEffect[] = [];
       const inset = 12;
       let lastBackgroundTapAt = 0;
+      let lastCornerHitAt = 0;
+      let highlightedCornerZone: CornerHitPosition | null = null;
+      let highlightedCornerZoneRemaining = 0;
       let backgroundRequestId = 0;
       let isBackgroundImageReady = false;
       const activeMuses = new Map<string, ActiveMuseBody>();
+      const enemies: MemoryBugEnemy[] = [];
+      let enemySequence = 0;
+      const memoryDrops: MemoryDrop[] = [];
+      let memoryDropSequence = 0;
       const vegaBumperRewardAtByPair = new Map<string, number>();
       const memorySlimeAsset = resolveMonsterSpriteAsset('memory_slime');
       const memorySlimeAssetPath = memorySlimeAsset.assetPath;
@@ -272,6 +345,119 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
       };
       const radii: Record<string, number> = { lumi: 46, astra: 40, noir: 43, vega: 44 };
       let handleMuseTap = (_runtime: ActiveMuseBody) => undefined;
+
+      const createEnemyView = (master: EnemyMaster): EnemyView => {
+        const view = {
+          body: new Graphics(),
+          hpBack: new Graphics(),
+          hpFill: new Graphics(),
+          label: new Text({
+            text: master.name,
+            style: {
+              align: 'center',
+              fill: 0xf1dcff,
+              fontFamily: 'Arial, sans-serif',
+              fontSize: 11,
+              fontWeight: 'bold',
+              stroke: { color: 0x16091f, width: 3 },
+            },
+          }),
+        };
+        view.label.anchor.set(0.5);
+        enemyLayer.addChild(view.body, view.hpBack, view.hpFill, view.label);
+        return view;
+      };
+
+      const destroyEnemyView = (enemy: MemoryBugEnemy) => {
+        enemyLayer.removeChild(enemy.view.body, enemy.view.hpBack, enemy.view.hpFill, enemy.view.label);
+        enemy.view.body.destroy();
+        enemy.view.hpBack.destroy();
+        enemy.view.hpFill.destroy();
+        enemy.view.label.destroy();
+      };
+
+      const getMemoryBugSpawnPosition = (radius: number, existingEnemies: MemoryBugEnemy[]) => {
+        const horizontalPadding = radius + inset + 72;
+        const minX = horizontalPadding;
+        const maxX = Math.max(minX, app.screen.width - horizontalPadding);
+        const minY = inset + radius + 84;
+        const maxY = Math.max(minY, app.screen.height - inset - radius - 110);
+        const minDistance = radius * 2.5;
+
+        for (let attempt = 0; attempt < 24; attempt += 1) {
+          const position = {
+            x: minX + Math.random() * Math.max(1, maxX - minX),
+            y: minY + Math.random() * Math.max(1, maxY - minY),
+          };
+          const overlapsEnemy = existingEnemies.some(
+            (enemy) =>
+              enemy.isAlive &&
+              Math.hypot(enemy.x - position.x, enemy.y - position.y) <
+                minDistance + enemy.radius,
+          );
+          if (!overlapsEnemy) {
+            return position;
+          }
+        }
+
+        const fallbackIndex = existingEnemies.length;
+        return {
+          x: minX + Math.max(1, maxX - minX) * (0.28 + (fallbackIndex % 3) * 0.22),
+          y: minY + Math.max(1, maxY - minY) * (0.35 + (fallbackIndex % 2) * 0.24),
+        };
+      };
+
+      const createMemoryBugEnemy = (
+        slotIndex: number,
+        enemyType = defaultEnemyTypeId,
+      ): MemoryBugEnemy => {
+        const master = getEnemyMasterById(enemyType) ?? getEnemyMasterById(defaultEnemyTypeId);
+        if (!master) {
+          throw new Error('Memory Bug enemy master is missing.');
+        }
+        const stage = getStageById(useGameStore.getState().currentStageId) ?? getStageById(initialStageId);
+        const stageConfig = stage ? getStageEnemyConfig(stage) : null;
+        const hpMultiplier = stageConfig?.enemyHpMultiplier ?? 1;
+        const dropMultiplier = stageConfig?.dropMultiplier ?? 1;
+        const position = getMemoryBugSpawnPosition(master.radius, enemies);
+
+        return {
+          defeatedAt: null,
+          dropAmount: Math.max(1, Math.round(master.dropAmount * dropMultiplier)),
+          hitFlashRemaining: 0,
+          hp: Math.max(1, Math.round(master.maxHp * hpMultiplier)),
+          id: `${master.id}_${slotIndex + 1}_${enemySequence}`,
+          isAlive: true,
+          lastHitAt: 0,
+          maxHp: Math.max(1, Math.round(master.maxHp * hpMultiplier)),
+          radius: master.radius,
+          respawnAt: 0,
+          type: master.id,
+          view: createEnemyView(master),
+          x: position.x,
+          y: position.y,
+        };
+      };
+
+      const syncEnemiesToStageConfig = () => {
+        const stage = getStageById(useGameStore.getState().currentStageId) ?? getStageById(initialStageId);
+        const stageConfig = stage ? getStageEnemyConfig(stage) : null;
+        const maxActiveEnemies = Math.max(1, Math.floor(stageConfig?.maxActiveEnemies ?? 1));
+        const enemyTypes = stageConfig?.enemyTypes.length ? stageConfig.enemyTypes : [defaultEnemyTypeId];
+
+        while (enemies.length > maxActiveEnemies) {
+          const enemy = enemies.pop();
+          if (enemy) {
+            destroyEnemyView(enemy);
+          }
+        }
+
+        while (enemies.length < maxActiveEnemies) {
+          const enemyType = enemyTypes[enemies.length % enemyTypes.length] ?? defaultEnemyTypeId;
+          enemySequence += 1;
+          enemies.push(createMemoryBugEnemy(enemies.length, enemyType));
+        }
+      };
 
       const isTapInputDebugEnabled = () => {
         if (!import.meta.env.DEV || typeof window === 'undefined') {
@@ -573,6 +759,63 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
 
       };
 
+      const getCornerZoneRadius = () => {
+        const primaryRuntime =
+          Array.from(activeMuses.values()).find((runtime) => !runtime.isClone) ??
+          activeMuses.values().next().value;
+
+        return primaryRuntime?.body.radius ?? 46;
+      };
+
+      const getCornerZoneRects = () => {
+        const { maxX, maxY, minX, minY } = getCollisionLimits(
+          { width: app.screen.width, height: app.screen.height, inset },
+          getCornerZoneRadius(),
+        );
+        const zone = cornerHitAssistZonePx;
+
+        return [
+          { corner: 'top_left' as const, x: minX, y: minY },
+          { corner: 'top_right' as const, x: maxX - zone, y: minY },
+          { corner: 'bottom_left' as const, x: minX, y: maxY - zone },
+          { corner: 'bottom_right' as const, x: maxX - zone, y: maxY - zone },
+        ];
+      };
+
+      const drawCornerZones = () => {
+        const { settings } = useAppStore.getState();
+        const shouldShow =
+          settings.showCornerZones && presentationModeRef.current !== 'muse_overlay';
+        cornerZoneLayer.visible = shouldShow;
+        cornerZoneLayer.clear();
+
+        if (!shouldShow) {
+          return;
+        }
+
+        const zone = cornerHitAssistZonePx;
+        for (const rect of getCornerZoneRects()) {
+          const isHighlighted = highlightedCornerZone === rect.corner;
+          const highlightAlpha = isHighlighted
+            ? Math.max(0, Math.min(1, highlightedCornerZoneRemaining / 0.35))
+            : 0;
+          cornerZoneLayer
+            .rect(rect.x, rect.y, zone, zone)
+            .fill({ color: isHighlighted ? 0xffd681 : 0x33ecff, alpha: 0.18 + highlightAlpha * 0.22 })
+            .stroke({
+              color: isHighlighted ? 0xfff0ba : 0x7af7ff,
+              alpha: 0.64 + highlightAlpha * 0.32,
+              width: isHighlighted ? 3 : 2,
+            })
+            .circle(
+              rect.x + (rect.corner.includes('right') ? zone : 0),
+              rect.y + (rect.corner.includes('bottom') ? zone : 0),
+              isHighlighted ? 4 : 2.5,
+            )
+            .fill({ color: 0xffffff, alpha: 0.72 + highlightAlpha * 0.2 });
+        }
+      };
+
       const updateBackground = async (backgroundId: string | null) => {
         const background = getBackgroundById(backgroundId);
         const requestId = ++backgroundRequestId;
@@ -702,6 +945,435 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
           }
           glow.alpha = runtime.isClone ? 0.5 : 1;
           icon.alpha = runtime.isClone ? 0.58 : 1;
+        }
+      };
+
+      const drawEnemy = (enemy: MemoryBugEnemy, pulseTime = 0) => {
+        const shouldShowEnemy =
+          presentationModeRef.current !== 'muse_overlay' && enemy.isAlive;
+        enemy.view.body.visible = shouldShowEnemy;
+        enemy.view.hpBack.visible = shouldShowEnemy;
+        enemy.view.hpFill.visible = shouldShowEnemy;
+        enemy.view.label.visible = shouldShowEnemy;
+
+        if (!shouldShowEnemy) {
+          return;
+        }
+
+        const hpRatio = Math.max(0, Math.min(1, enemy.hp / enemy.maxHp));
+        const pulse = 1 + Math.sin(pulseTime * 4.1) * 0.035;
+        const hitFlash = Math.max(0, Math.min(1, enemy.hitFlashRemaining / 0.16));
+        const bugRadius = enemy.radius * (pulse + hitFlash * 0.08);
+        const bodyColor = hitFlash > 0 ? 0xff6bcb : 0x2a102f;
+        const coreColor = hitFlash > 0 ? 0xffd1f2 : 0x8d3a9f;
+
+        enemy.view.body
+          .clear()
+          .circle(enemy.x, enemy.y, bugRadius + 8)
+          .fill({ color: 0x66164e, alpha: 0.22 + hitFlash * 0.22 })
+          .circle(enemy.x, enemy.y, bugRadius)
+          .fill({ color: bodyColor, alpha: 0.95 })
+          .stroke({ color: 0xd85cff, alpha: 0.74, width: 3 })
+          .circle(enemy.x - bugRadius * 0.32, enemy.y - bugRadius * 0.14, bugRadius * 0.17)
+          .fill({ color: coreColor, alpha: 0.9 })
+          .circle(enemy.x + bugRadius * 0.28, enemy.y - bugRadius * 0.11, bugRadius * 0.14)
+          .fill({ color: coreColor, alpha: 0.78 });
+
+        for (let index = 0; index < 6; index += 1) {
+          const angle = (Math.PI * 2 * index) / 6 + pulseTime * 0.5;
+          const legX = enemy.x + Math.cos(angle) * bugRadius * 0.82;
+          const legY = enemy.y + Math.sin(angle) * bugRadius * 0.82;
+          enemy.view.body
+            .moveTo(legX, legY)
+            .lineTo(
+              enemy.x + Math.cos(angle) * (bugRadius + 8),
+              enemy.y + Math.sin(angle) * (bugRadius + 8),
+            );
+        }
+        enemy.view.body.stroke({ color: 0x1a071e, alpha: 0.9, width: 2 });
+
+        const barWidth = 74;
+        const barHeight = 8;
+        const barX = enemy.x - barWidth / 2;
+        const barY = enemy.y - enemy.radius - 24;
+        enemy.view.hpBack
+          .clear()
+          .roundRect(barX, barY, barWidth, barHeight, 4)
+          .fill({ color: 0x120a1e, alpha: 0.86 })
+          .stroke({ color: 0x5d2f74, alpha: 0.82, width: 1 });
+        enemy.view.hpFill
+          .clear()
+          .roundRect(barX + 1, barY + 1, Math.max(0, (barWidth - 2) * hpRatio), barHeight - 2, 3)
+          .fill({ color: hpRatio > 0.35 ? 0xff5ca8 : 0xffd681, alpha: 0.94 });
+        enemy.view.label.position.set(enemy.x, barY - 10);
+      };
+
+      const drawEnemies = (pulseTime = 0) => {
+        for (const enemy of enemies) {
+          drawEnemy(enemy, pulseTime);
+        }
+      };
+
+      const triggerMemoryBugDamageText = (enemy: MemoryBugEnemy, damage: number) => {
+        const maxLife = 0.52;
+        const text = new Text({
+          text: `-${damage}`,
+          style: {
+            fill: 0xff86c8,
+            fontFamily: 'Arial, sans-serif',
+            fontSize: 15,
+            fontWeight: 'bold',
+            stroke: { color: 0x17071d, width: 4 },
+          },
+        });
+        text.anchor.set(0.5);
+        text.position.set(enemy.x, enemy.y - enemy.radius - 5);
+        cornerTextLayer.addChild(text);
+        floatingTexts.push({ life: maxLife, maxLife, text, vy: -28 });
+      };
+
+      const drawMemoryDrop = (drop: MemoryDrop) => {
+        const isCollecting = drop.state === 'collecting';
+        const isMouseCollect = drop.collectSource === 'mouse';
+        const settledGlowAlpha = drop.state === 'settled' ? 0.38 : 0.54;
+        const glowAlpha = isCollecting ? (isMouseCollect ? 0.78 : 0.58) : settledGlowAlpha;
+        const dropScale = isCollecting ? (isMouseCollect ? 1.18 : 1.08) : 1;
+        drop.graphic
+          .clear()
+          .circle(0, 0, drop.radius * dropScale + 5)
+          .fill({ color: 0x33ecff, alpha: glowAlpha * 0.32 })
+          .roundRect(
+            -drop.radius * dropScale,
+            -drop.radius * dropScale,
+            drop.radius * 2 * dropScale,
+            drop.radius * 2 * dropScale,
+            3,
+          )
+          .fill({ color: isCollecting ? 0xd9ffff : 0x7af7ff, alpha: 0.92 })
+          .stroke({ color: 0xd9ffff, alpha: 0.82, width: 1 })
+          .circle(-drop.radius * 0.28, -drop.radius * 0.3, drop.radius * 0.28)
+          .fill({ color: 0xffffff, alpha: 0.62 });
+        drop.graphic.position.set(drop.x, drop.y);
+      };
+
+      const removeMemoryDropAt = (index: number) => {
+        const [drop] = memoryDrops.splice(index, 1);
+        if (!drop) {
+          return;
+        }
+
+        memoryDropLayer.removeChild(drop.graphic);
+        drop.graphic.destroy();
+      };
+
+      const trimMemoryDrops = () => {
+        while (memoryDrops.length > memoryBugDropMaxVisible) {
+          const settledIndex = memoryDrops.findIndex((drop) => drop.state === 'settled');
+          removeMemoryDropAt(settledIndex >= 0 ? settledIndex : 0);
+        }
+      };
+
+      const getMemoryDropFloorY = () => {
+        const bottomUiReserve = 34;
+        return Math.max(
+          inset + 140,
+          app.screen.height - bottomUiReserve - 18,
+        );
+      };
+
+      const getCanvasPointFromClient = (clientX: number, clientY: number) => {
+        const bounds = host.getBoundingClientRect();
+        return {
+          x: (clientX - bounds.left) * (app.screen.width / Math.max(1, bounds.width)),
+          y: (clientY - bounds.top) * (app.screen.height / Math.max(1, bounds.height)),
+        };
+      };
+
+      const getMemoryCounterTargetPosition = () => {
+        const counter = document.querySelector('[data-memory-counter="true"]');
+        if (!counter) {
+          return { x: app.screen.width * 0.3, y: 24 };
+        }
+
+        const counterBounds = counter.getBoundingClientRect();
+        const target = getCanvasPointFromClient(
+          counterBounds.left + counterBounds.width / 2,
+          counterBounds.top + counterBounds.height / 2,
+        );
+
+        return {
+          x: Math.max(18, Math.min(app.screen.width - 18, target.x)),
+          y: Math.max(18, Math.min(app.screen.height - 18, target.y)),
+        };
+      };
+
+      const triggerMemoryDropCollectStartEffect = (drop: MemoryDrop) => {
+        const isMouseCollect = drop.collectSource === 'mouse';
+        const sparkle = new Graphics()
+          .circle(0, 0, drop.radius + (isMouseCollect ? 7 : 4))
+          .stroke({ color: 0xd9ffff, alpha: isMouseCollect ? 0.72 : 0.42, width: 2 })
+          .circle(0, 0, isMouseCollect ? 2.5 : 1.8)
+          .fill({ color: 0xffffff, alpha: isMouseCollect ? 0.72 : 0.5 });
+        sparkle.position.set(drop.x, drop.y);
+        tapEffectLayer.addChild(sparkle);
+        tapEffects.push({
+          graphic: sparkle,
+          life: isMouseCollect ? 0.28 : 0.2,
+          maxLife: isMouseCollect ? 0.28 : 0.2,
+        });
+        // Future hook: play MemoryDrop collect SE here.
+      };
+
+      const triggerMemoryDropArrivalEffect = (drop: MemoryDrop) => {
+        triggerFloatingMemoryText(drop.x, drop.y, drop.value);
+        window.dispatchEvent(new Event('desktop-muse:memory-drop-collected'));
+      };
+
+      const startCollectMemoryDrop = (drop: MemoryDrop, source: 'mouse' | 'muse') => {
+        if (drop.state === 'collecting') {
+          return;
+        }
+
+        const now = Date.now();
+        if (now < drop.canCollectAt) {
+          return;
+        }
+
+        const target = getMemoryCounterTargetPosition();
+        drop.collectSource = source;
+        drop.collectSpeed =
+          memoryBugDropCollectSpeed *
+          (source === 'mouse' ? memoryBugDropCollectMouseSpeedMultiplier : 1);
+        drop.collectStartedAt = now;
+        drop.collectTargetX = target.x;
+        drop.collectTargetY = target.y;
+        drop.state = 'collecting';
+        drop.vx = 0;
+        drop.vy = 0;
+        triggerMemoryDropCollectStartEffect(drop);
+      };
+
+      const checkMouseMemoryDropCollection = (pointerX: number, pointerY: number) => {
+        if (document.querySelector('[aria-modal="true"]')) {
+          return false;
+        }
+
+        let didCollect = false;
+        for (const drop of memoryDrops) {
+          if (drop.state === 'collecting') {
+            continue;
+          }
+
+          if (Date.now() < drop.canCollectAt) {
+            continue;
+          }
+
+          const distance = Math.hypot(drop.x - pointerX, drop.y - pointerY);
+          if (distance <= drop.radius + memoryBugDropCollectTouchRadius) {
+            startCollectMemoryDrop(drop, 'mouse');
+            didCollect = true;
+          }
+        }
+
+        return didCollect;
+      };
+
+      const checkMuseMemoryDropCollection = (
+        museX: number,
+        museY: number,
+        museRadius: number,
+      ) => {
+        const now = Date.now();
+        for (const drop of memoryDrops) {
+          if (drop.state === 'collecting' || now < drop.canCollectAt) {
+            continue;
+          }
+
+          const distance = Math.hypot(drop.x - museX, drop.y - museY);
+          if (distance <= museRadius + drop.radius + memoryBugDropMuseCollectPadding) {
+            startCollectMemoryDrop(drop, 'muse');
+          }
+        }
+      };
+
+      const spawnMemoryDropsFromEnemy = (enemy: MemoryBugEnemy) => {
+        const now = Date.now();
+        const randomDropCount =
+          memoryBugDropCountMin +
+          Math.floor(Math.random() * (memoryBugDropCountMax - memoryBugDropCountMin + 1));
+        const dropCount = Math.max(1, Math.round((randomDropCount + enemy.dropAmount) / 2));
+
+        for (let index = 0; index < dropCount; index += 1) {
+          const radius = 4 + Math.random() * 3;
+          const angle = -Math.PI * (0.18 + Math.random() * 0.64);
+          const speed = 95 + Math.random() * 145;
+          const sideDrift = (Math.random() * 2 - 1) * 95;
+          const graphic = new Graphics();
+          const drop: MemoryDrop = {
+            canCollectAt: now + memoryBugDropCollectDisableMs,
+            collectSource: null,
+            collectSpeed: memoryBugDropCollectSpeed,
+            collectStartedAt: null,
+            collectTargetX: null,
+            collectTargetY: null,
+            createdAt: now,
+            graphic,
+            id: `memory_drop_${now}_${memoryDropSequence}`,
+            radius,
+            rotationSpeed: (Math.random() * 2 - 1) * 3.2,
+            state: 'falling',
+            value: memoryBugDropValue,
+            vx: Math.cos(angle) * speed + sideDrift,
+            vy: Math.sin(angle) * speed - 40,
+            x: enemy.x + (Math.random() * 2 - 1) * enemy.radius * 0.35,
+            y: enemy.y + (Math.random() * 2 - 1) * enemy.radius * 0.25,
+          };
+          memoryDropSequence += 1;
+          drawMemoryDrop(drop);
+          memoryDropLayer.addChild(graphic);
+          memoryDrops.push(drop);
+        }
+
+        trimMemoryDrops();
+      };
+
+      const updateMemoryDrops = (deltaSeconds: number) => {
+        const floorY = getMemoryDropFloorY();
+        const gravity = 740;
+        const horizontalDrag = Math.max(0, 1 - deltaSeconds * 1.8);
+        const minX = inset + 18;
+        const maxX = app.screen.width - inset - 18;
+
+        for (let index = memoryDrops.length - 1; index >= 0; index -= 1) {
+          const drop = memoryDrops[index];
+          if (drop.state === 'falling') {
+            drop.vy += gravity * deltaSeconds;
+            drop.vx *= horizontalDrag;
+            drop.x += drop.vx * deltaSeconds;
+            drop.y += drop.vy * deltaSeconds;
+
+            if (drop.x < minX || drop.x > maxX) {
+              drop.x = Math.max(minX, Math.min(maxX, drop.x));
+              drop.vx *= -0.34;
+            }
+
+            if (drop.y >= floorY - drop.radius) {
+              drop.y = floorY - drop.radius;
+              drop.vx = 0;
+              drop.vy = 0;
+              drop.state = 'settled';
+            }
+          } else if (
+            drop.state === 'collecting' &&
+            drop.collectTargetX !== null &&
+            drop.collectTargetY !== null
+          ) {
+            const dx = drop.collectTargetX - drop.x;
+            const dy = drop.collectTargetY - drop.y;
+            const distance = Math.hypot(dx, dy);
+
+            if (distance <= memoryBugDropCollectArrivalRadius) {
+              useGameStore.getState().addMemory(drop.value);
+              triggerMemoryDropArrivalEffect(drop);
+              removeMemoryDropAt(index);
+              continue;
+            }
+
+            const progressBoost = Math.min(1.9, 1 + ((Date.now() - (drop.collectStartedAt ?? Date.now())) / 620));
+            const stepDistance = Math.min(
+              distance,
+              drop.collectSpeed * deltaSeconds * progressBoost,
+            );
+            drop.x += (dx / Math.max(1, distance)) * stepDistance;
+            drop.y += (dy / Math.max(1, distance)) * stepDistance;
+            drop.rotationSpeed *= 1.03;
+          }
+
+          drop.graphic.rotation += drop.rotationSpeed * deltaSeconds;
+          drawMemoryDrop(drop);
+        }
+      };
+
+      const onEnemyDefeated = (enemy: MemoryBugEnemy) => {
+        spawnMemoryDropsFromEnemy(enemy);
+        // TODO: Convert old settled drops into bundled Memory if drop merging is added.
+      };
+
+      const triggerMemoryBugDefeatEffects = (enemy: MemoryBugEnemy) => {
+        const particleCount = 10;
+        for (let index = 0; index < particleCount; index += 1) {
+          const angle = (Math.PI * 2 * index) / particleCount + Math.random() * 0.2;
+          const speed = 62 + Math.random() * 70;
+          const particle = new Graphics()
+            .circle(0, 0, 3 + Math.random() * 2)
+            .fill({ color: index % 2 === 0 ? 0xff5ca8 : 0x8cdcff, alpha: 0.95 });
+          particle.position.set(enemy.x, enemy.y);
+          particleLayer.addChild(particle);
+          particles.push({
+            graphic: particle,
+            life: 0.54,
+            maxLife: 0.54,
+            rotationSpeed: index % 2 === 0 ? 2.5 : -2.5,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+          });
+        }
+      };
+
+      const defeatMemoryBug = (enemy: MemoryBugEnemy, now: number) => {
+        enemy.hp = 0;
+        enemy.isAlive = false;
+        enemy.defeatedAt = now;
+        enemy.respawnAt = now + memoryBugRespawnMs;
+        triggerMemoryBugDefeatEffects(enemy);
+        onEnemyDefeated(enemy);
+        useGameStore.getState().recordEnemyDefeat();
+        publishDebugCollisionStatus('Memory Bug defeated');
+      };
+
+      const updateEnemies = (deltaSeconds: number, now: number) => {
+        syncEnemiesToStageConfig();
+        const { currentStageId, pendingStageClear } = useGameStore.getState();
+        const isStageClearPending = pendingStageClear !== null;
+        for (let index = 0; index < enemies.length; index += 1) {
+          const enemy = enemies[index];
+          if (enemy.hitFlashRemaining > 0) {
+            enemy.hitFlashRemaining = Math.max(0, enemy.hitFlashRemaining - deltaSeconds);
+          }
+
+          if (!enemy.isAlive && now >= enemy.respawnAt && !isStageClearPending) {
+            destroyEnemyView(enemy);
+            const nextEnemy = createMemoryBugEnemy(index, enemy.type);
+            enemies[index] = nextEnemy;
+            publishDebugCollisionStatus(`${getStageById(currentStageId)?.name ?? 'Stage'} Memory Bug respawned`);
+          }
+        }
+      };
+
+      const checkMuseEnemyCollision = (runtime: ActiveMuseBody, now: number) => {
+        for (const enemy of enemies) {
+          const master = getEnemyMasterById(enemy.type) ?? getEnemyMasterById(defaultEnemyTypeId);
+          const hitCooldownMs = master?.hitCooldownMs ?? 250;
+          if (!enemy.isAlive || now - enemy.lastHitAt < hitCooldownMs) {
+            continue;
+          }
+
+          const distance = Math.hypot(runtime.body.x - enemy.x, runtime.body.y - enemy.y);
+          if (distance > runtime.body.radius + enemy.radius) {
+            continue;
+          }
+
+          const damage = 1;
+          const nextHp = Math.max(0, enemy.hp - damage);
+          enemy.hitFlashRemaining = 0.16;
+          enemy.hp = nextHp;
+          enemy.lastHitAt = now;
+          triggerMemoryBugDamageText(enemy, damage);
+          publishDebugCollisionStatus(`Memory Bug hit: ${nextHp}/${enemy.maxHp}`);
+
+          if (nextHp <= 0) {
+            defeatMemoryBug(enemy, now);
+          }
         }
       };
 
@@ -1031,6 +1703,10 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
           return;
         }
 
+        if (checkMouseMemoryDropCollection(point.x, point.y)) {
+          return;
+        }
+
         const tappedMuse = findTappedMuse(point.x, point.y);
         if (tappedMuse) {
           logTapInputDebug('slime click fired', {
@@ -1043,6 +1719,15 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
         }
 
         grantBackgroundTapMemory(point.x, point.y, Date.now());
+      };
+
+      const handleHostPointerMove = (event: PointerEvent) => {
+        const point = getStagePointFromPointer(event);
+        if (!point) {
+          return;
+        }
+
+        checkMouseMemoryDropCollection(point.x, point.y);
       };
 
       const setBodySpeedToward = (
@@ -1260,12 +1945,18 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
       app.stage.eventMode = 'static';
       app.stage.hitArea = new Rectangle(0, 0, app.screen.width, app.screen.height);
       host.addEventListener('pointerdown', handleHostPointerDown);
-      removeHostPointerListener = () =>
+      host.addEventListener('pointermove', handleHostPointerMove);
+      removeHostPointerListener = () => {
         host.removeEventListener('pointerdown', handleHostPointerDown);
+        host.removeEventListener('pointermove', handleHostPointerMove);
+      };
       void updateBackground(useGameStore.getState().currentBackgroundId);
       void loadMemorySlimeTexture();
       skillNotice.position.set(app.screen.width / 2, app.screen.height * 0.29);
       syncMuseBodies(useGameStore.getState().activeMuseIds);
+      syncEnemiesToStageConfig();
+      drawCornerZones();
+      drawEnemies();
       drawMuses();
       unsubscribeStore = useGameStore.subscribe((state, previousState) => {
         if (state.currentBackgroundId !== previousState.currentBackgroundId) {
@@ -1273,10 +1964,15 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
         }
         if (state.activeMuseIds !== previousState.activeMuseIds) {
           syncMuseBodies(state.activeMuseIds);
+          drawCornerZones();
           drawMuses(pulseTime);
         }
         if (state.equippedSkinByMuseId !== previousState.equippedSkinByMuseId) {
           drawMuses(pulseTime);
+        }
+        if (state.currentStageId !== previousState.currentStageId) {
+          syncEnemiesToStageConfig();
+          drawEnemies(pulseTime);
         }
       });
 
@@ -1320,10 +2016,16 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
         grid.visible = !isMuseOverlayPresentation;
         backgroundImage.visible =
           !isMuseOverlayPresentation && isBackgroundImageReady;
+        cornerZoneLayer.alpha =
+          (isMuseOverlayPresentation ? 0 : 1) * lowEffectAlphaMultiplier;
         cornerGlowLayer.alpha =
           (isMuseOverlayPresentation ? 0.38 : 1) * lowEffectAlphaMultiplier;
         particleLayer.alpha =
           (isMuseOverlayPresentation ? 0.42 : 1) * lowEffectAlphaMultiplier;
+        memoryDropLayer.alpha =
+          (isMuseOverlayPresentation ? 0 : 1) * lowEffectAlphaMultiplier;
+        enemyLayer.alpha =
+          (isMuseOverlayPresentation ? 0 : 1) * lowEffectAlphaMultiplier;
         ringLayer.alpha =
           (isMuseOverlayPresentation ? 0.6 : 1) * lowEffectAlphaMultiplier;
         screenFlashLayer.alpha =
@@ -1337,6 +2039,7 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
 
         for (let simulationStep = 0; simulationStep < simulationStepCount; simulationStep += 1) {
         skillTickAccumulatorMs += simulationDeltaMs;
+        updateEnemies(simulationDeltaMs / 1_000, Date.now());
         if (skillTickAccumulatorMs >= 100) {
           useGameStore.getState().tickSkillStates(skillTickAccumulatorMs);
           useGameStore.getState().tickMuseTapStates(Date.now());
@@ -1398,6 +2101,8 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
             },
           );
           runtime.body = result.body;
+          checkMuseEnemyCollision(runtime, now);
+          checkMuseMemoryDropCollection(runtime.body.x, runtime.body.y, runtime.body.radius);
 
           if (result.bounced) {
             triggerSlimeImpact(runtime, result.collision);
@@ -1418,6 +2123,16 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
             recordWallHit(bounceReward);
 
             if (result.collision.isCornerHit && result.collision.cornerId) {
+              const isCornerReady = now - lastCornerHitAt >= cornerHitCooldownMs;
+
+              if (!isCornerReady) {
+                publishDebugCollisionStatus(
+                  `${runtime.isClone ? 'Clone' : runtime.muse.name} Corner cooldown`,
+                );
+                continue;
+              }
+
+              lastCornerHitAt = now;
               const cornerRewardMultiplier = getCloneCornerRewardMultiplier(runtime.isClone);
               const cornerReward = Math.max(
                 1,
@@ -1436,6 +2151,8 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
               const cornerPosition = result.collision.cornerId;
               const cornerEffectKind: CornerEffectKind =
                 unlockedSkillNodes.lucky_corner > 0 ? 'lucky_corner' : 'corner_hit';
+              highlightedCornerZone = cornerPosition;
+              highlightedCornerZoneRemaining = 0.35;
               recordCornerHit(cornerReward);
               triggerCornerHitFlash(cornerPosition);
               triggerSlimeCornerBurst(runtime);
@@ -1532,7 +2249,17 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
             }
           }
         }
+        if (highlightedCornerZoneRemaining > 0) {
+          highlightedCornerZoneRemaining = Math.max(
+            0,
+            highlightedCornerZoneRemaining - deltaSeconds,
+          );
+          if (highlightedCornerZoneRemaining === 0) {
+            highlightedCornerZone = null;
+          }
+        }
         effectManager.update(deltaSeconds);
+        updateMemoryDrops(deltaSeconds);
         if (skillNoticeTime > 0) {
           skillNoticeTime -= deltaSeconds;
           skillNotice.alpha = Math.min(1, Math.max(0, skillNoticeTime / 0.3));
@@ -1591,6 +2318,8 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
           debugStatusElapsedMs = 0;
           publishDebugCollisionStatus();
         }
+        drawCornerZones();
+        drawEnemies(pulseTime);
         drawMuses(pulseTime);
       });
       updateTickerVisibility();

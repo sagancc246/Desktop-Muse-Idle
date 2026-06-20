@@ -78,11 +78,24 @@ export interface UpgradeProgress extends UpgradeDefinition {
 
 export type UpgradeCollection = Record<UpgradeId, UpgradeProgress>;
 
+export type StageClearConditionType = 'corner_hits' | 'enemy_defeats';
+
+export interface StageEnemyConfig {
+  maxActiveEnemies: number;
+  targetDefeatCount: number;
+  enemyTypes: string[];
+  enemyHpMultiplier: number;
+  dropMultiplier: number;
+  clearConditionType: 'enemy_defeats';
+}
+
 export interface Stage {
   id: string;
   name: string;
   description: string;
   cornerHitGoal: number;
+  clearConditionType?: StageClearConditionType;
+  enemyConfig?: StageEnemyConfig;
   rewards: Reward[];
 }
 
@@ -226,6 +239,7 @@ export interface AppSettings {
   effectsQuality: EffectsQuality;
   motionIntensity: MotionIntensity;
   windowDisplayMode: WindowDisplayMode;
+  showCornerZones: boolean;
   autoSaveEnabled: boolean;
 }
 
@@ -272,6 +286,7 @@ export interface GameState {
   upgrades: UpgradeCollection;
   currentStageId: string;
   stageCornerHits: Record<string, number>;
+  stageDefeatCounts: Record<string, number>;
   clearedStages: string[];
   claimedRewardIds: string[];
   claimedStageRewardIds: string[];
@@ -309,6 +324,7 @@ export interface SaveData {
   upgrades: Record<UpgradeId, number>;
   currentStageId: string;
   stageCornerHits: Record<string, number>;
+  stageDefeatCounts?: Record<string, number>;
   clearedStages: string[];
   claimedRewardIds?: string[];
   claimedStageRewardIds?: string[];
@@ -333,6 +349,7 @@ export interface GameActions {
   incrementCornerHit: () => void;
   recordWallHit: (memoryEarned: number) => void;
   recordCornerHit: (memoryEarned: number) => void;
+  recordEnemyDefeat: () => void;
   recordNearCorner: () => void;
   recordJackpot: (memoryEarned: number) => void;
   recordFeverStart: () => void;

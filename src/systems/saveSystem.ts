@@ -10,7 +10,10 @@ import {
 } from '../data/muses';
 import {
   createInitialStageCornerHits,
+  createInitialStageDefeatCounts,
   getStageById,
+  getStageClearConditionType,
+  getStageEnemyConfig,
   initialStageId,
   legacyClaimedRewardIdsByStageId,
   stages,
@@ -52,6 +55,7 @@ type CompatibleSaveData = Pick<
       SaveData,
       | 'currentStageId'
       | 'stageCornerHits'
+      | 'stageDefeatCounts'
       | 'clearedStages'
       | 'claimedRewardIds'
       | 'claimedStageRewardIds'
@@ -103,10 +107,33 @@ function isSaveData(value: unknown): value is CompatibleSaveData {
   );
 }
 
+function isStageClearedByStoredProgress(
+  stageId: string,
+  progress: {
+    stageCornerHits: Record<string, number>;
+    stageDefeatCounts: Record<string, number>;
+  },
+): boolean {
+  const stage = getStageById(stageId);
+  if (!stage) {
+    return false;
+  }
+
+  if (getStageClearConditionType(stage) === 'enemy_defeats') {
+    return (
+      progress.stageDefeatCounts[stage.id] >= getStageEnemyConfig(stage).targetDefeatCount ||
+      progress.stageCornerHits[stage.id] >= stage.cornerHitGoal
+    );
+  }
+
+  return progress.stageCornerHits[stage.id] >= stage.cornerHitGoal;
+}
+
 function restoreStageState(data: CompatibleSaveData): Pick<
   GameState,
   | 'currentStageId'
   | 'stageCornerHits'
+  | 'stageDefeatCounts'
   | 'clearedStages'
   | 'claimedRewardIds'
   | 'claimedStageRewardIds'
@@ -127,14 +154,41 @@ function restoreStageState(data: CompatibleSaveData): Pick<
       return [stage.id, hits];
     }),
   );
+  const defaultStageDefeats = createInitialStageDefeatCounts();
+  const storedDefeats =
+    data.stageDefeatCounts && typeof data.stageDefeatCounts === 'object'
+      ? data.stageDefeatCounts
+      : {};
+
+  const stageDefeatCounts = Object.fromEntries(
+    stages.map((stage) => {
+      const value = storedDefeats[stage.id];
+      const targetDefeatCount = getStageEnemyConfig(stage).targetDefeatCount;
+      const defeats = isNonNegativeNumber(value)
+        ? Math.min(Math.floor(value), targetDefeatCount)
+        : defaultStageDefeats[stage.id];
+
+      return [stage.id, defeats];
+    }),
+  );
   const clearedStages = Array.isArray(data.clearedStages)
     ? data.clearedStages.filter(
         (stageId): stageId is string =>
-          typeof stageId === 'string' &&
-          getStageById(stageId) !== undefined &&
-          stageCornerHits[stageId] >= (getStageById(stageId)?.cornerHitGoal ?? Infinity),
+          typeof stageId === 'string' && isStageClearedByStoredProgress(stageId, {
+            stageCornerHits,
+            stageDefeatCounts,
+          }),
       )
     : [];
+  for (const stageId of clearedStages) {
+    const stage = getStageById(stageId);
+    if (stage && getStageClearConditionType(stage) === 'enemy_defeats') {
+      stageDefeatCounts[stage.id] = Math.max(
+        stageDefeatCounts[stage.id] ?? 0,
+        getStageEnemyConfig(stage).targetDefeatCount,
+      );
+    }
+  }
   const currentStageId =
     typeof data.currentStageId === 'string' && getStageById(data.currentStageId)
       ? data.currentStageId
@@ -160,6 +214,7 @@ function restoreStageState(data: CompatibleSaveData): Pick<
   return {
     currentStageId,
     stageCornerHits,
+    stageDefeatCounts,
     clearedStages: [...new Set(clearedStages)],
     claimedRewardIds: [...new Set(migratedClaimedRewardIds)],
     claimedStageRewardIds: [...new Set(claimedStageRewardIds)],
@@ -334,6 +389,7 @@ export function createNewGameState(motionIntensity: MotionIntensity = 'medium'):
     upgrades: createInitialUpgrades(),
     currentStageId: initialStageId,
     stageCornerHits: createInitialStageCornerHits(),
+    stageDefeatCounts: createInitialStageDefeatCounts(),
     clearedStages: [],
     claimedRewardIds: [],
     claimedStageRewardIds: [],
@@ -528,6 +584,7 @@ export function saveGameState(
     },
     currentStageId: state.currentStageId,
     stageCornerHits: state.stageCornerHits,
+    stageDefeatCounts: state.stageDefeatCounts,
     clearedStages: state.clearedStages,
     claimedRewardIds: state.claimedRewardIds,
     claimedStageRewardIds: state.claimedStageRewardIds,

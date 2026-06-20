@@ -181,6 +181,18 @@ export function SettingsModal({ onBack, onStats }: SettingsModalProps) {
               <option value="high">high</option>
             </select>
           </label>
+          <div className="setting-row toggle-row">
+            <span>Corner Hit 範囲表示</span>
+            <button
+              aria-label="Corner Hit Range"
+              aria-pressed={settings.showCornerZones}
+              className={`setting-toggle${settings.showCornerZones ? ' enabled' : ''}`}
+              onClick={() => updateSettings({ showCornerZones: !settings.showCornerZones })}
+              type="button"
+            >
+              {settings.showCornerZones ? 'ON' : 'OFF'}
+            </button>
+          </div>
           <label className="setting-row">
             <span>Display Mode</span>
             <select
