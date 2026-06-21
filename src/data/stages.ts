@@ -4,12 +4,14 @@ import type { Stage, StageClearConditionType, StageEnemyConfig } from '../types/
 const createEnemyStageConfig = (
   maxActiveEnemies: number,
   targetDefeatCount: number,
+  enemyHpMultiplier = 1,
+  dropMultiplier = 1,
 ): StageEnemyConfig => ({
   maxActiveEnemies,
   targetDefeatCount,
   enemyTypes: [defaultEnemyTypeId],
-  enemyHpMultiplier: 1,
-  dropMultiplier: 1,
+  enemyHpMultiplier,
+  dropMultiplier,
   clearConditionType: 'enemy_defeats',
 });
 
@@ -32,7 +34,7 @@ export const stages: Stage[] = [
     description: 'Keep the muse bouncing through a longer session.',
     cornerHitGoal: 300,
     clearConditionType: 'enemy_defeats',
-    enemyConfig: createEnemyStageConfig(2, 5),
+    enemyConfig: createEnemyStageConfig(2, 5, 1.2, 1.1),
     rewards: [
       { rewardId: 'lumi_pastel', type: 'skin', id: 'lumi_pastel' },
       { rewardId: 'astra', type: 'muse', id: 'astra' },
@@ -44,7 +46,7 @@ export const stages: Stage[] = [
     description: 'Reach the neon rhythm and prepare for the final unlock.',
     cornerHitGoal: 500,
     clearConditionType: 'enemy_defeats',
-    enemyConfig: createEnemyStageConfig(2, 8),
+    enemyConfig: createEnemyStageConfig(2, 8, 1.5, 1.2),
     rewards: [
       { rewardId: 'neon_room', type: 'background', id: 'bg_neon_room' },
     ],
@@ -55,7 +57,7 @@ export const stages: Stage[] = [
     description: 'Settle into the night and unlock the late-game Muse.',
     cornerHitGoal: 700,
     clearConditionType: 'enemy_defeats',
-    enemyConfig: createEnemyStageConfig(2, 10),
+    enemyConfig: createEnemyStageConfig(2, 10, 1.75, 1.3),
     rewards: [
       { rewardId: 'night_room', type: 'background', id: 'bg_night_room' },
       { rewardId: 'noir', type: 'muse', id: 'noir' },
@@ -67,7 +69,7 @@ export const stages: Stage[] = [
     description: 'Redirect the field and unlock Vega.',
     cornerHitGoal: 900,
     clearConditionType: 'enemy_defeats',
-    enemyConfig: createEnemyStageConfig(2, 12),
+    enemyConfig: createEnemyStageConfig(2, 12, 2, 1.4),
     rewards: [{ rewardId: 'vega', type: 'muse', id: 'vega' }],
   },
   {
@@ -76,7 +78,7 @@ export const stages: Stage[] = [
     description: 'Build a stable Memory reserve.',
     cornerHitGoal: 1_200,
     clearConditionType: 'enemy_defeats',
-    enemyConfig: createEnemyStageConfig(3, 15),
+    enemyConfig: createEnemyStageConfig(3, 15, 2.2, 1.5),
     rewards: [{ rewardId: 'memory_10000', type: 'memory', amount: 10_000 }],
   },
   {
@@ -85,7 +87,7 @@ export const stages: Stage[] = [
     description: 'Reach the cyber pinball field.',
     cornerHitGoal: 1_500,
     clearConditionType: 'enemy_defeats',
-    enemyConfig: createEnemyStageConfig(3, 18),
+    enemyConfig: createEnemyStageConfig(3, 18, 2.45, 1.6),
     rewards: [
       { rewardId: 'astra_cyber', type: 'skin', id: 'astra_cyber' },
       { rewardId: 'pinball_neon', type: 'background', id: 'bg_pinball_neon' },
@@ -97,7 +99,7 @@ export const stages: Stage[] = [
     description: 'Open the observatory beyond the night.',
     cornerHitGoal: 1_900,
     clearConditionType: 'enemy_defeats',
-    enemyConfig: createEnemyStageConfig(3, 21),
+    enemyConfig: createEnemyStageConfig(3, 21, 2.7, 1.7),
     rewards: [{ rewardId: 'star_room', type: 'background', id: 'bg_star_room' }],
   },
   {
@@ -106,7 +108,7 @@ export const stages: Stage[] = [
     description: 'Prepare a pair of future Muse Capsules.',
     cornerHitGoal: 2_300,
     clearConditionType: 'enemy_defeats',
-    enemyConfig: createEnemyStageConfig(3, 24),
+    enemyConfig: createEnemyStageConfig(3, 24, 3, 1.8),
     rewards: [{ rewardId: 'muse_capsule_2', type: 'capsule', id: 'muse_capsule', amount: 2 }],
   },
   {
@@ -115,7 +117,7 @@ export const stages: Stage[] = [
     description: 'Complete the v1.0 route and prepare for Reboot.',
     cornerHitGoal: 3_000,
     clearConditionType: 'enemy_defeats',
-    enemyConfig: createEnemyStageConfig(3, 30),
+    enemyConfig: createEnemyStageConfig(3, 30, 3.4, 2),
     rewards: [{ rewardId: 'memory_100000', type: 'memory', amount: 100_000 }],
   },
 ];

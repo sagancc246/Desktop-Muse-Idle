@@ -1,0 +1,11 @@
+stageId,stageNumber,clearConditionType,targetDefeatCount,maxActiveEnemies,enemyHpMultiplier,dropMultiplier,cornerRequirement
+stage-1,1,enemy_defeats,3,1,1,1,100
+stage-2,2,enemy_defeats,5,2,1.2,1.1,300
+stage-3,3,enemy_defeats,8,2,1.5,1.2,500
+stage-4,4,enemy_defeats,10,2,1.75,1.3,700
+stage-5,5,enemy_defeats,12,2,2,1.4,900
+stage-6,6,enemy_defeats,15,3,2.2,1.5,1200
+stage-7,7,enemy_defeats,18,3,2.45,1.6,1500
+stage-8,8,enemy_defeats,21,3,2.7,1.7,1900
+stage-9,9,enemy_defeats,24,3,3,1.8,2300
+stage-10,10,enemy_defeats,30,3,3.4,2,3000

@@ -257,13 +257,17 @@ select:focus-visible,
 
 .metrics {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
+  justify-content: flex-end;
 }
 
 .resource-actions {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
+  justify-content: flex-end;
 }
 
 .resource-settings {
@@ -328,6 +332,16 @@ select:focus-visible,
 .metric.memory-drop-pulse strong {
   color: #e7ffff;
   text-shadow: 0 0 14px rgba(51, 236, 255, 0.58);
+}
+
+.metric.stage-progress-metric {
+  border-color: rgba(255, 214, 129, 0.34);
+  min-width: 164px;
+}
+
+.metric.stage-progress-metric strong {
+  color: #ffd681;
+  font-size: 21px;
 }
 
 @keyframes metricCornerPulse {

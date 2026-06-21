@@ -376,6 +376,15 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
         enemy.view.label.destroy();
       };
 
+      const clearEnemies = () => {
+        while (enemies.length > 0) {
+          const enemy = enemies.pop();
+          if (enemy) {
+            destroyEnemyView(enemy);
+          }
+        }
+      };
+
       const getMemoryBugSpawnPosition = (radius: number, existingEnemies: MemoryBugEnemy[]) => {
         const horizontalPadding = radius + inset + 72;
         const minX = horizontalPadding;
@@ -440,6 +449,10 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
       };
 
       const syncEnemiesToStageConfig = () => {
+        if (useGameStore.getState().pendingStageClear) {
+          return;
+        }
+
         const stage = getStageById(useGameStore.getState().currentStageId) ?? getStageById(initialStageId);
         const stageConfig = stage ? getStageEnemyConfig(stage) : null;
         const maxActiveEnemies = Math.max(1, Math.floor(stageConfig?.maxActiveEnemies ?? 1));
@@ -1328,24 +1341,26 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
         triggerMemoryBugDefeatEffects(enemy);
         onEnemyDefeated(enemy);
         useGameStore.getState().recordEnemyDefeat();
-        publishDebugCollisionStatus('Memory Bug defeated');
       };
 
       const updateEnemies = (deltaSeconds: number, now: number) => {
+        const { pendingStageClear } = useGameStore.getState();
+        if (pendingStageClear) {
+          clearEnemies();
+          return;
+        }
+
         syncEnemiesToStageConfig();
-        const { currentStageId, pendingStageClear } = useGameStore.getState();
-        const isStageClearPending = pendingStageClear !== null;
         for (let index = 0; index < enemies.length; index += 1) {
           const enemy = enemies[index];
           if (enemy.hitFlashRemaining > 0) {
             enemy.hitFlashRemaining = Math.max(0, enemy.hitFlashRemaining - deltaSeconds);
           }
 
-          if (!enemy.isAlive && now >= enemy.respawnAt && !isStageClearPending) {
+          if (!enemy.isAlive && now >= enemy.respawnAt) {
             destroyEnemyView(enemy);
             const nextEnemy = createMemoryBugEnemy(index, enemy.type);
             enemies[index] = nextEnemy;
-            publishDebugCollisionStatus(`${getStageById(currentStageId)?.name ?? 'Stage'} Memory Bug respawned`);
           }
         }
       };
@@ -1369,7 +1384,6 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
           enemy.hp = nextHp;
           enemy.lastHitAt = now;
           triggerMemoryBugDamageText(enemy, damage);
-          publishDebugCollisionStatus(`Memory Bug hit: ${nextHp}/${enemy.maxHp}`);
 
           if (nextHp <= 0) {
             defeatMemoryBug(enemy, now);
@@ -1779,7 +1793,11 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
           unlockedSkillNodes,
           characterSkillLevels,
         );
-        const offsetY = Math.max(14, Math.min(nearDistance * 0.6, nearDistance - 4));
+        const nearMissOffset = cornerHitAssistZonePx + 8;
+        const offsetY =
+          nearDistance > nearMissOffset + 4
+            ? Math.min(nearMissOffset, nearDistance - 4)
+            : Math.max(14, Math.min(nearDistance * 0.6, nearDistance - 4));
         runtime.body.x = minX + 1;
         runtime.body.y = minY + offsetY;
         setBodySpeedToward(runtime.body, -1, 0);
@@ -1971,7 +1989,15 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
           drawMuses(pulseTime);
         }
         if (state.currentStageId !== previousState.currentStageId) {
+          clearEnemies();
           syncEnemiesToStageConfig();
+          drawEnemies(pulseTime);
+        } else if (state.pendingStageClear !== previousState.pendingStageClear) {
+          if (state.pendingStageClear) {
+            clearEnemies();
+          } else {
+            syncEnemiesToStageConfig();
+          }
           drawEnemies(pulseTime);
         }
       });

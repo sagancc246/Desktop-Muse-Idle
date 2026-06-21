@@ -5,6 +5,7 @@ import type {
   MotionIntensity,
   WindowDisplayMode,
 } from '../types/game';
+import { balanceConfig } from '../masters/balance';
 
 const settingsStorageKey = 'desktop-muse-idle-settings';
 
@@ -15,7 +16,7 @@ export const defaultSettings: AppSettings = {
   effectsQuality: 'medium',
   motionIntensity: 'medium',
   windowDisplayMode: 'windowed',
-  showCornerZones: false,
+  showCornerZones: balanceConfig.cornerSensor.showCornerZonesDefault,
   autoSaveEnabled: true,
 };
 

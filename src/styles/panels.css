@@ -1197,11 +1197,24 @@
   text-shadow: 0 0 24px rgba(255, 214, 129, 0.3);
 }
 
-.stage-clear-header > p:last-child {
+.stage-clear-header .stage-clear-stage-name {
   color: #f1dcff;
   font-size: 17px;
   font-weight: 700;
   margin: 0;
+}
+
+.stage-clear-header .stage-clear-condition {
+  background: rgba(255, 214, 129, 0.12);
+  border: 1px solid rgba(255, 214, 129, 0.28);
+  border-radius: 8px;
+  color: #ffd681;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  margin-top: 12px;
+  padding: 7px 11px;
 }
 
 .stage-clear-reward-grid {

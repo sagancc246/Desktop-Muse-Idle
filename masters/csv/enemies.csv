@@ -1,0 +1,2 @@
+enemyId,name,radius,maxHp,hitCooldownMs,dropAmount,color,spawnWeight
+memory_bug,Memory Bug,32,10,250,12,#d85cff,1

@@ -253,6 +253,9 @@ export interface OfflineRewardSummary {
 export interface StageClearSummary {
   stageId: string;
   stageName: string;
+  clearConditionType: StageClearConditionType;
+  progressCurrent: number;
+  progressTarget: number;
   rewards: PresentedReward[];
   nextStageId: string | null;
   nextStageName: string | null;

@@ -1,4 +1,10 @@
-import { cornerHitAssistZonePx, cornerHitGracePx, nearCornerDistance } from '../data/balance';
+import {
+  assistedCornerHitEnabled,
+  cornerHitAssistZonePx,
+  cornerHitGracePx,
+  nearCornerDistance,
+  strictCornerHitEnabled,
+} from '../data/balance';
 import type { CornerHitPosition } from '../types/game';
 import type { ArenaBounds, BounceBody } from './bouncePhysics';
 
@@ -118,15 +124,16 @@ export function detectWallCollision({
 }
 
 export function detectCornerHit(collision: WallCollisionResult, cornerZonePx = cornerHitAssistZonePx) {
-  const strictCornerHit = collision.hitXWall && collision.hitYWall;
+  const strictCornerHit = strictCornerHitEnabled && collision.hitXWall && collision.hitYWall;
   const safeCornerZonePx = Math.max(0, cornerZonePx);
   const nearTop = collision.nextY <= collision.minY + safeCornerZonePx;
   const nearBottom = collision.nextY >= collision.maxY - safeCornerZonePx;
   const nearLeft = collision.nextX <= collision.minX + safeCornerZonePx;
   const nearRight = collision.nextX >= collision.maxX - safeCornerZonePx;
   const assistedCornerHit =
-    (collision.hitXWall && (nearTop || nearBottom)) ||
-    (collision.hitYWall && (nearLeft || nearRight));
+    assistedCornerHitEnabled &&
+    ((collision.hitXWall && (nearTop || nearBottom)) ||
+      (collision.hitYWall && (nearLeft || nearRight)));
   const isCornerHit = strictCornerHit || assistedCornerHit;
 
   return {

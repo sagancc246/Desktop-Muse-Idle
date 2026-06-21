@@ -1,6 +1,22 @@
 import { useEffect, useState } from 'react';
+import {
+  getStageById,
+  getStageClearConditionType,
+  getStageEnemyConfig,
+  initialStageId,
+  stages,
+} from '../data/stages';
+import { useAppStore } from '../store/useAppStore';
 import { useGameStore } from '../store/useGameStore';
 import type { WallpaperMode } from '../types/game';
+
+interface ResourceMetric {
+  collectPulse?: boolean;
+  label: string;
+  pulse?: boolean;
+  stageProgress?: boolean;
+  value: string;
+}
 
 interface ResourceBarProps {
   onFocus: () => void;
@@ -22,11 +38,29 @@ export function ResourceBar({
   const totalBounces = useGameStore((state) => state.totalBounces);
   const totalCornerHits = useGameStore((state) => state.totalCornerHits);
   const fragments = useGameStore((state) => state.fragments);
+  const currentStageId = useGameStore((state) => state.currentStageId);
+  const stageDefeatCounts = useGameStore((state) => state.stageDefeatCounts);
+  const language = useAppStore((state) => state.settings.language);
   const lastCornerHitFlash = useGameStore((state) => state.lastCornerHitFlash);
   const saveStatus = useGameStore((state) => state.saveStatus);
   const manualSave = useGameStore((state) => state.manualSave);
   const [isCornerPulseActive, setIsCornerPulseActive] = useState(false);
   const [isMemoryDropPulseActive, setIsMemoryDropPulseActive] = useState(false);
+  const [isStageProgressPulseActive, setIsStageProgressPulseActive] = useState(false);
+  const currentStage = getStageById(currentStageId) ?? getStageById(initialStageId);
+  const stageIndex = currentStage
+    ? stages.findIndex((stage) => stage.id === currentStage.id)
+    : 0;
+  const stageNumber = stageIndex >= 0 ? stageIndex + 1 : 1;
+  const clearConditionType = currentStage ? getStageClearConditionType(currentStage) : 'corner_hits';
+  const targetDefeatCount =
+    currentStage && clearConditionType === 'enemy_defeats'
+      ? getStageEnemyConfig(currentStage).targetDefeatCount
+      : 0;
+  const currentDefeatCount =
+    currentStage && clearConditionType === 'enemy_defeats'
+      ? stageDefeatCounts[currentStage.id] ?? 0
+      : 0;
 
   useEffect(() => {
     if (!lastCornerHitFlash) {
@@ -50,7 +84,21 @@ export function ResourceBar({
       window.removeEventListener('desktop-muse:memory-drop-collected', handleMemoryDropCollected);
   }, []);
 
-  const resources = [
+  useEffect(() => {
+    if (clearConditionType !== 'enemy_defeats') {
+      return undefined;
+    }
+
+    setIsStageProgressPulseActive(false);
+    const frameId = window.requestAnimationFrame(() => setIsStageProgressPulseActive(true));
+    const timerId = window.setTimeout(() => setIsStageProgressPulseActive(false), 420);
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.clearTimeout(timerId);
+    };
+  }, [clearConditionType, currentDefeatCount, currentStageId]);
+
+  const resources: ResourceMetric[] = [
     {
       collectPulse: isMemoryDropPulseActive,
       label: 'Memory',
@@ -60,6 +108,19 @@ export function ResourceBar({
     { label: 'Memory/sec', value: memoryPerSecond.toLocaleString() },
     { label: 'Bounces', value: totalBounces.toLocaleString() },
     { label: 'Corner Hits', pulse: isCornerPulseActive, value: totalCornerHits.toLocaleString() },
+    ...(clearConditionType === 'enemy_defeats'
+      ? [
+          {
+            label: `Stage ${stageNumber}`,
+            pulse: isStageProgressPulseActive,
+            stageProgress: true,
+            value:
+              language === 'ja'
+                ? `\u6483\u7834 ${currentDefeatCount.toLocaleString()} / ${targetDefeatCount.toLocaleString()}`
+                : `Defeat ${currentDefeatCount.toLocaleString()} / ${targetDefeatCount.toLocaleString()}`,
+          },
+        ]
+      : []),
     { label: 'Fragments', value: fragments.toLocaleString() },
   ];
 
@@ -76,7 +137,7 @@ export function ResourceBar({
             <div
               className={`metric${resource.pulse ? ' corner-pulse' : ''}${
                 resource.collectPulse ? ' memory-drop-pulse' : ''
-              }`}
+              }${resource.stageProgress ? ' stage-progress-metric' : ''}`}
               data-memory-counter={resource.label === 'Memory' ? 'true' : undefined}
               key={resource.label}
             >

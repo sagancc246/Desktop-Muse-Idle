@@ -200,6 +200,9 @@ function applyCornerHitProgress(state: GameState, hitCount = 1): Partial<GameSta
 
     const nextStage = getNextStage(currentStage.id);
     pendingStageClear = {
+      clearConditionType: 'corner_hits',
+      progressCurrent: stageHits,
+      progressTarget: currentStage.cornerHitGoal,
       stageId: currentStage.id,
       stageName: currentStage.name,
       rewards: grantedRewards,
@@ -318,6 +321,9 @@ function applyEnemyDefeatProgress(state: GameState, defeatCount = 1): Partial<Ga
 
     const nextStage = getNextStage(currentStage.id);
     pendingStageClear = {
+      clearConditionType: 'enemy_defeats',
+      progressCurrent: stageDefeats,
+      progressTarget: targetDefeatCount,
       stageId: currentStage.id,
       stageName: currentStage.name,
       rewards: grantedRewards,
@@ -539,6 +545,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   recordEnemyDefeat: () => {
+    if (get().pendingStageClear) {
+      return;
+    }
+
     const previousStageClearId = get().pendingStageClear?.stageId;
     set((state) => withMuseUnlocks(state, applyEnemyDefeatProgress(state)));
     if (get().pendingStageClear?.stageId !== previousStageClearId) {

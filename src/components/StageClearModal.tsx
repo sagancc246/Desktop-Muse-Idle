@@ -14,8 +14,15 @@ interface StageClearModalProps {
 export function StageClearModal({ onContinue, onOpenGallery, summary }: StageClearModalProps) {
   const modalRef = useRef<HTMLElement>(null);
   const continueButtonRef = useRef<HTMLButtonElement>(null);
+  const language = useAppStore((state) => state.settings.language);
   const motionIntensity = useAppStore((state) => state.settings.motionIntensity);
   const seVolume = useAppStore((state) => state.settings.seVolume);
+  const clearConditionCopy =
+    summary.clearConditionType === 'enemy_defeats'
+      ? language === 'ja'
+        ? `\u6483\u7834\u6570: ${summary.progressCurrent.toLocaleString()} / ${summary.progressTarget.toLocaleString()}`
+        : `Memory Bugs Defeated: ${summary.progressCurrent.toLocaleString()} / ${summary.progressTarget.toLocaleString()}`
+      : null;
 
   useFocusTrap(modalRef);
 
@@ -61,7 +68,10 @@ export function StageClearModal({ onContinue, onOpenGallery, summary }: StageCle
         <header className="stage-clear-header">
           <p className="eyebrow">MISSION COMPLETE</p>
           <h1>STAGE CLEAR!</h1>
-          <p>{summary.stageName}</p>
+          <p className="stage-clear-stage-name">{summary.stageName}</p>
+          {clearConditionCopy ? (
+            <p className="stage-clear-condition">{clearConditionCopy}</p>
+          ) : null}
         </header>
         <div className="stage-clear-reward-grid">
           {summary.rewards.map((reward) => (
