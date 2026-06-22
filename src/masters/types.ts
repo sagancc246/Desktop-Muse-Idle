@@ -67,3 +67,33 @@ export interface StageRewardMaster {
   capsuleAmount?: number;
   rewardText?: string;
 }
+
+export type UpgradeCategory =
+  | 'bounce'
+  | 'speed'
+  | 'corner'
+  | 'reboot'
+  | 'memory'
+  | 'drop'
+  | 'utility';
+
+export type UpgradeMasterEffectType = 'add' | 'multiply' | 'set' | 'none';
+
+export interface UpgradeMaster {
+  upgradeId: string;
+  name: string;
+  description: string;
+  category: UpgradeCategory;
+  maxLevel: number;
+  baseCost: number;
+  costGrowth: number;
+  effectType: UpgradeMasterEffectType;
+  effectTarget: string;
+  effectBaseValue: number;
+  effectValuePerLevel: number;
+  effectMultiplierPerLevel: number;
+  unlockStageNumber: number;
+  unlockRebootCount: number;
+  sortOrder: number;
+  enabled: boolean;
+}

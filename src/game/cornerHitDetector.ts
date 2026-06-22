@@ -36,6 +36,7 @@ export interface CornerCollisionResult extends WallCollisionResult {
 
 interface DetectWallCollisionParams {
   bounds: ArenaBounds;
+  cornerZonePx?: number;
   gracePx?: number;
   nearDistance?: number;
   nextX: number;
@@ -182,7 +183,7 @@ export function detectNearCorner({
 
 export function detectBounceCollision(params: DetectWallCollisionParams): CornerCollisionResult {
   const collision = detectWallCollision(params);
-  const cornerHit = detectCornerHit(collision);
+  const cornerHit = detectCornerHit(collision, params.cornerZonePx);
   if (cornerHit.isCornerHit) {
     return {
       ...collision,

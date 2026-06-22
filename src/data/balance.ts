@@ -106,10 +106,13 @@ export const speedUpSkillCooldownMs = 13_000;
 export const giantSkillDurationMs = 6_500;
 export const giantSkillCooldownMs = 14_000;
 
-export function calculateRebootFragments(memory: number): number {
+export function calculateRebootFragments(memory: number, fragmentMultiplier = 1): number {
   if (memory < rebootMemoryRequirement) {
     return 0;
   }
 
-  return Math.max(1, Math.floor(Math.sqrt(memory / rebootMemoryRequirement)));
+  const baseFragments = Math.max(1, Math.floor(Math.sqrt(memory / rebootMemoryRequirement)));
+  const safeMultiplier =
+    Number.isFinite(fragmentMultiplier) && fragmentMultiplier > 0 ? fragmentMultiplier : 1;
+  return Math.max(1, Math.floor(baseFragments * safeMultiplier));
 }

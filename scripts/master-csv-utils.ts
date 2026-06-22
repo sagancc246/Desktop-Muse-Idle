@@ -9,6 +9,9 @@ import type {
   StageMaster,
   StageRewardMaster,
   StageRewardType,
+  UpgradeCategory,
+  UpgradeMaster,
+  UpgradeMasterEffectType,
 } from '../src/masters/types';
 
 export interface CsvValidationResult {
@@ -23,6 +26,7 @@ const csvFiles = {
   enemies: 'enemies.csv',
   stageRewards: 'stage_rewards.csv',
   stages: 'stages.csv',
+  upgrades: 'upgrades.csv',
 } as const;
 
 export function getCsvPath(csvName: keyof typeof csvFiles): string {
@@ -127,6 +131,17 @@ function parsePrimitive(
     return false;
   }
   return value;
+}
+
+function parseBoolean(scope: string, value: string, errors: string[]): boolean {
+  if (value === 'true') {
+    return true;
+  }
+  if (value === 'false') {
+    return false;
+  }
+  errors.push(`[${scope}] expected boolean true/false, got "${value}"`);
+  return false;
 }
 
 function assignDotPath(target: Record<string, unknown>, key: string, value: unknown): void {
@@ -241,6 +256,48 @@ export function loadStageRewardsCsv(): { errors: string[]; stageRewards: StageRe
   return { errors, stageRewards };
 }
 
+export function loadUpgradesCsv(): { errors: string[]; upgrades: UpgradeMaster[] } {
+  const errors: string[] = [];
+  const upgrades = readCsvRows(getCsvPath('upgrades')).map((row, index): UpgradeMaster => {
+    const scope = `upgrades:${row.upgradeId || index + 2}`;
+    return {
+      baseCost: parseFiniteNumber(`${scope}:baseCost`, row.baseCost, errors),
+      category: row.category as UpgradeCategory,
+      costGrowth: parseFiniteNumber(`${scope}:costGrowth`, row.costGrowth, errors),
+      description: row.description,
+      effectBaseValue: parseFiniteNumber(`${scope}:effectBaseValue`, row.effectBaseValue, errors),
+      effectMultiplierPerLevel: parseFiniteNumber(
+        `${scope}:effectMultiplierPerLevel`,
+        row.effectMultiplierPerLevel,
+        errors,
+      ),
+      effectTarget: row.effectTarget,
+      effectType: row.effectType as UpgradeMasterEffectType,
+      effectValuePerLevel: parseFiniteNumber(
+        `${scope}:effectValuePerLevel`,
+        row.effectValuePerLevel,
+        errors,
+      ),
+      enabled: parseBoolean(`${scope}:enabled`, row.enabled, errors),
+      maxLevel: parseFiniteNumber(`${scope}:maxLevel`, row.maxLevel, errors),
+      name: row.name,
+      sortOrder: parseFiniteNumber(`${scope}:sortOrder`, row.sortOrder, errors),
+      unlockRebootCount: parseFiniteNumber(
+        `${scope}:unlockRebootCount`,
+        row.unlockRebootCount,
+        errors,
+      ),
+      unlockStageNumber: parseFiniteNumber(
+        `${scope}:unlockStageNumber`,
+        row.unlockStageNumber,
+        errors,
+      ),
+      upgradeId: row.upgradeId,
+    };
+  });
+  return { errors, upgrades };
+}
+
 export function validateUnique(scope: string, values: string[], errors: string[]): void {
   const seen = new Set<string>();
   const duplicates = new Set<string>();
@@ -264,12 +321,14 @@ export function validateCsvMasters(): CsvValidationResult {
   const { errors: stageErrors, stages } = loadStagesCsv();
   const { enemies, errors: enemyErrors } = loadEnemiesCsv();
   const { errors: rewardErrors, stageRewards } = loadStageRewardsCsv();
-  errors.push(...balanceErrors, ...stageErrors, ...enemyErrors, ...rewardErrors);
+  const { errors: upgradeErrors, upgrades } = loadUpgradesCsv();
+  errors.push(...balanceErrors, ...stageErrors, ...enemyErrors, ...rewardErrors, ...upgradeErrors);
 
   validateUnique('balance', balanceRows.map((row) => row.key), errors);
   validateUnique('stages:stageId', stages.map((stage) => stage.stageId), errors);
   validateUnique('stages:stageNumber', stages.map((stage) => String(stage.stageNumber)), errors);
   validateUnique('enemies', enemies.map((enemy) => enemy.enemyId), errors);
+  validateUnique('upgrades', upgrades.map((upgrade) => upgrade.upgradeId), errors);
 
   for (const stage of stages) {
     const scope = `stages:${stage.stageId}`;
@@ -335,6 +394,52 @@ export function validateCsvMasters(): CsvValidationResult {
     if (reward.rewardType === 'capsule' && reward.unlockCapsuleId !== reward.rewardTargetId) {
       errors.push(`[${scope}] capsule rewards must set unlockCapsuleId to rewardTargetId`);
     }
+  }
+
+  const upgradeCategories = new Set<UpgradeCategory>([
+    'bounce',
+    'corner',
+    'drop',
+    'memory',
+    'reboot',
+    'speed',
+    'utility',
+  ]);
+  const upgradeEffectTypes = new Set<UpgradeMasterEffectType>(['add', 'multiply', 'none', 'set']);
+  for (const upgrade of upgrades) {
+    const scope = `upgrades:${upgrade.upgradeId}`;
+    if (!upgrade.upgradeId) errors.push(`[${scope}] upgradeId must not be empty`);
+    if (!upgrade.name) errors.push(`[${scope}] name must not be empty`);
+    if (!upgradeCategories.has(upgrade.category)) {
+      errors.push(`[${scope}] unsupported category ${upgrade.category}`);
+    }
+    if (!Number.isInteger(upgrade.maxLevel) || upgrade.maxLevel < 0) {
+      errors.push(`[${scope}] maxLevel must be a non-negative integer`);
+    }
+    if (upgrade.baseCost < 0) errors.push(`[${scope}] baseCost must be non-negative`);
+    if (upgrade.costGrowth < 1) errors.push(`[${scope}] costGrowth must be greater than or equal to 1`);
+    if (!upgradeEffectTypes.has(upgrade.effectType)) {
+      errors.push(`[${scope}] unsupported effectType ${upgrade.effectType}`);
+    }
+    if (upgrade.effectType !== 'none' && !upgrade.effectTarget) {
+      errors.push(`[${scope}] effectTarget must not be empty unless effectType is none`);
+    }
+    if (!Number.isFinite(upgrade.effectBaseValue)) {
+      errors.push(`[${scope}] effectBaseValue must be finite`);
+    }
+    if (!Number.isFinite(upgrade.effectValuePerLevel)) {
+      errors.push(`[${scope}] effectValuePerLevel must be finite`);
+    }
+    if (!Number.isFinite(upgrade.effectMultiplierPerLevel)) {
+      errors.push(`[${scope}] effectMultiplierPerLevel must be finite`);
+    }
+    if (!Number.isInteger(upgrade.unlockStageNumber) || upgrade.unlockStageNumber < 0) {
+      errors.push(`[${scope}] unlockStageNumber must be a non-negative integer`);
+    }
+    if (!Number.isInteger(upgrade.unlockRebootCount) || upgrade.unlockRebootCount < 0) {
+      errors.push(`[${scope}] unlockRebootCount must be a non-negative integer`);
+    }
+    if (!Number.isFinite(upgrade.sortOrder)) errors.push(`[${scope}] sortOrder must be finite`);
   }
 
   const bounceBoost = balanceConfig.bounceBoost;
@@ -430,6 +535,7 @@ export function writeGeneratedMasters(): void {
   const { stages } = loadStagesCsv();
   const { enemies } = loadEnemiesCsv();
   const { stageRewards } = loadStageRewardsCsv();
+  const { upgrades } = loadUpgradesCsv();
 
   mkdirSync(generatedMastersRoot, { recursive: true });
   const files = [
@@ -461,6 +567,13 @@ export function writeGeneratedMasters(): void {
       body:
         `import type { StageRewardMaster } from '../../masters/types';\n\n` +
         `export const stageRewardMasters = ${JSON.stringify(stageRewards, null, 2)} as const satisfies readonly StageRewardMaster[];\n`,
+    },
+    {
+      name: 'upgrades.generated.ts',
+      source: 'masters/csv/upgrades.csv',
+      body:
+        `import type { UpgradeMaster } from '../../masters/types';\n\n` +
+        `export const upgrades = ${JSON.stringify(upgrades, null, 2)} as const satisfies readonly UpgradeMaster[];\n`,
     },
   ];
 

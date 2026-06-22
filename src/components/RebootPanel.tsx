@@ -1,5 +1,11 @@
 import { lazy, Suspense, useState } from 'react';
-import { calculateRebootFragments, rebootMemoryRequirement } from '../data/balance';
+import {
+  calculateRebootFragments,
+  rebootBasePermanentMultiplier,
+  rebootMemoryRequirement,
+  rebootMultiplierPerReboot,
+} from '../data/balance';
+import { calculateEffectiveRebootMultiplierPerReboot } from '../data/upgrades';
 import { useGameStore } from '../store/useGameStore';
 
 const SkillTreePanel = lazy(() =>
@@ -15,8 +21,12 @@ export function RebootPanel() {
   const memory = useGameStore((state) => state.memory);
   const fragments = useGameStore((state) => state.fragments);
   const rebootCount = useGameStore((state) => state.rebootCount);
+  const upgrades = useGameStore((state) => state.upgrades);
   const reboot = useGameStore((state) => state.reboot);
-  const gainedFragments = calculateRebootFragments(memory);
+  const rebootFragmentMultiplier =
+    rebootBasePermanentMultiplier +
+    calculateEffectiveRebootMultiplierPerReboot(rebootMultiplierPerReboot, upgrades) * rebootCount;
+  const gainedFragments = calculateRebootFragments(memory, rebootFragmentMultiplier);
   const canReboot = gainedFragments > 0;
 
   const handleReboot = () => {

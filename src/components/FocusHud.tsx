@@ -2,6 +2,7 @@ import {
   getStageById,
   getStageClearConditionType,
   getStageEnemyConfig,
+  getStageNumber,
   initialStageId,
   stages,
 } from '../data/stages';
@@ -32,7 +33,7 @@ export function FocusHud({ onExit }: FocusHudProps) {
       ? getStageEnemyConfig(currentStage).targetDefeatCount
       : currentStage.cornerHitGoal;
   const progressLabel = clearConditionType === 'enemy_defeats' ? 'Defeats' : 'Corner Hits';
-  const stageNumber = stages.findIndex((stage) => stage.id === currentStage.id) + 1;
+  const stageNumber = getStageNumber(currentStage);
 
   return (
     <header className="focus-hud" aria-label="Focus Mode HUD">

@@ -1,6 +1,10 @@
 import { create } from 'zustand';
 import { getBackgroundById } from '../data/backgrounds';
-import { calculateRebootFragments } from '../data/balance';
+import {
+  calculateRebootFragments,
+  rebootBasePermanentMultiplier,
+  rebootMultiplierPerReboot,
+} from '../data/balance';
 import { getMuseById } from '../data/muses';
 import {
   getStageRewardClaimKey,
@@ -18,7 +22,11 @@ import {
   initialStageId,
   stages,
 } from '../data/stages';
-import { calculateUpgradeCost } from '../data/upgrades';
+import {
+  calculateEffectiveRebootMultiplierPerReboot,
+  calculateUpgradeCost,
+  getUpgradeMaster,
+} from '../data/upgrades';
 import { createInitialUpgrades } from '../data/upgrades';
 import { createInitialSkillStates } from '../game/skillEffects';
 import { activateSkillState, tickSkillStates } from '../game/skillEffects';
@@ -640,6 +648,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
   purchaseUpgrade: (upgradeId) => {
     set((state) => {
       const upgrade = state.upgrades[upgradeId];
+      const master = getUpgradeMaster(upgradeId);
+      if (!upgrade || !master || !master.enabled) {
+        return state;
+      }
+      const currentStage = getStageById(state.currentStageId) ?? getStageById(initialStageId);
+      const currentStageNumber = currentStage ? getStageNumber(currentStage.id) : 1;
+      if (
+        currentStageNumber < master.unlockStageNumber ||
+        state.rebootCount < master.unlockRebootCount ||
+        upgrade.level >= master.maxLevel
+      ) {
+        return state;
+      }
       const cost = calculateUpgradeCost(upgrade, upgrade.level);
 
       if (state.memory < cost) {
@@ -953,7 +974,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   reboot: () => {
-    const gainedFragments = calculateRebootFragments(get().memory);
+    const state = get();
+    const effectiveRebootMultiplier =
+      rebootBasePermanentMultiplier +
+      calculateEffectiveRebootMultiplierPerReboot(rebootMultiplierPerReboot, state.upgrades) *
+        state.rebootCount;
+    const gainedFragments = calculateRebootFragments(state.memory, effectiveRebootMultiplier);
 
     if (gainedFragments <= 0) {
       return false;

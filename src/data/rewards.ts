@@ -6,7 +6,7 @@ export type Reward = (
   | { type: 'capsule'; id: string; amount: number }
   | { type: 'shard'; amount: number }
   | { type: 'conversation'; id: string }
-) & { rewardId?: string };
+) & { rewardId?: string; rewardText?: string };
 
 export interface RewardApplyResult {
   granted: boolean;

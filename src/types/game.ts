@@ -1,8 +1,8 @@
 import type { PresentedReward, Reward } from '../data/rewards';
 
-export type UpgradeId = 'bounce_boost' | 'speed_tune' | 'corner_sensor';
+export type UpgradeId = 'bounce_boost' | 'speed_tune' | 'corner_sensor' | 'reboot_core';
 
-export type UpgradeEffectType = 'bounce_reward' | 'speed' | 'corner_reward';
+export type UpgradeEffectType = 'bounce_reward' | 'speed' | 'corner_reward' | 'reboot';
 
 export type SkillTreeCategory = 'bounce' | 'corner' | 'muse';
 
@@ -70,6 +70,11 @@ export interface UpgradeDefinition {
   costRate: number;
   effectType: UpgradeEffectType;
   effectValue: number;
+  enabled: boolean;
+  maxLevel: number;
+  sortOrder: number;
+  unlockRebootCount: number;
+  unlockStageNumber: number;
 }
 
 export interface UpgradeProgress extends UpgradeDefinition {
@@ -91,6 +96,7 @@ export interface StageEnemyConfig {
 
 export interface Stage {
   id: string;
+  stageNumber?: number;
   name: string;
   description: string;
   cornerHitGoal: number;
@@ -324,7 +330,7 @@ export interface SaveData {
   memoryPerSecond: number;
   totalBounces: number;
   totalCornerHits: number;
-  upgrades: Record<UpgradeId, number>;
+  upgrades: Record<string, number>;
   currentStageId: string;
   stageCornerHits: Record<string, number>;
   stageDefeatCounts?: Record<string, number>;

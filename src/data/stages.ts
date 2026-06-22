@@ -1,4 +1,6 @@
 import { defaultEnemyTypeId } from './enemies';
+import { applyStageMasterToStage } from '../masters/stages';
+import { applyStageRewardsToStage } from '../masters/stageRewards';
 import type { Stage, StageClearConditionType, StageEnemyConfig } from '../types/game';
 
 const createEnemyStageConfig = (
@@ -15,7 +17,7 @@ const createEnemyStageConfig = (
   clearConditionType: 'enemy_defeats',
 });
 
-export const stages: Stage[] = [
+const baseStages: Stage[] = [
   {
     id: 'stage-1',
     name: 'Stage 1',
@@ -122,6 +124,10 @@ export const stages: Stage[] = [
   },
 ];
 
+export const stages: Stage[] = baseStages
+  .map(applyStageMasterToStage)
+  .map(applyStageRewardsToStage);
+
 export const initialStageId = stages[0].id;
 
 // Keep this migration snapshot unchanged when adding future rewards to existing stages.
@@ -145,6 +151,15 @@ export function getStageById(stageId: string): Stage | undefined {
 export function getNextStage(stageId: string): Stage | undefined {
   const currentStageIndex = stages.findIndex((stage) => stage.id === stageId);
   return stages[currentStageIndex + 1];
+}
+
+export function getStageNumber(stage: Stage): number {
+  if (typeof stage.stageNumber === 'number' && Number.isFinite(stage.stageNumber)) {
+    return Math.max(1, Math.floor(stage.stageNumber));
+  }
+
+  const stageIndex = stages.findIndex((candidate) => candidate.id === stage.id);
+  return stageIndex >= 0 ? stageIndex + 1 : 1;
 }
 
 export function createInitialStageCornerHits(): Record<string, number> {

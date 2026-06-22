@@ -150,6 +150,9 @@ async function main() {
     await runNpm('verify:priority3');
     await runNpm('verify:masters');
     await runNpm('verify:balance-config');
+    await runNpm('verify:stage-config');
+    await runNpm('verify:enemy-stage-rewards');
+    await runNpm('verify:upgrade-config');
     await runNpm('verify:skills');
     await runNpm('verify:skill-effects');
     await runNpm('verify:tap-actions');

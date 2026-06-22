@@ -22,6 +22,7 @@ export interface BounceStepResult {
 }
 
 export interface BounceStepOptions {
+  cornerZonePx?: number;
   nearCornerDistance?: number;
 }
 
@@ -54,6 +55,7 @@ export function stepBounceBody(
   };
   const collision = detectBounceCollision({
     bounds,
+    cornerZonePx: options.cornerZonePx,
     nearDistance: options.nearCornerDistance,
     nextX: nextBody.x,
     nextY: nextBody.y,

@@ -29,7 +29,7 @@ export const stageMasters = [
     "cornerRequirement": 500,
     "dropMultiplier": 1.2,
     "enemyHpMultiplier": 1.5,
-    "maxActiveEnemies": 2,
+    "maxActiveEnemies": 3,
     "stageId": "stage-3",
     "stageNumber": 3,
     "targetDefeatCount": 8
@@ -39,7 +39,7 @@ export const stageMasters = [
     "cornerRequirement": 700,
     "dropMultiplier": 1.3,
     "enemyHpMultiplier": 1.75,
-    "maxActiveEnemies": 2,
+    "maxActiveEnemies": 4,
     "stageId": "stage-4",
     "stageNumber": 4,
     "targetDefeatCount": 10
@@ -49,7 +49,7 @@ export const stageMasters = [
     "cornerRequirement": 900,
     "dropMultiplier": 1.4,
     "enemyHpMultiplier": 2,
-    "maxActiveEnemies": 2,
+    "maxActiveEnemies": 5,
     "stageId": "stage-5",
     "stageNumber": 5,
     "targetDefeatCount": 12
@@ -59,7 +59,7 @@ export const stageMasters = [
     "cornerRequirement": 1200,
     "dropMultiplier": 1.5,
     "enemyHpMultiplier": 2.2,
-    "maxActiveEnemies": 3,
+    "maxActiveEnemies": 6,
     "stageId": "stage-6",
     "stageNumber": 6,
     "targetDefeatCount": 15
@@ -69,7 +69,7 @@ export const stageMasters = [
     "cornerRequirement": 1500,
     "dropMultiplier": 1.6,
     "enemyHpMultiplier": 2.45,
-    "maxActiveEnemies": 3,
+    "maxActiveEnemies": 7,
     "stageId": "stage-7",
     "stageNumber": 7,
     "targetDefeatCount": 18
@@ -79,7 +79,7 @@ export const stageMasters = [
     "cornerRequirement": 1900,
     "dropMultiplier": 1.7,
     "enemyHpMultiplier": 2.7,
-    "maxActiveEnemies": 3,
+    "maxActiveEnemies": 8,
     "stageId": "stage-8",
     "stageNumber": 8,
     "targetDefeatCount": 21
@@ -89,7 +89,7 @@ export const stageMasters = [
     "cornerRequirement": 2300,
     "dropMultiplier": 1.8,
     "enemyHpMultiplier": 3,
-    "maxActiveEnemies": 3,
+    "maxActiveEnemies": 9,
     "stageId": "stage-9",
     "stageNumber": 9,
     "targetDefeatCount": 24
@@ -99,7 +99,7 @@ export const stageMasters = [
     "cornerRequirement": 3000,
     "dropMultiplier": 2,
     "enemyHpMultiplier": 3.4,
-    "maxActiveEnemies": 3,
+    "maxActiveEnemies": 10,
     "stageId": "stage-10",
     "stageNumber": 10,
     "targetDefeatCount": 30

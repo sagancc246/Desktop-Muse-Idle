@@ -3,6 +3,7 @@ import {
   getStageById,
   getStageClearConditionType,
   getStageEnemyConfig,
+  getStageNumber,
   initialStageId,
   stages,
 } from '../data/stages';
@@ -89,7 +90,7 @@ export function WallpaperStageHud({ onExit }: WallpaperStageHudProps) {
   const progressLabel =
     clearConditionType === 'enemy_defeats' ? 'Defeat Progress' : 'Corner Hit Progress';
   const completionPercent = Math.min((progress / progressGoal) * 100, 100);
-  const stageNumber = stages.findIndex((stage) => stage.id === currentStage.id) + 1;
+  const stageNumber = getStageNumber(currentStage);
 
   return (
     <header

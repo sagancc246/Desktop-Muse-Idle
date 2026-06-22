@@ -10,6 +10,7 @@ The first CSV-managed masters are:
 - `masters/csv/stages.csv`
 - `masters/csv/enemies.csv`
 - `masters/csv/stage_rewards.csv`
+- `masters/csv/upgrades.csv`
 
 Generated TypeScript output is written to:
 
@@ -17,6 +18,7 @@ Generated TypeScript output is written to:
 - `src/generated/masters/stages.generated.ts`
 - `src/generated/masters/enemies.generated.ts`
 - `src/generated/masters/stageRewards.generated.ts`
+- `src/generated/masters/upgrades.generated.ts`
 
 Do not edit generated files directly. Edit CSV, then regenerate.
 
@@ -40,7 +42,13 @@ Google Sheets API integration, automatic CSV download, Steam Workshop integratio
 
 `balance.csv` is connected to runtime through `src/masters/balance.ts`. The adapter normalizes generated values, clamps unsafe numbers, and keeps existing `src/data/balance.ts` export names stable for gameplay code.
 
-`stages.csv`, `enemies.csv`, and `stage_rewards.csv` are not connected to runtime yet. They are generated and validated in parallel until each runtime adapter is added intentionally.
+`stages.csv` is connected to runtime through `src/masters/stages.ts` and `src/data/stages.ts`. The adapter keeps existing stage names, descriptions, and rewards from `src/data/stages.ts`, while CSV controls stage number, clear condition, defeat target, max active enemies, enemy HP multiplier, drop multiplier, and corner requirement.
+
+`enemies.csv` is connected to runtime through `src/masters/enemies.ts` and `src/data/enemies.ts`. The adapter converts generated enemy rows into the existing runtime enemy shape, including HP, radius, hit cooldown, drop amount, color palette, and spawn weight.
+
+`stage_rewards.csv` is connected to runtime through `src/masters/stageRewards.ts` and `src/data/stages.ts`. The adapter converts generated reward rows into existing stage `Reward` entries while preserving `rewardId`-based claim keys.
+
+`upgrades.csv` is connected to runtime through `src/masters/upgrades.ts` and `src/data/upgrades.ts`. The adapter keeps existing upgrade IDs compatible with saves while allowing CSV control of names, descriptions, costs, growth rates, max levels, effect values, unlock conditions, enabled flags, and sort order.
 
 The existing `src/data/*.ts` masters remain the source used by gameplay until each area is intentionally switched to generated adapters.
 
@@ -70,6 +78,42 @@ Validation commands:
 - `npm run verify:csv-masters`
 - `npm run verify:masters`
 - `npm run verify:balance-config`
+- `npm run verify:stage-config`
+- `npm run verify:enemy-stage-rewards`
+- `npm run verify:upgrade-config`
+
+Runtime-connected stage areas:
+
+- Stage number and Stage HUD numbering via `stages.csv`
+- Enemy defeat target for Stage Progress HUD and Stage Clear via `targetDefeatCount`
+- Active enemy count via `maxActiveEnemies`
+- Enemy HP scaling via `enemyHpMultiplier`
+- MemoryDrop count scaling via `dropMultiplier`
+- Corner requirement fallback/compatibility via `cornerRequirement`
+
+Runtime-connected enemy areas:
+
+- Enemy ID, name, radius, max HP, hit cooldown, drop amount, color, and spawn weight via `enemies.csv`
+- Stage HP scaling still comes from `stages.csv` and is applied on top of enemy max HP
+- Stage drop scaling still comes from `stages.csv` and is applied on top of enemy drop amount
+
+Runtime-connected stage reward areas:
+
+- Stage Clear reward entries via `stage_rewards.csv`
+- Reward claim keys continue to use stable `stageId:rewardId` values
+- Reward card display can use `rewardText`
+- Unsupported future reward types remain validated/generated, but only existing runtime reward types are applied until their gameplay systems exist
+
+Runtime-connected upgrade areas:
+
+- Upgrade names, descriptions, base costs, cost growth, max levels, unlock stage/reboot requirements, enabled flags, and sort order via `upgrades.csv`
+- Upgrade purchase cost uses `baseCost * costGrowth^currentLevel`
+- Existing save levels remain keyed by stable upgrade IDs
+- `balance.csv` provides base values, while `upgrades.csv` provides growth values layered on top
+- Bounce Boost affects wall reward scaling and tap boost growth
+- Speed Tune affects speed scaling
+- Corner Sensor affects corner reward scaling and assisted Corner Zone size
+- REBOOT Core affects reboot fragment multiplier growth
 
 ## Existing Behavior To Preserve
 

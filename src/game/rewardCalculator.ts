@@ -17,6 +17,7 @@ import {
   visualSpeedMultiplierMaxLow,
   visualSpeedMultiplierMaxMedium,
 } from '../data/balance';
+import { calculateEffectiveMuseTapSpeedPerStack } from '../data/upgrades';
 import { getMuseById } from '../data/muses';
 import {
   calculateSkillTreeAdditiveBonus,
@@ -47,21 +48,31 @@ export function getVisualSpeedCap(motionIntensity: MotionIntensity): number {
 export function getMuseTapSpeedMultiplier(
   motionIntensity: MotionIntensity,
   tapBoostStack = 1,
+  upgrades?: UpgradeCollection,
 ): number {
   const stack = Math.max(0, Math.floor(tapBoostStack));
   if (stack <= 0) {
     return 1;
   }
+  const effectiveLow = upgrades
+    ? calculateEffectiveMuseTapSpeedPerStack(museTapSpeedMultiplierLow, upgrades)
+    : museTapSpeedMultiplierLow;
+  const effectiveMedium = upgrades
+    ? calculateEffectiveMuseTapSpeedPerStack(museTapSpeedMultiplierMedium, upgrades)
+    : museTapSpeedMultiplierMedium;
+  const effectiveHigh = upgrades
+    ? calculateEffectiveMuseTapSpeedPerStack(museTapSpeedMultiplierHigh, upgrades)
+    : museTapSpeedMultiplierHigh;
 
   if (motionIntensity === 'low') {
-    return Math.min(museTapSpeedMultiplierCap, Math.pow(museTapSpeedMultiplierLow, stack));
+    return Math.min(museTapSpeedMultiplierCap, Math.pow(effectiveLow, stack));
   }
 
   if (motionIntensity === 'high') {
-    return Math.min(museTapSpeedMultiplierCap, Math.pow(museTapSpeedMultiplierHigh, stack));
+    return Math.min(museTapSpeedMultiplierCap, Math.pow(effectiveHigh, stack));
   }
 
-  return Math.min(museTapSpeedMultiplierCap, Math.pow(museTapSpeedMultiplierMedium, stack));
+  return Math.min(museTapSpeedMultiplierCap, Math.pow(effectiveMedium, stack));
 }
 
 export function getSpeedTuneInternalYieldMultiplier(
@@ -129,7 +140,7 @@ export function calculateVisualSpeedMultiplier(
   motionIntensity: MotionIntensity,
   characterSkillLevels?: CharacterSkillLevels,
 ): number {
-  const tapMultiplier = getMuseTapSpeedMultiplier(motionIntensity, tapBoostStack);
+  const tapMultiplier = getMuseTapSpeedMultiplier(motionIntensity, tapBoostStack, upgrades);
   const characterMultiplier = resolveCharacterSkillEffects(
     characterSkillLevels,
   ).visualSpeedMultiplier;

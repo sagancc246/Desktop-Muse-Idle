@@ -3,8 +3,8 @@ import {
   getStageById,
   getStageClearConditionType,
   getStageEnemyConfig,
+  getStageNumber,
   initialStageId,
-  stages,
 } from '../data/stages';
 import { useAppStore } from '../store/useAppStore';
 import { useGameStore } from '../store/useGameStore';
@@ -48,10 +48,7 @@ export function ResourceBar({
   const [isMemoryDropPulseActive, setIsMemoryDropPulseActive] = useState(false);
   const [isStageProgressPulseActive, setIsStageProgressPulseActive] = useState(false);
   const currentStage = getStageById(currentStageId) ?? getStageById(initialStageId);
-  const stageIndex = currentStage
-    ? stages.findIndex((stage) => stage.id === currentStage.id)
-    : 0;
-  const stageNumber = stageIndex >= 0 ? stageIndex + 1 : 1;
+  const stageNumber = currentStage ? getStageNumber(currentStage) : 1;
   const clearConditionType = currentStage ? getStageClearConditionType(currentStage) : 'corner_hits';
   const targetDefeatCount =
     currentStage && clearConditionType === 'enemy_defeats'

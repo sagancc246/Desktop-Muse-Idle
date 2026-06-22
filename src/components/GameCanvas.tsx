@@ -39,6 +39,7 @@ import { defaultEnemyTypeId, getEnemyMasterById, type EnemyMaster } from '../dat
 import { getMuseById } from '../data/muses';
 import { getEquippedSkinForMuse } from '../data/skins';
 import { getStageById, getStageEnemyConfig, initialStageId } from '../data/stages';
+import { calculateEffectiveCornerZonePx } from '../data/upgrades';
 import { createEffectManager } from '../effects/effectManager';
 import type { CornerEffectKind } from '../effects/effectTypes';
 import { createInitialBody, stepBounceBody, type BounceBody } from '../game/bouncePhysics';
@@ -780,12 +781,15 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
         return primaryRuntime?.body.radius ?? 46;
       };
 
+      const getEffectiveCornerZonePx = () =>
+        calculateEffectiveCornerZonePx(cornerHitAssistZonePx, useGameStore.getState().upgrades);
+
       const getCornerZoneRects = () => {
         const { maxX, maxY, minX, minY } = getCollisionLimits(
           { width: app.screen.width, height: app.screen.height, inset },
           getCornerZoneRadius(),
         );
-        const zone = cornerHitAssistZonePx;
+        const zone = getEffectiveCornerZonePx();
 
         return [
           { corner: 'top_left' as const, x: minX, y: minY },
@@ -806,7 +810,7 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
           return;
         }
 
-        const zone = cornerHitAssistZonePx;
+        const zone = getEffectiveCornerZonePx();
         for (const rect of getCornerZoneRects()) {
           const isHighlighted = highlightedCornerZone === rect.corner;
           const highlightAlpha = isHighlighted
@@ -1793,7 +1797,7 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
           unlockedSkillNodes,
           characterSkillLevels,
         );
-        const nearMissOffset = cornerHitAssistZonePx + 8;
+        const nearMissOffset = getEffectiveCornerZonePx() + 8;
         const offsetY =
           nearDistance > nearMissOffset + 4
             ? Math.min(nearMissOffset, nearDistance - 4)
@@ -2120,6 +2124,7 @@ export function GameCanvas({ presentationMode = 'normal' }: GameCanvasProps) {
                 characterSkillLevels,
               ),
             {
+              cornerZonePx: calculateEffectiveCornerZonePx(cornerHitAssistZonePx, upgrades),
               nearCornerDistance: calculateNearCornerDistance(
                 unlockedSkillNodes,
                 characterSkillLevels,

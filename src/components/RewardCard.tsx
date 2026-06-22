@@ -56,7 +56,7 @@ export function RewardCard({ onOpenGallery, reward }: RewardCardProps) {
         <div className="reward-card-copy">
           <span>New Skin Unlocked!</span>
           <h2>{skin.name}</h2>
-          <p>{skinMuse?.name ?? skin.museId}</p>
+          <p>{reward.rewardText ?? skinMuse?.name ?? skin.museId}</p>
           <b>{skin.rarity.replace('_', ' ')}</b>
         </div>
         <div className="reward-card-actions">
@@ -87,7 +87,7 @@ export function RewardCard({ onOpenGallery, reward }: RewardCardProps) {
         <div className="reward-card-copy">
           <span>New Background Unlocked!</span>
           <h2>{background.name}</h2>
-          <p>{background.description}</p>
+          <p>{reward.rewardText ?? background.description}</p>
         </div>
         <div className="reward-card-actions stacked">
           <em>{claimLabel}</em>
@@ -115,7 +115,7 @@ export function RewardCard({ onOpenGallery, reward }: RewardCardProps) {
         <div className="reward-card-copy">
           <span>New Muse Unlocked!</span>
           <h2>{muse.name}</h2>
-          <p>{muse.description}</p>
+          <p>{reward.rewardText ?? muse.description}</p>
           <b>{muse.skill.name}</b>
         </div>
         <div className="reward-card-actions">
@@ -135,7 +135,7 @@ export function RewardCard({ onOpenGallery, reward }: RewardCardProps) {
         <div className="reward-card-copy">
           <span>Memory Acquired</span>
           <h2>+{reward.amount.toLocaleString()}</h2>
-          <p>Added to your Memory total.</p>
+          <p>{reward.rewardText ?? 'Added to your Memory total.'}</p>
           {reward.claimed ? <b>Already Claimed</b> : null}
         </div>
       </article>
@@ -149,7 +149,7 @@ export function RewardCard({ onOpenGallery, reward }: RewardCardProps) {
         <div className="reward-card-copy">
           <span>Muse Capsule Acquired</span>
           <h2>+{reward.amount.toLocaleString()}</h2>
-          <p>Added to your Capsule inventory.</p>
+          <p>{reward.rewardText ?? 'Added to your Capsule inventory.'}</p>
           {reward.claimed ? <b>Already Claimed</b> : null}
         </div>
       </article>

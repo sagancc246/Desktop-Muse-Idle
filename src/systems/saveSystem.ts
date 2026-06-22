@@ -26,7 +26,7 @@ import {
   initialUnlockedSkinIds,
   museSkins,
 } from '../data/skins';
-import { createInitialUpgrades, upgradeIds } from '../data/upgrades';
+import { clampUpgradeLevel, createInitialUpgrades, upgradeIds } from '../data/upgrades';
 import { createInitialSkillNodes, skillNodes } from '../data/skillTree';
 import { characterSkillNodes, createInitialCharacterSkillLevels } from '../data/skills';
 import { calculateOfflineReward } from '../game/offlineReward';
@@ -38,7 +38,7 @@ import {
   getUnlockableMuseIds,
   isKnownMuseId,
 } from '../game/unlockChecker';
-import type { GameState, SaveData, SaveResult, UpgradeCollection, UpgradeId } from '../types/game';
+import type { GameState, SaveData, SaveResult, UpgradeCollection } from '../types/game';
 import type { MotionIntensity } from '../types/game';
 
 export const saveVersion = 1;
@@ -79,15 +79,14 @@ function isNonNegativeNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }
 
-function isUpgradeLevels(value: unknown): value is Record<UpgradeId, number> {
+function isUpgradeLevels(value: unknown): value is Record<string, number> {
   if (!value || typeof value !== 'object') {
     return false;
   }
 
-  return upgradeIds.every((upgradeId) => {
-    const level = (value as Record<string, unknown>)[upgradeId];
-    return Number.isInteger(level) && isNonNegativeNumber(level);
-  });
+  return Object.values(value as Record<string, unknown>).every(
+    (level) => Number.isInteger(level) && isNonNegativeNumber(level),
+  );
 }
 
 function isSaveData(value: unknown): value is CompatibleSaveData {
@@ -221,11 +220,11 @@ function restoreStageState(data: CompatibleSaveData): Pick<
   };
 }
 
-function restoreUpgrades(levels: Record<UpgradeId, number>): UpgradeCollection {
+function restoreUpgrades(levels: Record<string, number>): UpgradeCollection {
   const upgrades = createInitialUpgrades();
 
   for (const upgradeId of upgradeIds) {
-    upgrades[upgradeId].level = levels[upgradeId];
+    upgrades[upgradeId].level = clampUpgradeLevel(upgradeId, levels[upgradeId] ?? 0);
   }
 
   return upgrades;
@@ -577,11 +576,9 @@ export function saveGameState(
     ),
     totalBounces: state.totalBounces,
     totalCornerHits: state.totalCornerHits,
-    upgrades: {
-      bounce_boost: state.upgrades.bounce_boost.level,
-      speed_tune: state.upgrades.speed_tune.level,
-      corner_sensor: state.upgrades.corner_sensor.level,
-    },
+    upgrades: Object.fromEntries(
+      upgradeIds.map((upgradeId) => [upgradeId, state.upgrades[upgradeId]?.level ?? 0]),
+    ),
     currentStageId: state.currentStageId,
     stageCornerHits: state.stageCornerHits,
     stageDefeatCounts: state.stageDefeatCounts,

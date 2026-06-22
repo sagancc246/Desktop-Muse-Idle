@@ -1,10 +1,19 @@
-import { calculateUpgradeCost, upgradeIds } from '../data/upgrades';
+import { calculateUpgradeCost, getVisibleUpgradeMasters, upgradeMasters } from '../data/upgrades';
+import { getStageById, initialStageId } from '../data/stages';
+import { getStageNumber } from '../game/statsTracker';
 import { useGameStore } from '../store/useGameStore';
 
 export function UpgradePanel() {
   const memory = useGameStore((state) => state.memory);
   const upgrades = useGameStore((state) => state.upgrades);
+  const currentStageId = useGameStore((state) => state.currentStageId);
+  const rebootCount = useGameStore((state) => state.rebootCount);
   const purchaseUpgrade = useGameStore((state) => state.purchaseUpgrade);
+  const currentStage = getStageById(currentStageId) ?? getStageById(initialStageId);
+  const stageNumber = currentStage ? getStageNumber(currentStage.id) : 1;
+  const visibleUpgradeIds = new Set(
+    getVisibleUpgradeMasters({ rebootCount, stageNumber }).map((upgrade) => upgrade.id),
+  );
 
   return (
     <aside className="upgrade-panel panel">
@@ -13,23 +22,31 @@ export function UpgradePanel() {
         <h2>Upgrades</h2>
       </div>
       <div className="upgrade-list">
-        {upgradeIds.map((upgradeId) => {
-          const upgrade = upgrades[upgradeId];
+        {upgradeMasters.map((master) => {
+          const upgrade = upgrades[master.id] ?? { ...master, level: 0 };
+          const isVisible = visibleUpgradeIds.has(master.id);
+          if (!master.enabled || !isVisible) {
+            return null;
+          }
           const cost = calculateUpgradeCost(upgrade, upgrade.level);
+          const isMaxed = upgrade.level >= master.maxLevel;
+          const canAfford = memory >= cost;
 
           return (
-            <div className="upgrade-card" key={upgrade.id}>
+            <div className="upgrade-card" key={master.id}>
               <div className="upgrade-title-row">
-                <span className="upgrade-title">{upgrade.name}</span>
-                <span className="upgrade-level">Lv {upgrade.level}</span>
+                <span className="upgrade-title">{master.name}</span>
+                <span className="upgrade-level">
+                  Lv {upgrade.level} / {master.maxLevel}
+                </span>
               </div>
-              <span className="placeholder-copy">{upgrade.description} per level</span>
+              <span className="placeholder-copy">{master.description}</span>
               <button
-                disabled={memory < cost}
-                onClick={() => purchaseUpgrade(upgrade.id)}
+                disabled={isMaxed || !canAfford}
+                onClick={() => purchaseUpgrade(master.id)}
                 type="button"
               >
-                Buy - {cost.toLocaleString()} Memory
+                {isMaxed ? 'MAX' : `Buy - ${cost.toLocaleString()} Memory`}
               </button>
             </div>
           );
