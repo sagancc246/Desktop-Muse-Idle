@@ -15,8 +15,14 @@ export const createInitialStats = (): GameStats => ({
 });
 
 export function getStageNumber(stageId: string): number {
-  const stageIndex = stages.findIndex((stage) => stage.id === stageId);
-  return stageIndex >= 0 ? stageIndex + 1 : 1;
+  const stage = stages.find((candidate) => candidate.id === stageId);
+  if (!stage) {
+    return 1;
+  }
+
+  return typeof stage.stageNumber === 'number' && Number.isFinite(stage.stageNumber)
+    ? Math.max(1, Math.floor(stage.stageNumber))
+    : stages.findIndex((candidate) => candidate.id === stageId) + 1;
 }
 
 export function normalizeStats(value: unknown, fallback?: Partial<GameStats>): GameStats {

@@ -73,8 +73,15 @@ async function main() {
       return true;
     })()`);
     if (!clicked) {
-      throw new Error(`Button not clickable: ${label}`);
+      const availableButtons = await buttons();
+      throw new Error(`Button not clickable: ${label}; available=${JSON.stringify(availableButtons)}`);
     }
+  };
+  const openDebugPanel = async (name) => {
+    if (!(await js(`Boolean(document.querySelector('.debug-panel'))`))) {
+      await clickButton('Toggle Debug Panel');
+    }
+    await waitFor(name, async () => js(`Boolean(document.querySelector('.debug-panel'))`));
   };
 
   const selectByLabel = async (label, value) => {
@@ -102,6 +109,34 @@ async function main() {
 
   const getStorage = (key) =>
     js(`window.localStorage.getItem(${JSON.stringify(key)})`);
+  const getGameCanvasSize = () =>
+    js(`(() => {
+      const canvas = document.querySelector('.pixi-host canvas');
+      return canvas ? { height: canvas.height, width: canvas.width } : null;
+    })()`);
+  const getBackfillLayout = () =>
+    js(`(() => {
+      const modal = document.querySelector('.backfill-rewards-modal');
+      const groups = document.querySelector('.backfill-reward-groups');
+      const header = modal?.querySelector('.stage-clear-header');
+      const footer = modal?.querySelector('.stage-clear-footer');
+      if (!modal || !groups || !header || !footer) return null;
+      const rect = modal.getBoundingClientRect();
+      const headerRect = header.getBoundingClientRect();
+      const footerRect = footer.getBoundingClientRect();
+      return {
+        groupCount: groups.querySelectorAll('.backfill-reward-group').length,
+        groupClientHeight: groups.clientHeight,
+        groupScrollHeight: groups.scrollHeight,
+        headerVisible: headerRect.top >= 0 && headerRect.bottom <= window.innerHeight,
+        footerVisible: footerRect.top >= 0 && footerRect.bottom <= window.innerHeight,
+        modalFitsViewport:
+          rect.left >= 0 &&
+          rect.top >= 0 &&
+          rect.right <= window.innerWidth &&
+          rect.bottom <= window.innerHeight
+      };
+    })()`);
 
   await win.loadURL(appUrl);
   await waitFor('App loads title screen', async () => (await visibleText()).includes('Desktop Muse Idle'));
@@ -138,6 +173,10 @@ async function main() {
     const text = await visibleText();
     return text.includes('Manual Save') && text.includes('Last Saved: Not saved yet');
   });
+  await assert('Settings shows Windowed and Fullscreen display mode choices', async () => {
+    const text = await visibleText();
+    return text.includes('Display Mode') && text.includes('ウィンドウ') && text.includes('フルスクリーン');
+  });
   await clickButton('Back');
   await waitFor('Settings returns to title', async () => (await visibleText()).includes('Prototype Build'));
 
@@ -158,27 +197,210 @@ async function main() {
 
   await clickButton('Start');
   await waitFor('Start opens game screen', async () => (await visibleText()).includes('Idle Observatory'));
+  await assert('Debug Panel starts closed', async () =>
+    !(await visibleText()).includes('Debug Panel'),
+  );
+  await js(`window.dispatchEvent(new KeyboardEvent('keydown', {
+    bubbles: true,
+    ctrlKey: true,
+    key: 'd',
+    shiftKey: true
+  }))`);
+  await waitFor('Ctrl+Shift+D opens Debug Panel', async () =>
+    (await visibleText()).includes('Debug Panel'),
+  );
+  await js(`window.dispatchEvent(new KeyboardEvent('keydown', {
+    bubbles: true,
+    key: 'Escape'
+  }))`);
+  await waitFor('Escape closes Debug Panel', async () =>
+    !(await visibleText()).includes('Debug Panel'),
+  );
+  await openDebugPanel('Debug toggle opens Debug Panel');
+  await clickButton('Close Debug Panel');
+  await waitFor('Close button closes Debug Panel', async () =>
+    !(await visibleText()).includes('Debug Panel'),
+  );
+  await openDebugPanel('Debug Panel reopens after Close button check');
+  const claimsBeforeDebugBackfill = await js(`import('/src/store/useGameStore.ts').then(({ useGameStore }) =>
+    JSON.stringify(useGameStore.getState().claimedRewardIds)
+  )`);
+  const unlockNotificationsBeforeDebugBackfill = await js(`import('/src/store/useGameStore.ts').then(({ useGameStore }) => {
+    const state = useGameStore.getState();
+    return JSON.stringify([state.newlyUnlockedMuseIds, state.newlyUnlockedSkinIds]);
+  })`);
+  await clickButton('Show Backfill Rewards: 10 Stages');
+  await waitFor('10-Stage Backfill fixture opens', async () => {
+    const layout = await getBackfillLayout();
+    return layout?.groupCount === 10;
+  });
+  await assert('1280x720 Backfill modal fits viewport with fixed header/footer', async () => {
+    const layout = await getBackfillLayout();
+    return layout?.modalFitsViewport && layout.headerVisible && layout.footerVisible;
+  });
+  await assert('10-Stage Backfill reward list scrolls independently', async () => {
+    const layout = await getBackfillLayout();
+    return layout?.groupScrollHeight > layout?.groupClientHeight;
+  });
+  await assert('Backfill fixture exposes RewardCard actions', async () => {
+    const labels = (await buttons()).map((button) => button.text);
+    return labels.includes('Equip') &&
+      labels.includes('Set Background') &&
+      labels.includes('Open Gallery') &&
+      labels.includes('Continue');
+  });
+  await clickButton('Equip');
+  await clickButton('Set Background');
+  await assert('Backfill Equip and Set Background actions remain operable', async () =>
+    js(`Boolean(document.querySelector('.backfill-rewards-modal'))`),
+  );
+  await assert('Backfill fixture does not alter Reward claims', async () =>
+    claimsBeforeDebugBackfill === await js(`import('/src/store/useGameStore.ts').then(({ useGameStore }) =>
+      JSON.stringify(useGameStore.getState().claimedRewardIds)
+    )`),
+  );
+  await js(`document.querySelector('.backfill-reward-groups').scrollTop = 999999`);
+  await assert('Backfill reward list accepts scrolling', async () =>
+    js(`document.querySelector('.backfill-reward-groups').scrollTop > 0`),
+  );
+  await clickButton('Open Gallery');
+  await waitFor('Backfill Open Gallery action opens Gallery', async () =>
+    js(`Boolean(document.querySelector('.gallery-backdrop'))`),
+  );
+  await clickButton('Close Gallery');
+  await assert('Closing Backfill fixture preserves unlock notifications', async () =>
+    unlockNotificationsBeforeDebugBackfill === await js(`import('/src/store/useGameStore.ts').then(({ useGameStore }) => {
+      const state = useGameStore.getState();
+      return JSON.stringify([state.newlyUnlockedMuseIds, state.newlyUnlockedSkinIds]);
+    })`),
+  );
+  await openDebugPanel('Debug Panel opens for 1920x1080 Backfill check');
+  await clickButton('Show Backfill Rewards: 10 Stages');
+  win.setSize(1920, 1080);
+  await sleep(250);
+  await assert('1920x1080 Backfill modal fits viewport with fixed header/footer', async () => {
+    const layout = await getBackfillLayout();
+    return layout?.modalFitsViewport && layout.headerVisible && layout.footerVisible;
+  });
+  win.setSize(1280, 720);
+  await sleep(250);
+  await clickButton('Continue');
+  await openDebugPanel('Debug Panel reopens after Backfill fixture checks');
   await assert('ResourceBar exposes Save/Settings/Stats/Wallpaper', async () => {
     const labels = (await buttons()).map((button) => button.aria || button.text);
     return ['Save Game', 'Open Settings', 'Open Statistics', 'Toggle Wallpaper Stage Mode'].every(
       (label) => labels.includes(label),
     );
   });
+  await waitFor('Pixi canvas initializes', async () => (await getGameCanvasSize()) !== null);
+  const normalCanvasSize = await getGameCanvasSize();
+  await clickButton('Toggle Focus Mode');
+  await waitFor('Focus Mode opens', async () => (await visibleText()).includes('Exit Focus'));
+  await assert('Focus Mode closes and hides Debug Panel', async () => {
+    const text = await visibleText();
+    const labels = (await buttons()).map((button) => button.aria || button.text);
+    return !text.includes('Debug Panel') && !labels.includes('Toggle Debug Panel');
+  });
+  await assert('Focus Mode keeps Pixi internal canvas size stable', async () => {
+    const focusCanvasSize = await getGameCanvasSize();
+    return JSON.stringify(focusCanvasSize) === JSON.stringify(normalCanvasSize);
+  });
+  await clickButton('Exit Focus');
+  await clickButton('Toggle Wallpaper Stage Mode');
+  await waitFor('Wallpaper Stage Mode opens', async () => (await visibleText()).includes('Exit Wallpaper'));
+  await assert('Wallpaper Stage Mode keeps Pixi internal canvas size stable', async () => {
+    const wallpaperCanvasSize = await getGameCanvasSize();
+    return JSON.stringify(wallpaperCanvasSize) === JSON.stringify(normalCanvasSize);
+  });
+  await clickButton('Exit Wallpaper');
+  await js(`import('/src/store/useAppStore.ts').then(({ useAppStore }) =>
+    useAppStore.getState().toggleMuseOverlayMode()
+  )`);
+  await waitFor('Muse Overlay Mode opens as transparent overlay surface', async () =>
+    js(`document.querySelector('.appViewport')?.classList.contains('muse-overlay-viewport') &&
+      getComputedStyle(document.querySelector('.appViewport')).backgroundColor === 'rgba(0, 0, 0, 0)'`),
+  );
+  await js(`import('/src/store/useAppStore.ts').then(({ useAppStore }) =>
+    useAppStore.getState().setClickThroughEnabled(true)
+  )`);
+  await waitFor('Overlay status reports Click Through ON', async () =>
+    js(`import('/src/store/useAppStore.ts').then(({ useAppStore }) =>
+      useAppStore.getState().isClickThroughEnabled === true &&
+      !useAppStore.getState().overlayLastError
+    )`),
+  );
+  await assert('Muse Overlay Mode keeps Pixi internal canvas size stable', async () => {
+    const overlayCanvasSize = await getGameCanvasSize();
+    return JSON.stringify(overlayCanvasSize) === JSON.stringify(normalCanvasSize);
+  });
+  await js(`import('/src/store/useAppStore.ts').then(({ useAppStore }) =>
+    useAppStore.getState().exitWallpaperMode()
+  )`);
+  await assert('Exiting Muse Overlay clears transient Click Through state', async () =>
+    js(`import('/src/store/useAppStore.ts').then(({ useAppStore }) =>
+      useAppStore.getState().isClickThroughEnabled === false
+    )`),
+  );
+  await openDebugPanel('Debug Panel reopens after presentation mode checks');
 
   await clickButton('+1K Memory');
   await clickButton('+1 Fragment');
-  await clickButton('Unlock All Skins');
   await clickButton('Clear Stage');
-  if ((await visibleText()).includes('Stage Clear!')) {
-    await clickButton('Continue');
-    await waitFor('Stage clear overlay continues', async () => !(await visibleText()).includes('Stage Clear!'));
-  }
+  await waitFor('Stage 1 clear modal shows its background reward', async () => {
+    const text = await visibleText();
+    return text.includes('STAGE CLEAR!') && text.includes('Cozy Room');
+  });
+  await clickButton('Set Background');
+  await waitFor('Stage 1 reward card sets Cozy Room', async () =>
+    (await visibleText()).includes('In Use'),
+  );
+  await clickButton('Open Gallery');
+  await waitFor('Stage reward card opens Gallery', async () =>
+    js(`Boolean(document.querySelector('.gallery-backdrop'))`),
+  );
+  await clickButton('Close Gallery');
+  await waitFor('Stage reward Gallery closes', async () =>
+    js(`!document.querySelector('.gallery-backdrop')`),
+  );
+
+  await clickButton('Clear Stage');
+  await waitFor('Stage 2 clear modal opens', async () => (await visibleText()).includes('STAGE CLEAR!'));
+  await assert('Stage 2 clear modal names the cleared stage', async () =>
+    (await visibleText()).includes('Stage 2'),
+  );
+  await assert('Stage 2 clear modal announces a new skin', async () =>
+    (await visibleText()).includes('NEW SKIN UNLOCKED!'),
+  );
+  await assert('Stage 2 clear modal shows Lumi Pastel reward', async () =>
+    (await visibleText()).includes('Lumi Pastel'),
+  );
+  await assert('Stage 2 clear modal shows Astra reward', async () =>
+    (await visibleText()).includes('Astra'),
+  );
+  await clickButton('Equip');
+  await waitFor('Stage 2 reward card equips Lumi Pastel', async () =>
+    (await visibleText()).includes('Equipped'),
+  );
+  await clickButton('Continue');
+  await waitFor('Stage 2 clear modal continues', async () => !(await visibleText()).includes('STAGE CLEAR!'));
 
   await clickButton('Skill Tree');
   await waitFor('Skill Tree opens', async () => (await visibleText()).includes('Bounce Memory I'));
   await clickButton('Unlock - 1 Fragment');
   await waitFor('Skill Tree unlock consumes Fragment', async () => (await visibleText()).includes('Unlocked'));
   await clickButton('Close');
+
+  await clickButton('Change Skin');
+  await waitFor('Skin selector opens', async () =>
+    js(`Boolean(document.querySelector('.skin-selector-modal'))`),
+  );
+  await waitFor('Skin selector shows the Stage 2 reward as equipped', async () =>
+    (await visibleText()).includes('Currently equipped'),
+  );
+  await clickButton('Close');
+  await waitFor('Skin selector closes with equipped skin visible', async () =>
+    (await visibleText()).includes('Lumi Pastel'),
+  );
 
   await clickButton('Save Game');
   await waitFor('Manual Save from ResourceBar shows Saved toast', async () =>
@@ -213,14 +435,43 @@ async function main() {
   await js(`Storage.prototype.setItem = window.__originalSetItem; delete window.__originalSetItem; undefined;`);
 
   const savedBeforeReload = JSON.parse(await getStorage('desktop-muse-idle-save'));
+  const stage1MemoryClaimKey = 'stage-1:memory_500';
+  const stage2AstraClaimKey = 'stage-2:astra';
+  const memoryBeforeAddedRewardReconcile = savedBeforeReload.memory;
+  savedBeforeReload.claimedRewardIds = savedBeforeReload.claimedRewardIds.filter(
+    (claimId) => claimId !== stage1MemoryClaimKey && claimId !== stage2AstraClaimKey,
+  );
   await win.reload();
   await waitFor('Reload after save returns to title', async () => (await visibleText()).includes('Desktop Muse Idle'));
+  await js(`window.localStorage.setItem(
+    'desktop-muse-idle-save',
+    ${JSON.stringify(JSON.stringify(savedBeforeReload))}
+  )`);
   await assert('Continue is enabled after save exists', async () => {
     const button = (await buttons()).find((candidate) => candidate.text === 'Continue');
     return button?.disabled === false;
   });
   await clickButton('Continue');
   await waitFor('Continue opens saved game', async () => (await visibleText()).includes('Idle Observatory'));
+  const collectButton = (await buttons()).find((candidate) => candidate.text === 'Collect');
+  if (collectButton) {
+    await clickButton('Collect');
+  }
+  await waitFor('Backfill modal shows every Stage reward group', async () => {
+    const text = await visibleText();
+    return text.includes('NEW REWARDS UNLOCKED!') &&
+      text.includes('Stage 1 Rewards') &&
+      text.includes('Stage 2 Rewards') &&
+      text.toLowerCase().includes('memory acquired') &&
+      text.includes('Astra');
+  });
+  await waitFor('Cleared Stage receives newly unclaimed reward', async () => {
+    const saved = JSON.parse(await getStorage('desktop-muse-idle-save'));
+    return saved.memory >= memoryBeforeAddedRewardReconcile + 500 &&
+      saved.claimedRewardIds.filter((claimId) => claimId === stage1MemoryClaimKey).length === 1 &&
+      saved.claimedRewardIds.filter((claimId) => claimId === stage2AstraClaimKey).length === 1;
+  });
+  await clickButton('Continue');
   const savedAfterContinue = JSON.parse(await getStorage('desktop-muse-idle-save'));
   await assert('Saved game contains Memory/Stage/background/Muse/skin/stats/Skill Tree fields', async () =>
     savedBeforeReload.memory >= 1000 &&
@@ -231,12 +482,25 @@ async function main() {
     savedBeforeReload.stats &&
     savedBeforeReload.unlockedSkillNodes?.bounce_memory_1 === 1,
   );
+  await assert('Stage 2 rewards persist once in the saved game', async () =>
+    savedBeforeReload.clearedStages.includes('stage-2') &&
+    savedBeforeReload.unlockedBackgrounds.includes('bg_cozy_room') &&
+    savedBeforeReload.unlockedMuseIds.includes('astra') &&
+    savedBeforeReload.unlockedSkinIds.filter((skinId) => skinId === 'lumi_pastel').length === 1 &&
+    savedBeforeReload.claimedRewardIds.filter((claimId) => claimId === 'stage-2:lumi_pastel').length === 1 &&
+    savedBeforeReload.currentBackgroundId === 'bg_cozy_room' &&
+    savedBeforeReload.equippedSkinByMuseId.lumi === 'lumi_pastel',
+  );
   await assert('Continue reload keeps saved Memory and Skill Tree state', async () =>
     savedAfterContinue.memory >= 1000 &&
+    savedAfterContinue.memory >= memoryBeforeAddedRewardReconcile + 500 &&
+    savedAfterContinue.claimedRewardIds.filter((claimId) => claimId === stage1MemoryClaimKey).length === 1 &&
+    savedAfterContinue.claimedRewardIds.filter((claimId) => claimId === stage2AstraClaimKey).length === 1 &&
     savedAfterContinue.unlockedSkillNodes?.bounce_memory_1 === 1,
   );
 
   const memoryBeforeAutoSave = savedAfterContinue.memory;
+  await openDebugPanel('Debug Panel reopens for auto-save resource check');
   await clickButton('+1K Memory');
   await sleep(11_500);
   const autoSaved = JSON.parse(await getStorage('desktop-muse-idle-save'));
@@ -258,6 +522,7 @@ async function main() {
     !gameSaveRaw.includes('wallpaperSettings'),
   );
 
+  await selectByLabel('Wallpaper FPS', '60');
   await selectByLabel('Wallpaper Mode', 'stage');
   await win.reload();
   await waitFor('Reload after Wallpaper Stage mode returns to title', async () =>

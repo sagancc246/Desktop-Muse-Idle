@@ -1,15 +1,40 @@
 import { create } from 'zustand';
-import { backgrounds, getBackgroundById } from '../data/backgrounds';
-import { calculateRebootFragments } from '../data/balance';
-import { museTapCooldownMs, museTapDurationMs } from '../data/balance';
+import { getBackgroundById } from '../data/backgrounds';
+import {
+  calculateRebootFragments,
+  rebootBasePermanentMultiplier,
+  rebootMultiplierPerReboot,
+} from '../data/balance';
 import { getMuseById } from '../data/muses';
+import {
+  getStageRewardClaimKey,
+  presentClaimedReward,
+  presentReward,
+} from '../data/rewards';
 import { getEquippedSkinForMuse, getSkinById } from '../data/skins';
+import { getCharacterSkillNodeById } from '../data/skills';
 import { getSkillNodeById } from '../data/skillTree';
-import { getNextStage, getStageById, initialStageId } from '../data/stages';
-import { calculateUpgradeCost } from '../data/upgrades';
+import {
+  getNextStage,
+  getStageById,
+  getStageClearConditionType,
+  getStageEnemyConfig,
+  initialStageId,
+  stages,
+} from '../data/stages';
+import {
+  calculateEffectiveRebootMultiplierPerReboot,
+  calculateUpgradeCost,
+  getUpgradeMaster,
+} from '../data/upgrades';
 import { createInitialUpgrades } from '../data/upgrades';
 import { createInitialSkillStates } from '../game/skillEffects';
 import { activateSkillState, tickSkillStates } from '../game/skillEffects';
+import {
+  applyReward,
+  canClaimRewardResult,
+  groupStageRewardResults,
+} from '../game/rewardApplier';
 import { getStageNumber } from '../game/statsTracker';
 import { getUnlockableMuseIds, isKnownMuseId } from '../game/unlockChecker';
 import {
@@ -18,6 +43,11 @@ import {
   calculateOfflineMemoryPerSecond,
 } from '../game/rewardCalculator';
 import {
+  applyMuseTapBoost,
+  canApplyMuseTapBoost,
+  expireMuseTapBoost,
+} from '../game/tapActions';
+import {
   clearSaveData,
   createNewGameState,
   loadGameState,
@@ -25,7 +55,7 @@ import {
   saveGame,
   saveGameState,
 } from '../systems/saveSystem';
-import type { GameState, GameStore } from '../types/game';
+import type { BackfillRewardGroup, GameState, GameStore } from '../types/game';
 import type { MotionIntensity } from '../types/game';
 
 const initialState = loadGameState();
@@ -64,6 +94,7 @@ function withOfflineRate(
       nextState.unlockedSkillNodes,
       nextState.activeMuseIds,
       motionIntensity,
+      nextState.characterSkillLevels,
     ),
   };
 }
@@ -75,6 +106,7 @@ function withMuseUnlocks(state: GameState, updates: Partial<GameState>): Partial
     clearedStages: nextState.clearedStages,
     rebootCount: nextState.rebootCount,
     totalCornerHits: nextState.totalCornerHits,
+    totalJackpots: nextState.stats.totalJackpots,
     unlockedMuseIds,
   });
 
@@ -95,13 +127,20 @@ function withMuseUnlocks(state: GameState, updates: Partial<GameState>): Partial
 function applyCornerHitProgress(state: GameState, hitCount = 1): Partial<GameState> {
   let currentStageId = state.currentStageId;
   let currentBackgroundId = state.currentBackgroundId;
+  let memory = state.memory;
+  let capsuleCount = state.capsuleCount;
   let totalCornerHits = state.totalCornerHits;
   let pendingStageClear = state.pendingStageClear;
   const stageCornerHits = { ...state.stageCornerHits };
+  const stageDefeatCounts = { ...state.stageDefeatCounts };
   const clearedStages = [...state.clearedStages];
+  const claimedRewardIds = [...state.claimedRewardIds];
   const unlockedBackgrounds = [...state.unlockedBackgrounds];
+  const unlockedMuseIds = [...state.unlockedMuseIds];
+  const newlyUnlockedMuseIds = [...state.newlyUnlockedMuseIds];
   const unlockedSkinIds = [...state.unlockedSkinIds];
   const newlyUnlockedSkinIds = [...state.newlyUnlockedSkinIds];
+  let stageRewardMemoryEarned = 0;
   const safeHitCount = Math.max(0, Math.floor(hitCount));
 
   for (let hitIndex = 0; hitIndex < safeHitCount; hitIndex += 1) {
@@ -119,7 +158,9 @@ function applyCornerHitProgress(state: GameState, hitCount = 1): Partial<GameSta
     stageCornerHits[currentStage.id] = stageHits;
 
     const isNewClear =
-      stageHits >= currentStage.cornerHitGoal && !clearedStages.includes(currentStage.id);
+      getStageClearConditionType(currentStage) === 'corner_hits' &&
+      stageHits >= currentStage.cornerHitGoal &&
+      !clearedStages.includes(currentStage.id);
 
     if (!isNewClear) {
       continue;
@@ -127,36 +168,52 @@ function applyCornerHitProgress(state: GameState, hitCount = 1): Partial<GameSta
 
     clearedStages.push(currentStage.id);
 
-    const stageBackgrounds = backgrounds.filter(
-      (background) =>
-        background.id === currentStage.rewardBackgroundId ||
-        background.unlockStageId === currentStage.id,
-    );
-    const rewardBackground = getBackgroundById(currentStage.rewardBackgroundId);
-
-    for (const stageBackground of stageBackgrounds) {
-      if (!unlockedBackgrounds.includes(stageBackground.id)) {
-        unlockedBackgrounds.push(stageBackground.id);
+    const grantedRewards = currentStage.rewards.map((reward, rewardIndex) => {
+      const claimKey = getStageRewardClaimKey(currentStage.id, reward, rewardIndex);
+      if (claimedRewardIds.includes(claimKey)) {
+        return presentClaimedReward(reward, claimKey);
       }
 
-      if (currentBackgroundId === null) {
-        currentBackgroundId = stageBackground.id;
+      const result = applyReward(reward, {
+              addCapsule: (_id, amount) => {
+                capsuleCount += amount;
+              },
+              addMemory: (amount) => {
+                memory += amount;
+                stageRewardMemoryEarned += amount;
+              },
+              hasBackground: (id) => unlockedBackgrounds.includes(id),
+              hasMuse: (id) => unlockedMuseIds.includes(id),
+              hasSkin: (id) => unlockedSkinIds.includes(id),
+              unlockBackground: (id) => {
+                unlockedBackgrounds.push(id);
+                if (currentBackgroundId === null) {
+                  currentBackgroundId = id;
+                }
+              },
+              unlockMuse: (id) => {
+                unlockedMuseIds.push(id);
+                newlyUnlockedMuseIds.push(id);
+              },
+              unlockSkin: (id) => {
+                unlockedSkinIds.push(id);
+                newlyUnlockedSkinIds.push(id);
+              },
+            });
+      if (canClaimRewardResult(result)) {
+        claimedRewardIds.push(claimKey);
       }
-    }
-
-    for (const skinId of currentStage.skinRewardIds ?? []) {
-      if (getSkinById(skinId) && !unlockedSkinIds.includes(skinId)) {
-        unlockedSkinIds.push(skinId);
-        newlyUnlockedSkinIds.push(skinId);
-      }
-    }
+      return presentReward(result, claimKey);
+    });
 
     const nextStage = getNextStage(currentStage.id);
     pendingStageClear = {
+      clearConditionType: 'corner_hits',
+      progressCurrent: stageHits,
+      progressTarget: currentStage.cornerHitGoal,
       stageId: currentStage.id,
       stageName: currentStage.name,
-      rewardBackgroundId: currentStage.rewardBackgroundId,
-      rewardBackgroundName: rewardBackground?.name ?? 'New Background',
+      rewards: grantedRewards,
       nextStageId: nextStage?.id ?? null,
       nextStageName: nextStage?.name ?? null,
     };
@@ -168,20 +225,231 @@ function applyCornerHitProgress(state: GameState, hitCount = 1): Partial<GameSta
 
   return {
     totalCornerHits,
+    memory,
+    capsuleCount,
     stats: {
       ...state.stats,
       highestStageReached: Math.max(state.stats.highestStageReached, getStageNumber(currentStageId)),
       totalCornerHits: state.stats.totalCornerHits + safeHitCount,
       unlockedBackgroundCount: unlockedBackgrounds.length,
+      totalMemoryEarned: state.stats.totalMemoryEarned + stageRewardMemoryEarned,
     },
     currentStageId,
     stageCornerHits,
+    stageDefeatCounts,
     clearedStages,
+    claimedRewardIds,
     unlockedBackgrounds,
     currentBackgroundId,
+    unlockedMuseIds,
+    newlyUnlockedMuseIds,
     unlockedSkinIds,
     newlyUnlockedSkinIds,
     pendingStageClear,
+  };
+}
+
+function applyEnemyDefeatProgress(state: GameState, defeatCount = 1): Partial<GameState> {
+  let currentStageId = state.currentStageId;
+  let currentBackgroundId = state.currentBackgroundId;
+  let memory = state.memory;
+  let capsuleCount = state.capsuleCount;
+  let pendingStageClear = state.pendingStageClear;
+  const stageDefeatCounts = { ...state.stageDefeatCounts };
+  const clearedStages = [...state.clearedStages];
+  const claimedRewardIds = [...state.claimedRewardIds];
+  const unlockedBackgrounds = [...state.unlockedBackgrounds];
+  const unlockedMuseIds = [...state.unlockedMuseIds];
+  const newlyUnlockedMuseIds = [...state.newlyUnlockedMuseIds];
+  const unlockedSkinIds = [...state.unlockedSkinIds];
+  const newlyUnlockedSkinIds = [...state.newlyUnlockedSkinIds];
+  let stageRewardMemoryEarned = 0;
+  const safeDefeatCount = Math.max(0, Math.floor(defeatCount));
+
+  for (let defeatIndex = 0; defeatIndex < safeDefeatCount; defeatIndex += 1) {
+    const currentStage = getStageById(currentStageId) ?? getStageById(initialStageId);
+
+    if (!currentStage || getStageClearConditionType(currentStage) !== 'enemy_defeats') {
+      continue;
+    }
+
+    const targetDefeatCount = getStageEnemyConfig(currentStage).targetDefeatCount;
+    const stageDefeats = Math.min(
+      (stageDefeatCounts[currentStage.id] ?? 0) + 1,
+      targetDefeatCount,
+    );
+    stageDefeatCounts[currentStage.id] = stageDefeats;
+
+    const isNewClear =
+      stageDefeats >= targetDefeatCount && !clearedStages.includes(currentStage.id);
+
+    if (!isNewClear) {
+      continue;
+    }
+
+    clearedStages.push(currentStage.id);
+
+    const grantedRewards = currentStage.rewards.map((reward, rewardIndex) => {
+      const claimKey = getStageRewardClaimKey(currentStage.id, reward, rewardIndex);
+      if (claimedRewardIds.includes(claimKey)) {
+        return presentClaimedReward(reward, claimKey);
+      }
+
+      const result = applyReward(reward, {
+        addCapsule: (_id, amount) => {
+          capsuleCount += amount;
+        },
+        addMemory: (amount) => {
+          memory += amount;
+          stageRewardMemoryEarned += amount;
+        },
+        hasBackground: (id) => unlockedBackgrounds.includes(id),
+        hasMuse: (id) => unlockedMuseIds.includes(id),
+        hasSkin: (id) => unlockedSkinIds.includes(id),
+        unlockBackground: (id) => {
+          unlockedBackgrounds.push(id);
+          if (currentBackgroundId === null) {
+            currentBackgroundId = id;
+          }
+        },
+        unlockMuse: (id) => {
+          unlockedMuseIds.push(id);
+          newlyUnlockedMuseIds.push(id);
+        },
+        unlockSkin: (id) => {
+          unlockedSkinIds.push(id);
+          newlyUnlockedSkinIds.push(id);
+        },
+      });
+      if (canClaimRewardResult(result)) {
+        claimedRewardIds.push(claimKey);
+      }
+      return presentReward(result, claimKey);
+    });
+
+    const nextStage = getNextStage(currentStage.id);
+    pendingStageClear = {
+      clearConditionType: 'enemy_defeats',
+      progressCurrent: stageDefeats,
+      progressTarget: targetDefeatCount,
+      stageId: currentStage.id,
+      stageName: currentStage.name,
+      rewards: grantedRewards,
+      nextStageId: nextStage?.id ?? null,
+      nextStageName: nextStage?.name ?? null,
+    };
+
+    if (nextStage) {
+      currentStageId = nextStage.id;
+      stageDefeatCounts[currentStageId] = 0;
+    }
+  }
+
+  return {
+    memory,
+    capsuleCount,
+    stats: {
+      ...state.stats,
+      highestStageReached: Math.max(state.stats.highestStageReached, getStageNumber(currentStageId)),
+      unlockedBackgroundCount: unlockedBackgrounds.length,
+      totalMemoryEarned: state.stats.totalMemoryEarned + stageRewardMemoryEarned,
+    },
+    currentStageId,
+    stageDefeatCounts,
+    clearedStages,
+    claimedRewardIds,
+    unlockedBackgrounds,
+    currentBackgroundId,
+    unlockedMuseIds,
+    newlyUnlockedMuseIds,
+    unlockedSkinIds,
+    newlyUnlockedSkinIds,
+    pendingStageClear,
+  };
+}
+
+function applyUnclaimedClearedStageRewards(state: GameState): Partial<GameState> {
+  let currentBackgroundId = state.currentBackgroundId;
+  let memory = state.memory;
+  let capsuleCount = state.capsuleCount;
+  const claimedRewardIds = [...state.claimedRewardIds];
+  const unlockedBackgrounds = [...state.unlockedBackgrounds];
+  const unlockedMuseIds = [...state.unlockedMuseIds];
+  const newlyUnlockedMuseIds = [...state.newlyUnlockedMuseIds];
+  const unlockedSkinIds = [...state.unlockedSkinIds];
+  const newlyUnlockedSkinIds = [...state.newlyUnlockedSkinIds];
+  let stageRewardMemoryEarned = 0;
+  const pendingBackfillRewards: BackfillRewardGroup[] = [];
+
+  for (const stageId of state.clearedStages) {
+    const stage = getStageById(stageId);
+    if (!stage) {
+      continue;
+    }
+
+    const newlyProcessedRewards = stage.rewards.flatMap((reward, rewardIndex) => {
+      const claimKey = getStageRewardClaimKey(stage.id, reward, rewardIndex);
+      if (claimedRewardIds.includes(claimKey)) {
+        return [];
+      }
+
+      const result = applyReward(reward, {
+        addCapsule: (_id, amount) => {
+          capsuleCount += amount;
+        },
+        addMemory: (amount) => {
+          memory += amount;
+          stageRewardMemoryEarned += amount;
+        },
+        hasBackground: (id) => unlockedBackgrounds.includes(id),
+        hasMuse: (id) => unlockedMuseIds.includes(id),
+        hasSkin: (id) => unlockedSkinIds.includes(id),
+        unlockBackground: (id) => {
+          unlockedBackgrounds.push(id);
+          if (currentBackgroundId === null) {
+            currentBackgroundId = id;
+          }
+        },
+        unlockMuse: (id) => {
+          unlockedMuseIds.push(id);
+          newlyUnlockedMuseIds.push(id);
+        },
+        unlockSkin: (id) => {
+          unlockedSkinIds.push(id);
+          newlyUnlockedSkinIds.push(id);
+        },
+      });
+
+      if (!canClaimRewardResult(result)) {
+        return [];
+      }
+
+      claimedRewardIds.push(claimKey);
+      return [presentReward(result, claimKey)];
+    });
+
+    const rewardGroup = groupStageRewardResults(stage, newlyProcessedRewards);
+    if (rewardGroup) {
+      pendingBackfillRewards.push(rewardGroup);
+    }
+  }
+
+  return {
+    memory,
+    capsuleCount,
+    claimedRewardIds,
+    unlockedBackgrounds,
+    currentBackgroundId,
+    unlockedMuseIds,
+    newlyUnlockedMuseIds,
+    unlockedSkinIds,
+    newlyUnlockedSkinIds,
+    pendingBackfillRewards: pendingBackfillRewards.length > 0 ? pendingBackfillRewards : null,
+    stats: {
+      ...state.stats,
+      totalMemoryEarned: state.stats.totalMemoryEarned + stageRewardMemoryEarned,
+      unlockedBackgroundCount: unlockedBackgrounds.length,
+    },
   };
 }
 
@@ -237,7 +505,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   incrementCornerHit: () => {
+    const previousStageClearId = get().pendingStageClear?.stageId;
     set((state) => withMuseUnlocks(state, applyCornerHitProgress(state)));
+    if (get().pendingStageClear?.stageId !== previousStageClearId) {
+      saveGameState(get(), getCurrentMotionIntensity());
+    }
   },
 
   recordWallHit: (memoryEarned) => {
@@ -261,19 +533,35 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return;
     }
 
+    const previousStageClearId = get().pendingStageClear?.stageId;
     set((state) => {
       const progress = applyCornerHitProgress(state);
       const progressStats = progress.stats ?? state.stats;
 
       return withMuseUnlocks(state, {
         ...progress,
-        memory: state.memory + memoryEarned,
+        memory: (progress.memory ?? state.memory) + memoryEarned,
         stats: {
           ...progressStats,
           totalMemoryEarned: progressStats.totalMemoryEarned + memoryEarned,
         },
       });
     });
+    if (get().pendingStageClear?.stageId !== previousStageClearId) {
+      saveGameState(get(), getCurrentMotionIntensity());
+    }
+  },
+
+  recordEnemyDefeat: () => {
+    if (get().pendingStageClear) {
+      return;
+    }
+
+    const previousStageClearId = get().pendingStageClear?.stageId;
+    set((state) => withMuseUnlocks(state, applyEnemyDefeatProgress(state)));
+    if (get().pendingStageClear?.stageId !== previousStageClearId) {
+      saveGameState(get(), getCurrentMotionIntensity());
+    }
   },
 
   recordNearCorner: () => {
@@ -360,6 +648,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
   purchaseUpgrade: (upgradeId) => {
     set((state) => {
       const upgrade = state.upgrades[upgradeId];
+      const master = getUpgradeMaster(upgradeId);
+      if (!upgrade || !master || !master.enabled) {
+        return state;
+      }
+      const currentStage = getStageById(state.currentStageId) ?? getStageById(initialStageId);
+      const currentStageNumber = currentStage ? getStageNumber(currentStage.id) : 1;
+      if (
+        currentStageNumber < master.unlockStageNumber ||
+        state.rebootCount < master.unlockRebootCount ||
+        upgrade.level >= master.maxLevel
+      ) {
+        return state;
+      }
       const cost = calculateUpgradeCost(upgrade, upgrade.level);
 
       if (state.memory < cost) {
@@ -397,8 +698,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
   continueGame: () => {
     const motionIntensity = getCurrentMotionIntensity();
     const restoredState = loadGameState({ applyOfflineReward: true, motionIntensity });
-    set(restoredState);
-    saveGameState(restoredState, motionIntensity);
+    const reconciledState = {
+      ...restoredState,
+      ...applyUnclaimedClearedStageRewards(restoredState),
+    };
+    set(reconciledState);
+    saveGameState(reconciledState, motionIntensity);
   },
 
   resetSaveData: () => {
@@ -571,8 +876,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       !muse ||
       !tapState ||
       !muse.tapVoices.some((tapVoice) => tapVoice.id === voiceId) ||
-      tapState.isTapBoostActive ||
-      now < tapState.tapCooldownEndsAt
+      !canApplyMuseTapBoost(tapState, now)
     ) {
       return false;
     }
@@ -580,12 +884,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set((state) => ({
       museTapStates: {
         ...state.museTapStates,
-        [museId]: {
-          isTapBoostActive: true,
-          tapBoostEndsAt: now + museTapDurationMs,
-          tapCooldownEndsAt: now + museTapCooldownMs,
-          lastTapVoiceId: voiceId,
-        },
+        [museId]: applyMuseTapBoost(state.museTapStates[museId], voiceId, now),
       },
     }));
     return true;
@@ -606,8 +905,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           Object.entries(state.museTapStates).map(([museId, tapState]) => [
             museId,
             {
-              ...tapState,
-              isTapBoostActive: tapState.isTapBoostActive && now < tapState.tapBoostEndsAt,
+              ...expireMuseTapBoost(tapState, now),
             },
           ]),
         ),
@@ -643,8 +941,45 @@ export const useGameStore = create<GameStore>((set, get) => ({
     saveGameState(get(), getCurrentMotionIntensity());
   },
 
+  unlockCharacterSkillNode: (characterId, skillNodeId) => {
+    set((state) => {
+      const skillNode = getCharacterSkillNodeById(characterId, skillNodeId);
+
+      if (!skillNode) {
+        return state;
+      }
+
+      const characterLevels = state.characterSkillLevels[characterId] ?? {};
+      const level = characterLevels[skillNode.id] ?? 0;
+      const prerequisitesMet = skillNode.prerequisites.every(
+        (requiredNodeId) => (characterLevels[requiredNodeId] ?? 0) > 0,
+      );
+
+      if (!prerequisitesMet || level >= skillNode.maxLevel || state.fragments < skillNode.cost) {
+        return state;
+      }
+
+      return withOfflineRate(state, {
+        fragments: state.fragments - skillNode.cost,
+        characterSkillLevels: {
+          ...state.characterSkillLevels,
+          [characterId]: {
+            ...characterLevels,
+            [skillNode.id]: level + 1,
+          },
+        },
+      });
+    });
+    saveGameState(get(), getCurrentMotionIntensity());
+  },
+
   reboot: () => {
-    const gainedFragments = calculateRebootFragments(get().memory);
+    const state = get();
+    const effectiveRebootMultiplier =
+      rebootBasePermanentMultiplier +
+      calculateEffectiveRebootMultiplierPerReboot(rebootMultiplierPerReboot, state.upgrades) *
+        state.rebootCount;
+    const gainedFragments = calculateRebootFragments(state.memory, effectiveRebootMultiplier);
 
     if (gainedFragments <= 0) {
       return false;
@@ -666,6 +1001,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           {
             ...tapState,
             isTapBoostActive: false,
+            tapBoostStack: 0,
             tapBoostEndsAt: 0,
             tapCooldownEndsAt: 0,
           },
@@ -689,7 +1025,58 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   dismissStageClear: () => {
-    set({ pendingStageClear: null });
+    set((state) => {
+      const skinRewardIds = new Set(
+        state.pendingStageClear?.rewards
+          .filter((reward) => reward.type === 'skin')
+          .map((reward) => reward.id) ?? [],
+      );
+      const museRewardIds = new Set(
+        state.pendingStageClear?.rewards
+          .filter((reward) => reward.type === 'muse')
+          .map((reward) => reward.id) ?? [],
+      );
+
+      return {
+        pendingStageClear: null,
+        newlyUnlockedSkinIds: state.newlyUnlockedSkinIds.filter(
+          (skinId) => !skinRewardIds.has(skinId),
+        ),
+        newlyUnlockedMuseIds: state.newlyUnlockedMuseIds.filter(
+          (museId) => !museRewardIds.has(museId),
+        ),
+      };
+    });
+    saveGameState(get(), getCurrentMotionIntensity());
+  },
+
+  dismissBackfillRewards: () => {
+    set((state) => {
+      const isDebugFixture =
+        import.meta.env.DEV &&
+        state.pendingBackfillRewards?.every((group) => group.stageId.startsWith('debug-'));
+      if (isDebugFixture) {
+        return { pendingBackfillRewards: null };
+      }
+
+      const rewards = state.pendingBackfillRewards?.flatMap((group) => group.rewards) ?? [];
+      const skinRewardIds = new Set(
+        rewards.filter((reward) => reward.type === 'skin').map((reward) => reward.id),
+      );
+      const museRewardIds = new Set(
+        rewards.filter((reward) => reward.type === 'muse').map((reward) => reward.id),
+      );
+
+      return {
+        pendingBackfillRewards: null,
+        newlyUnlockedSkinIds: state.newlyUnlockedSkinIds.filter(
+          (skinId) => !skinRewardIds.has(skinId),
+        ),
+        newlyUnlockedMuseIds: state.newlyUnlockedMuseIds.filter(
+          (museId) => !museRewardIds.has(museId),
+        ),
+      };
+    });
   },
 
   triggerCornerHitFlash: (corner) => {
@@ -729,17 +1116,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return;
     }
 
+    const previousStageClearId = get().pendingStageClear?.stageId;
     set((state) => {
       const motionIntensity = getCurrentMotionIntensity();
       const bounceReward = calculateBounceReward(
         state.upgrades,
         state.unlockedSkillNodes,
         motionIntensity,
+        state.characterSkillLevels,
       );
       const cornerReward = calculateCornerReward(
         state.upgrades,
         state.unlockedSkillNodes,
         motionIntensity,
+        state.characterSkillLevels,
       );
 
       const progress = applyCornerHitProgress(state);
@@ -747,7 +1137,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
       return withMuseUnlocks(state, {
         ...progress,
-        memory: state.memory + bounceReward + cornerReward,
+        memory: (progress.memory ?? state.memory) + bounceReward + cornerReward,
         totalBounces: state.totalBounces + 1,
         stats: {
           ...progressStats,
@@ -758,6 +1148,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
         lastCornerHitFlash: { corner: 'top_left', occurredAt: Date.now() },
       });
     });
+    if (get().pendingStageClear?.stageId !== previousStageClearId) {
+      saveGameState(get(), getCurrentMotionIntensity());
+    }
   },
 
   debugCompleteCurrentStage: () => {
@@ -765,11 +1158,27 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return;
     }
 
+    const previousStageClearId = get().pendingStageClear?.stageId;
     set((state) => {
       const currentStage = getStageById(state.currentStageId);
 
       if (!currentStage) {
         return state;
+      }
+
+      if (getStageClearConditionType(currentStage) === 'enemy_defeats') {
+        const targetDefeatCount = getStageEnemyConfig(currentStage).targetDefeatCount;
+        const currentDefeats = state.stageDefeatCounts[currentStage.id] ?? 0;
+        const remainingDefeats = Math.max(0, targetDefeatCount - currentDefeats);
+
+        if (remainingDefeats === 0 && state.clearedStages.includes(currentStage.id)) {
+          return state;
+        }
+
+        return withMuseUnlocks(
+          state,
+          applyEnemyDefeatProgress(state, Math.max(1, remainingDefeats)),
+        );
       }
 
       const currentHits = state.stageCornerHits[currentStage.id] ?? 0;
@@ -778,9 +1187,31 @@ export const useGameStore = create<GameStore>((set, get) => ({
       if (remainingHits === 0 && state.clearedStages.includes(currentStage.id)) {
         return state;
       }
-
       return withMuseUnlocks(state, applyCornerHitProgress(state, Math.max(1, remainingHits)));
     });
+    if (get().pendingStageClear?.stageId !== previousStageClearId) {
+      saveGameState(get(), getCurrentMotionIntensity());
+    }
+  },
+
+  debugShowBackfillRewards: (stageCount) => {
+    if (!import.meta.env.DEV) {
+      return;
+    }
+
+    const safeStageCount = Math.min(stages.length, Math.max(1, Math.floor(stageCount)));
+    const pendingBackfillRewards = stages.slice(0, safeStageCount).map((stage) => ({
+      stageId: `debug-${stage.id}`,
+      stageName: stage.name,
+      rewards: stage.rewards.map((reward, rewardIndex) =>
+        presentClaimedReward(
+          reward,
+          `debug-backfill:${stage.id}:${reward.rewardId ?? rewardIndex}`,
+        ),
+      ),
+    }));
+
+    set({ pendingBackfillRewards });
   },
 
   debugActivateMuseSkill: (museId) => {
@@ -816,12 +1247,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set((state) => ({
       museTapStates: {
         ...state.museTapStates,
-        [muse.id]: {
-          isTapBoostActive: true,
-          tapBoostEndsAt: now + museTapDurationMs,
-          tapCooldownEndsAt: now + museTapCooldownMs,
-          lastTapVoiceId: voiceId,
-        },
+        [muse.id]: applyMuseTapBoost(state.museTapStates[muse.id], voiceId, now),
       },
     }));
   },

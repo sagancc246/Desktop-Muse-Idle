@@ -1,0 +1,5 @@
+upgradeId,name,description,category,maxLevel,baseCost,costGrowth,effectType,effectTarget,effectBaseValue,effectValuePerLevel,effectMultiplierPerLevel,unlockStageNumber,unlockRebootCount,sortOrder,enabled
+bounce_boost,Bounce Boost,Wall hit reward and tap boost growth,bounce,10,25,1.45,multiply,bounceReward.multiplier,1,0.02,2,1,0,10,true
+speed_tune,Speed Tune,Muse speed multiplier,speed,20,40,1.5,multiply,speedTune.multiplier,1,0,1.2,1,0,20,true
+corner_sensor,Corner Sensor,Corner reward and assisted Corner Hit range,corner,10,60,1.55,multiply,cornerReward.multiplier,1,4,1.5,2,0,30,true
+reboot_core,REBOOT Core,Improve permanent reboot multiplier,reboot,10,120,1.8,add,reboot.multiplierPerReboot,0.03,0.005,0,3,1,40,true

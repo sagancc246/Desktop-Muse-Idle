@@ -71,6 +71,12 @@ async function main() {
       throw new Error(`Button not clickable: ${label}`);
     }
   };
+  const openDebugPanel = async (name) => {
+    if (!(await js(`Boolean(document.querySelector('.debug-panel'))`))) {
+      await clickButton('Toggle Debug Panel');
+    }
+    await waitFor(name, async () => js(`Boolean(document.querySelector('.debug-panel'))`));
+  };
   const saveAndRead = async () => {
     await waitFor('Save button ready', async () => {
       const button = (await buttons()).find((candidate) => candidate.aria === 'Save Game');
@@ -127,7 +133,10 @@ async function main() {
     const corner = stepBounceBody({ x: minX + 1, y: minY + 1, vx: -300, vy: -300, radius }, bounds, 1, {
       nearCornerDistance: calculateNearCornerDistance(skills)
     }).collision;
-    const near = stepBounceBody({ x: minX + 1, y: minY + 20, vx: -300, vy: 0, radius }, bounds, 1, {
+    const assistedCorner = stepBounceBody({ x: minX + 1, y: minY + 20, vx: -300, vy: 0, radius }, bounds, 1, {
+      nearCornerDistance: calculateNearCornerDistance(skills)
+    }).collision;
+    const near = stepBounceBody({ x: minX + 1, y: minY + 40, vx: -300, vy: 0, radius }, bounds, 1, {
       nearCornerDistance: calculateNearCornerDistance(skills)
     }).collision;
     const wall = stepBounceBody({ x: minX + 1, y: 500, vx: -300, vy: 0, radius }, bounds, 1, {
@@ -169,6 +178,7 @@ async function main() {
       cloneWallReward: Math.max(1, Math.floor(bounceReward * getCloneWallRewardMultiplier(true))),
       cloneWallRewardMultiplier: getCloneWallRewardMultiplier(true),
       corner,
+      assistedCorner,
       firstBumperReward,
       near,
       sensorDefault,
@@ -191,7 +201,15 @@ async function main() {
     pureChecks.corner.isNearCorner === false &&
     pureChecks.corner.cornerId === 'top_left',
   );
-  await assert('Pure wall-only near corner is Near Corner, not Corner Hit', async () =>
+  await assert('Pure wall-only hit within assist zone becomes Corner Hit', async () =>
+    pureChecks.assistedCorner.hitXWall === true &&
+    pureChecks.assistedCorner.hitYWall === false &&
+    pureChecks.assistedCorner.isCornerHit === true &&
+    pureChecks.assistedCorner.isAssistedCornerHit === true &&
+    pureChecks.assistedCorner.isNearCorner === false &&
+    pureChecks.assistedCorner.cornerId === 'top_left',
+  );
+  await assert('Pure wall-only near corner outside assist zone stays Near Corner', async () =>
     pureChecks.near.hitXWall === true &&
     pureChecks.near.hitYWall === false &&
     pureChecks.near.isNearCorner === true &&
@@ -234,11 +252,18 @@ async function main() {
 
   await clickButton('Start');
   await waitFor('Game screen opens', async () => (await visibleText()).includes('Idle Observatory'));
+  await openDebugPanel('Debug Panel opens for collision checks');
 
   const beforeNear = await saveAndRead();
   await clickButton('Force Near Corner');
   await waitFor('Debug Near Corner event observed', async () => (await visibleText()).includes('Near: top_left'));
   const afterNear = await saveAndRead();
+  await assert('Runtime wall collision increments Bounce count', async () =>
+    afterNear.totalBounces > beforeNear.totalBounces,
+  );
+  await assert('Runtime wall collision grants Memory', async () =>
+    afterNear.memory > beforeNear.memory,
+  );
   await assert('Runtime Near Corner does not increment totalCornerHits', async () =>
     afterNear.totalCornerHits === beforeNear.totalCornerHits,
   );

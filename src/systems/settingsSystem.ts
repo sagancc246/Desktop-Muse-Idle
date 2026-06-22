@@ -3,7 +3,9 @@ import type {
   EffectsQuality,
   Language,
   MotionIntensity,
+  WindowDisplayMode,
 } from '../types/game';
+import { balanceConfig } from '../masters/balance';
 
 const settingsStorageKey = 'desktop-muse-idle-settings';
 
@@ -13,6 +15,8 @@ export const defaultSettings: AppSettings = {
   language: 'ja',
   effectsQuality: 'medium',
   motionIntensity: 'medium',
+  windowDisplayMode: 'windowed',
+  showCornerZones: balanceConfig.cornerSensor.showCornerZonesDefault,
   autoSaveEnabled: true,
 };
 
@@ -30,6 +34,10 @@ function isEffectsQuality(value: unknown): value is EffectsQuality {
 
 function isMotionIntensity(value: unknown): value is MotionIntensity {
   return value === 'low' || value === 'medium' || value === 'high';
+}
+
+function isWindowDisplayMode(value: unknown): value is WindowDisplayMode {
+  return value === 'windowed' || value === 'fullscreen';
 }
 
 function migrateSettings(value: unknown): AppSettings | null {
@@ -57,6 +65,13 @@ function migrateSettings(value: unknown): AppSettings | null {
     motionIntensity: isMotionIntensity(settings.motionIntensity)
       ? settings.motionIntensity
       : defaultSettings.motionIntensity,
+    windowDisplayMode: isWindowDisplayMode(settings.windowDisplayMode)
+      ? settings.windowDisplayMode
+      : defaultSettings.windowDisplayMode,
+    showCornerZones:
+      typeof settings.showCornerZones === 'boolean'
+        ? settings.showCornerZones
+        : defaultSettings.showCornerZones,
     autoSaveEnabled: settings.autoSaveEnabled,
   };
 }

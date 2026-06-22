@@ -1,0 +1,17 @@
+{
+  "claimedStageRewardIds": [
+    "stage-1",
+    "stage-2",
+    "stage-4",
+    "stage-10"
+  ],
+  "claimedRewardIds": [
+    "stage-1:memory_500",
+    "stage-1:cozy_room",
+    "stage-2:lumi_pastel",
+    "stage-2:astra",
+    "stage-4:night_room",
+    "stage-4:noir",
+    "stage-10:memory_100000"
+  ]
+}

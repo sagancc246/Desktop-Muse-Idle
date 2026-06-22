@@ -1,28 +1,80 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { FocusHud } from './components/FocusHud';
+import { BackfillRewardsModal } from './components/BackfillRewardsModal';
 import { FirstRunTutorial } from './components/FirstRunTutorial';
 import { MusePanel } from './components/MusePanel';
 import { MuseOverlayHud } from './components/MuseOverlayHud';
 import { MuseUnlockModal } from './components/MuseUnlockModal';
 import { NeonBackground } from './components/NeonBackground';
+import { NativeWallpaperControlView } from './components/NativeWallpaperControlView';
 import { OfflineRewardModal } from './components/OfflineRewardModal';
 import { PinballBackground } from './components/PinballBackground';
 import { RebootPanel } from './components/RebootPanel';
 import { ResourceBar } from './components/ResourceBar';
 import { SaveStatusToast } from './components/SaveStatusToast';
 import { SkinUnlockToast } from './components/SkinUnlockToast';
-import { StageClearOverlay } from './components/StageClearOverlay';
+import { StageClearModal } from './components/StageClearModal';
 import { StagePanel } from './components/StagePanel';
 import { TitleScreen } from './components/TitleScreen';
 import { UpgradePanel } from './components/UpgradePanel';
 import { WallpaperModePanel } from './components/WallpaperModePanel';
 import { WallpaperStageHud } from './components/WallpaperStageHud';
+import { WindowTitleBar } from './components/WindowTitleBar';
 import { STAGE_HEIGHT, STAGE_WIDTH, useStageScale } from './hooks/useStageScale';
 import { calculateOfflineReward } from './game/offlineReward';
 import { useAppStore } from './store/useAppStore';
 import { useGameStore } from './store/useGameStore';
 import { setWallpaperBgmMuted } from './systems/audioSystem';
+import {
+  isElectronDisplayModeAvailable,
+  isElectronOverlayAvailable,
+  getPlatformDisplayMode,
+  onPlatformNativeWallpaperStatus,
+  onPlatformOverlayExitRequested,
+  onPlatformOverlayState,
+  setPlatformDisplayMode,
+} from './platform/platform';
 import type { CornerHitPosition } from './types/game';
+
+const isNativeWallpaperRenderer =
+  typeof window !== 'undefined' &&
+  new URLSearchParams(window.location.search).get('nativeWallpaperRenderer') === '1';
+const isNativeWallpaperControlRenderer =
+  typeof window !== 'undefined' &&
+  new URLSearchParams(window.location.search).get('nativeWallpaperControl') === '1';
+
+type AppRenderSurface =
+  | 'main_window'
+  | 'wallpaper_stage'
+  | 'overlay'
+  | 'control_view'
+  | 'native_wallpaper_surface';
+
+const fullscreenTitleBarAutoHideMs = 2_600;
+
+function canUseTitleBar(renderSurface: AppRenderSurface) {
+  return renderSurface === 'main_window' || renderSurface === 'wallpaper_stage';
+}
+
+function shouldShowTitleBar({
+  displayMode,
+  isFullscreenTitleBarVisible,
+  renderSurface,
+}: {
+  displayMode: 'windowed' | 'fullscreen';
+  isFullscreenTitleBarVisible: boolean;
+  renderSurface: AppRenderSurface;
+}) {
+  if (!canUseTitleBar(renderSurface)) {
+    return false;
+  }
+
+  if (displayMode === 'fullscreen') {
+    return isFullscreenTitleBarVisible;
+  }
+
+  return true;
+}
 
 const CreditsModal = lazy(() =>
   import('./components/CreditsModal').then(({ CreditsModal }) => ({ default: CreditsModal })),
@@ -43,6 +95,14 @@ const StatsPanel = lazy(() =>
   import('./components/StatsPanel').then(({ StatsPanel }) => ({ default: StatsPanel })),
 );
 
+function LazyStageFallback() {
+  return (
+    <div className="lazy-screen-loading" role="status">
+      Loading...
+    </div>
+  );
+}
+
 export default function App() {
   const currentScreen = useAppStore((state) => state.currentScreen);
   const setScreen = useAppStore((state) => state.setScreen);
@@ -52,16 +112,28 @@ export default function App() {
   const closeStats = useAppStore((state) => state.closeStats);
   const hasSeenTutorial = useAppStore((state) => state.hasSeenTutorial);
   const completeTutorial = useAppStore((state) => state.completeTutorial);
+  const isDebugPanelOpen = useAppStore((state) => state.isDebugPanelOpen);
   const isFocusMode = useAppStore((state) => state.isFocusMode);
   const wallpaperMode = useAppStore((state) => state.wallpaperMode);
   const wallpaperSettings = useAppStore((state) => state.wallpaperSettings);
+  const nativeWallpaperStatus = useAppStore((state) => state.nativeWallpaperStatus);
   const toggleFocusMode = useAppStore((state) => state.toggleFocusMode);
+  const toggleDebugPanel = useAppStore((state) => state.toggleDebugPanel);
+  const setDebugPanelOpen = useAppStore((state) => state.setDebugPanelOpen);
   const exitFocusMode = useAppStore((state) => state.exitFocusMode);
   const exitWallpaperMode = useAppStore((state) => state.exitWallpaperMode);
   const toggleWallpaperStageMode = useAppStore((state) => state.toggleWallpaperStageMode);
+  const setClickThroughEnabled = useAppStore((state) => state.setClickThroughEnabled);
+  const applyPlatformOverlayState = useAppStore((state) => state.applyPlatformOverlayState);
+  const isClickThroughEnabled = useAppStore((state) => state.isClickThroughEnabled);
+  const applyNativeWallpaperStatus = useAppStore((state) => state.applyNativeWallpaperStatus);
+  const refreshNativeWallpaperStatus = useAppStore(
+    (state) => state.refreshNativeWallpaperStatus,
+  );
   const autoSaveEnabled = useAppStore((state) => state.settings.autoSaveEnabled);
   const language = useAppStore((state) => state.settings.language);
   const motionIntensity = useAppStore((state) => state.settings.motionIntensity);
+  const windowDisplayMode = useAppStore((state) => state.settings.windowDisplayMode);
   const startNewGame = useGameStore((state) => state.startNewGame);
   const continueGame = useGameStore((state) => state.continueGame);
   const autoSave = useGameStore((state) => state.autoSave);
@@ -70,23 +142,158 @@ export default function App() {
   const dismissOfflineReward = useGameStore((state) => state.dismissOfflineReward);
   const pendingStageClear = useGameStore((state) => state.pendingStageClear);
   const dismissStageClear = useGameStore((state) => state.dismissStageClear);
+  const pendingBackfillRewards = useGameStore((state) => state.pendingBackfillRewards);
+  const dismissBackfillRewards = useGameStore((state) => state.dismissBackfillRewards);
   const newlyUnlockedMuseIds = useGameStore((state) => state.newlyUnlockedMuseIds);
   const dismissMuseUnlock = useGameStore((state) => state.dismissMuseUnlock);
   const newlyUnlockedSkinIds = useGameStore((state) => state.newlyUnlockedSkinIds);
   const dismissSkinUnlock = useGameStore((state) => state.dismissSkinUnlock);
   const lastCornerHitFlash = useGameStore((state) => state.lastCornerHitFlash);
   const [pinballCornerHit, setPinballCornerHit] = useState<CornerHitPosition | null>(null);
+  const [galleryOpenRequestKey, setGalleryOpenRequestKey] = useState(0);
+  const [currentDisplayMode, setCurrentDisplayMode] = useState(windowDisplayMode);
+  const [isFullscreenTitleBarVisible, setFullscreenTitleBarVisible] = useState(true);
+  const fullscreenTitleBarTimerRef = useRef<number | null>(null);
   const stageScale = useStageScale();
-  const showDebugPanel = import.meta.env.DEV;
-  const isWallpaperStageMode = wallpaperMode === 'stage';
+  const nativeProbeActive = Boolean(
+    !isNativeWallpaperRenderer &&
+      !isNativeWallpaperControlRenderer &&
+      wallpaperMode === 'native_wallpaper' &&
+      (nativeWallpaperStatus.nativeProbeActive ||
+        (nativeWallpaperStatus.probeAttached && nativeWallpaperStatus.needsManualVerification)),
+  );
+  const nativeDisplayActive = Boolean(
+    nativeProbeActive ||
+      (!isNativeWallpaperRenderer &&
+        wallpaperMode === 'native_wallpaper' &&
+        (nativeWallpaperStatus.attached || nativeWallpaperStatus.nativeAttached)),
+  );
+  const isWallpaperStageMode =
+    isNativeWallpaperRenderer ||
+    (!isNativeWallpaperControlRenderer && wallpaperMode === 'stage') ||
+    (wallpaperMode === 'native_wallpaper' && !nativeDisplayActive);
+  const isNativeWallpaperMode =
+    isNativeWallpaperRenderer || isNativeWallpaperControlRenderer || wallpaperMode === 'native_wallpaper';
   const isMuseOverlayMode = wallpaperMode === 'muse_overlay';
+  const renderSurface: AppRenderSurface = isNativeWallpaperRenderer
+    ? 'native_wallpaper_surface'
+    : isNativeWallpaperControlRenderer || nativeProbeActive
+      ? 'control_view'
+      : isMuseOverlayMode
+        ? 'overlay'
+        : isWallpaperStageMode
+          ? 'wallpaper_stage'
+          : 'main_window';
+  const nativeWallpaperSurface = renderSurface === 'native_wallpaper_surface';
+  const canShowDebugPanel =
+    import.meta.env.DEV &&
+    currentScreen === 'game' &&
+    !isFocusMode &&
+    wallpaperMode === 'off';
   const shouldShowTutorial =
     currentScreen === 'game' &&
+    !isNativeWallpaperMode &&
     !isMuseOverlayMode &&
     !hasSeenTutorial &&
     !pendingOfflineReward &&
     !pendingStageClear &&
+    !pendingBackfillRewards &&
     !newlyUnlockedMuseIds[0];
+  const isFullscreenDisplayMode = currentDisplayMode === 'fullscreen';
+  const canShowWindowTitleBar = canUseTitleBar(renderSurface);
+  const shouldShowWindowTitleBar = shouldShowTitleBar({
+    displayMode: currentDisplayMode,
+    isFullscreenTitleBarVisible,
+    renderSurface,
+  });
+  const shouldShowFullscreenRevealZone =
+    canShowWindowTitleBar && isFullscreenDisplayMode && !nativeWallpaperSurface;
+
+  const debugFullscreenTitleBar = (message: string) => {
+    if (!import.meta.env.DEV || typeof window === 'undefined') {
+      return;
+    }
+
+    if (new URLSearchParams(window.location.search).has('debugTitleBar')) {
+      console.debug(`[titlebar] ${message}`);
+    }
+  };
+
+  const clearFullscreenTitleBarTimer = () => {
+    if (fullscreenTitleBarTimerRef.current === null) {
+      return;
+    }
+
+    window.clearTimeout(fullscreenTitleBarTimerRef.current);
+    fullscreenTitleBarTimerRef.current = null;
+  };
+
+  const scheduleFullscreenTitleBarHide = () => {
+    clearFullscreenTitleBarTimer();
+
+    if (!isFullscreenDisplayMode || !canShowWindowTitleBar) {
+      return;
+    }
+
+    fullscreenTitleBarTimerRef.current = window.setTimeout(() => {
+      setFullscreenTitleBarVisible(false);
+      debugFullscreenTitleBar('fullscreen titlebar hidden');
+      fullscreenTitleBarTimerRef.current = null;
+    }, fullscreenTitleBarAutoHideMs);
+  };
+
+  const revealFullscreenTitleBar = (reason: string) => {
+    if (!isFullscreenDisplayMode) {
+      return;
+    }
+
+    setFullscreenTitleBarVisible(true);
+    debugFullscreenTitleBar(`fullscreen titlebar revealed by ${reason}`);
+    scheduleFullscreenTitleBarHide();
+  };
+
+  useEffect(() => {
+    void getPlatformDisplayMode().then((mode) => {
+      if (mode) {
+        setCurrentDisplayMode(mode);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!isFullscreenDisplayMode) {
+      clearFullscreenTitleBarTimer();
+      setFullscreenTitleBarVisible(true);
+      return undefined;
+    }
+
+    setFullscreenTitleBarVisible(true);
+    scheduleFullscreenTitleBarHide();
+
+    return clearFullscreenTitleBarTimer;
+  }, [canShowWindowTitleBar, isFullscreenDisplayMode]);
+
+  useEffect(() => {
+    if (!isElectronDisplayModeAvailable() || !canShowWindowTitleBar) {
+      return undefined;
+    }
+
+    const intervalId = window.setInterval(() => {
+      void getPlatformDisplayMode().then((mode) => {
+        if (!mode || mode === currentDisplayMode) {
+          return;
+        }
+
+        if (currentDisplayMode === 'fullscreen' && mode === 'windowed') {
+          debugFullscreenTitleBar('unexpected fullscreen exit detected');
+        }
+
+        setCurrentDisplayMode(mode);
+      });
+    }, 1_000);
+
+    return () => window.clearInterval(intervalId);
+  }, [canShowWindowTitleBar, currentDisplayMode]);
 
   useEffect(() => {
     if (!lastCornerHitFlash) {
@@ -202,8 +409,42 @@ export default function App() {
   }, [motionIntensity]);
 
   useEffect(() => {
+    if (isNativeWallpaperRenderer || isNativeWallpaperControlRenderer || wallpaperMode === 'native_wallpaper') {
+      return;
+    }
+
+    if (windowDisplayMode !== 'fullscreen') {
+      setCurrentDisplayMode('windowed');
+      return;
+    }
+
+    void setPlatformDisplayMode('fullscreen').then((mode) => {
+      setCurrentDisplayMode(mode ?? 'fullscreen');
+    });
+  }, [wallpaperMode, windowDisplayMode]);
+
+  useEffect(() => {
     setWallpaperBgmMuted(wallpaperMode !== 'off' && !wallpaperSettings.bgmEnabled);
   }, [wallpaperMode, wallpaperSettings.bgmEnabled]);
+
+  useEffect(() => {
+    void refreshNativeWallpaperStatus();
+    const unsubscribeExit = onPlatformOverlayExitRequested(() => {
+      useAppStore.getState().exitWallpaperMode();
+    });
+    const unsubscribeState = onPlatformOverlayState((overlayState) => {
+      useAppStore.getState().applyPlatformOverlayState(overlayState);
+    });
+    const unsubscribeNativeWallpaper = onPlatformNativeWallpaperStatus((nativeWallpaperStatus) => {
+      useAppStore.getState().applyNativeWallpaperStatus(nativeWallpaperStatus);
+    });
+
+    return () => {
+      unsubscribeExit();
+      unsubscribeState();
+      unsubscribeNativeWallpaper();
+    };
+  }, [applyNativeWallpaperStatus, applyPlatformOverlayState, refreshNativeWallpaperStatus]);
 
   useEffect(() => {
     if (currentScreen !== 'game') {
@@ -224,10 +465,35 @@ export default function App() {
         return;
       }
 
-      if (event.key.toLowerCase() === 'f') {
+      if (
+        import.meta.env.DEV &&
+        event.ctrlKey &&
+        event.shiftKey &&
+        event.key.toLowerCase() === 'd' &&
+        !isFocusMode &&
+        wallpaperMode === 'off'
+      ) {
+        event.preventDefault();
+        toggleDebugPanel();
+      } else if (
+        event.ctrlKey &&
+        event.shiftKey &&
+        event.key.toLowerCase() === 'm' &&
+        wallpaperMode === 'muse_overlay' &&
+        !isElectronOverlayAvailable()
+      ) {
+        event.preventDefault();
+        setClickThroughEnabled(!isClickThroughEnabled);
+      } else if (event.key === 'Escape' && isDebugPanelOpen) {
+        event.preventDefault();
+        setDebugPanelOpen(false);
+      } else if (event.key.toLowerCase() === 'f') {
         event.preventDefault();
         toggleFocusMode();
-      } else if (event.key === 'Escape' && wallpaperMode !== 'off') {
+      } else if (
+        event.key === 'Escape' &&
+        (wallpaperMode !== 'off' || isNativeWallpaperControlRenderer)
+      ) {
         event.preventDefault();
         exitWallpaperMode();
       } else if (event.key === 'Escape' && isFocusMode) {
@@ -243,14 +509,27 @@ export default function App() {
     currentScreen,
     exitFocusMode,
     exitWallpaperMode,
+    isDebugPanelOpen,
+    isClickThroughEnabled,
     isFocusMode,
+    setDebugPanelOpen,
+    setClickThroughEnabled,
+    toggleDebugPanel,
     toggleFocusMode,
     wallpaperMode,
   ]);
 
   let screenContent;
 
-  if (currentScreen === 'title') {
+  if (isNativeWallpaperControlRenderer || nativeProbeActive) {
+    screenContent = (
+      <div className="app-shell native-probe-control-mode">
+        <main className="workspace native-probe-workspace">
+          <NativeWallpaperControlView />
+        </main>
+      </div>
+    );
+  } else if (!isNativeWallpaperRenderer && currentScreen === 'title') {
     screenContent = (
       <TitleScreen
         onContinue={() => {
@@ -267,20 +546,22 @@ export default function App() {
         onStats={() => openStats('title')}
       />
     );
-  } else if (currentScreen === 'settings') {
+  } else if (!isNativeWallpaperRenderer && currentScreen === 'settings') {
     screenContent = <SettingsModal onBack={closeSettings} onStats={() => openStats('settings')} />;
-  } else if (currentScreen === 'gallery') {
+  } else if (!isNativeWallpaperRenderer && currentScreen === 'gallery') {
     screenContent = <GalleryPanel mode="screen" onBack={() => setScreen('title')} />;
-  } else if (currentScreen === 'credits') {
+  } else if (!isNativeWallpaperRenderer && currentScreen === 'credits') {
     screenContent = <CreditsModal onBack={() => setScreen('title')} />;
-  } else if (currentScreen === 'stats') {
+  } else if (!isNativeWallpaperRenderer && currentScreen === 'stats') {
     screenContent = <StatsPanel onBack={closeStats} />;
   } else {
     screenContent = (
       <div
         className={`app-shell${isFocusMode ? ' focus-mode' : ''}${
           isWallpaperStageMode ? ' wallpaper-stage-mode' : ''
-        }${isMuseOverlayMode ? ' muse-overlay-mode' : ''}`}
+        }${isMuseOverlayMode ? ' muse-overlay-mode' : ''}${
+          nativeWallpaperSurface ? ' native-wallpaper-surface-mode' : ''
+        }`}
       >
         <NeonBackground />
         <PinballBackground
@@ -296,34 +577,71 @@ export default function App() {
         />
         <main className="workspace">
           <UpgradePanel />
-          <GameCanvas presentationMode={isMuseOverlayMode ? 'muse_overlay' : 'normal'} />
+          <GameCanvas
+            presentationMode={
+              isMuseOverlayMode
+                ? 'muse_overlay'
+                : isWallpaperStageMode
+                  ? 'wallpaper_stage'
+                  : 'normal'
+            }
+          />
           <div className="side-panel-stack">
             <StagePanel />
             <WallpaperModePanel />
-            <GalleryPanel />
+            <GalleryPanel openRequestKey={galleryOpenRequestKey} />
             <MusePanel />
-            {showDebugPanel ? <DebugPanel /> : null}
           </div>
         </main>
         <RebootPanel />
+        {canShowDebugPanel ? (
+          <button
+            aria-label="Toggle Debug Panel"
+            className="debug-toggle"
+            onClick={toggleDebugPanel}
+            type="button"
+          >
+            Debug
+          </button>
+        ) : null}
+        {canShowDebugPanel && isDebugPanelOpen ? (
+          <DebugPanel onClose={() => setDebugPanelOpen(false)} />
+        ) : null}
         {!isMuseOverlayMode ? <SaveStatusToast /> : null}
         {isFocusMode ? <FocusHud onExit={exitFocusMode} /> : null}
-        {isWallpaperStageMode && wallpaperSettings.showStageHud ? (
+        {isWallpaperStageMode && wallpaperSettings.showStageHud && !nativeWallpaperSurface ? (
           <WallpaperStageHud onExit={exitWallpaperMode} />
         ) : null}
-        {isMuseOverlayMode && wallpaperSettings.showOverlayHud ? (
+        {isMuseOverlayMode ? (
           <MuseOverlayHud onExit={exitWallpaperMode} />
         ) : null}
-        {!isMuseOverlayMode && pendingOfflineReward ? (
+        {!isMuseOverlayMode && !isNativeWallpaperMode && pendingOfflineReward ? (
           <OfflineRewardModal onClose={dismissOfflineReward} reward={pendingOfflineReward} />
         ) : null}
-        {!isMuseOverlayMode && pendingStageClear ? (
-          <StageClearOverlay onClose={dismissStageClear} summary={pendingStageClear} />
+        {!isMuseOverlayMode && !isNativeWallpaperMode && pendingStageClear ? (
+          <StageClearModal
+            onContinue={dismissStageClear}
+            onOpenGallery={() => {
+              dismissStageClear();
+              setGalleryOpenRequestKey((requestKey) => requestKey + 1);
+            }}
+            summary={pendingStageClear}
+          />
         ) : null}
-        {!isMuseOverlayMode && newlyUnlockedMuseIds[0] ? (
+        {!isMuseOverlayMode && !isNativeWallpaperMode && !pendingOfflineReward && !pendingStageClear && pendingBackfillRewards ? (
+          <BackfillRewardsModal
+            groups={pendingBackfillRewards}
+            onContinue={dismissBackfillRewards}
+            onOpenGallery={() => {
+              dismissBackfillRewards();
+              setGalleryOpenRequestKey((requestKey) => requestKey + 1);
+            }}
+          />
+        ) : null}
+        {!isMuseOverlayMode && !isNativeWallpaperMode && !pendingStageClear && !pendingBackfillRewards && newlyUnlockedMuseIds[0] ? (
           <MuseUnlockModal museId={newlyUnlockedMuseIds[0]} onClose={dismissMuseUnlock} />
         ) : null}
-        {!isMuseOverlayMode && newlyUnlockedSkinIds[0] ? (
+        {!isMuseOverlayMode && !isNativeWallpaperMode && !pendingStageClear && !pendingBackfillRewards && newlyUnlockedSkinIds[0] ? (
           <SkinUnlockToast skinId={newlyUnlockedSkinIds[0]} onClose={dismissSkinUnlock} />
         ) : null}
         {shouldShowTutorial ? (
@@ -333,8 +651,41 @@ export default function App() {
     );
   }
 
+  if (isNativeWallpaperControlRenderer) {
+    return <Suspense fallback={<LazyStageFallback />}>{screenContent}</Suspense>;
+  }
+
   return (
-    <div className="appViewport">
+    <div
+      className={`electron-window-root${canShowWindowTitleBar ? ' has-titlebar' : ''}${
+        isFullscreenDisplayMode ? ' fullscreen' : ''
+      }${isFullscreenDisplayMode && !shouldShowWindowTitleBar ? ' titlebar-hidden' : ''}`}
+    >
+      {shouldShowFullscreenRevealZone ? (
+        <div
+          aria-hidden="true"
+          className="fullscreen-titlebar-reveal-zone"
+          onMouseMove={() => revealFullscreenTitleBar('top zone')}
+          onPointerDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            revealFullscreenTitleBar('top zone');
+          }}
+        />
+      ) : null}
+      {shouldShowWindowTitleBar ? (
+        <WindowTitleBar
+          displayMode={currentDisplayMode}
+          onDisplayModeChange={(mode) => {
+            setCurrentDisplayMode(mode);
+            if (mode === 'windowed') {
+              debugFullscreenTitleBar('fullscreen exit requested by windowed button');
+            }
+          }}
+          onInteraction={scheduleFullscreenTitleBarHide}
+        />
+      ) : null}
+      <div className={`appViewport${isMuseOverlayMode ? ' muse-overlay-viewport' : ''}`}>
       <div
         className="gameStage"
         style={{
@@ -343,8 +694,9 @@ export default function App() {
           width: STAGE_WIDTH,
         }}
       >
-        <Suspense fallback={null}>{screenContent}</Suspense>
+        <Suspense fallback={<LazyStageFallback />}>{screenContent}</Suspense>
       </div>
+    </div>
     </div>
   );
 }

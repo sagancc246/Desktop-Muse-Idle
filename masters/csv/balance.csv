@@ -1,0 +1,26 @@
+key,value,type,description
+bounceBoost.tapBoostAdd,0.12,number,Temporary speed multiplier added per Muse tap stack.
+bounceBoost.maxTemporaryBoost,1,number,Maximum additional temporary Muse tap speed multiplier.
+bounceBoost.decayDurationMs,1800,number,Muse tap boost active duration in milliseconds.
+bounceBoost.decayStepMs,260,number,Muse tap boost stack decay step in milliseconds.
+bounceBoost.visualPulseScale,1.08,number,Reserved visual pulse scale for Muse tap feedback.
+museTap.speedPerStack,1.12,number,Temporary speed multiplier applied per Muse tap stack.
+museTap.maxStacks,8,number,Maximum temporary Muse tap speed stacks.
+museTap.durationMs,1800,number,Muse tap boost duration in milliseconds.
+museTap.cooldownMs,50,number,Minimum interval between Muse tap boosts in milliseconds.
+museTap.speedMultiplierCap,2,number,Maximum temporary Muse tap speed multiplier.
+speedTune.baseSpeed,180,number,Default starter Muse base speed reference.
+speedTune.minSpeed,120,number,Minimum safe speed reference.
+speedTune.maxSpeed,720,number,Normal visual speed cap reference.
+speedTune.tapBoostMaxSpeed,980,number,Tap boosted safe speed cap reference.
+speedTune.upgradeMultiplier,1.2,number,Speed Tune upgrade multiplier per level.
+speedTune.visualSpeedMultiplierMaxLow,1.6,number,Visual speed cap for low motion.
+speedTune.visualSpeedMultiplierMaxMedium,2.2,number,Visual speed cap for medium motion.
+speedTune.visualSpeedMultiplierMaxHigh,3,number,Visual speed cap for high motion.
+cornerSensor.cornerZonePx,32,number,Assisted Corner Hit zone in pixels.
+cornerSensor.cornerHitCooldownMs,600,number,Corner Hit reward cooldown in milliseconds.
+cornerSensor.showCornerZonesDefault,false,boolean,Default Corner Zone debug overlay visibility.
+reboot.baseRequirement,100000,number,Memory required for the current Reboot loop.
+reboot.requirementGrowth,1.8,number,Reserved Reboot requirement growth rate for CSV balancing.
+reboot.basePermanentMultiplier,0.05,number,Reserved base permanent Reboot multiplier.
+reboot.multiplierPerReboot,0.03,number,Reserved additional permanent multiplier per Reboot.

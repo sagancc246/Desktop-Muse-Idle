@@ -56,7 +56,33 @@ globalThis.window = { localStorage: storage };
 const saveSystem = await importBundledModule('./src/systems/saveSystem.ts');
 const settingsSystem = await importBundledModule('./src/systems/settingsSystem.ts');
 const settingsStorage = await importBundledModule('./src/systems/settingsStorage.ts');
+const electronAdapterModule = await importBundledModule('./src/platform/electronAdapter.ts');
 const skins = await importBundledModule('./src/data/skins.ts');
+const stages = await importBundledModule('./src/data/stages.ts');
+const backgrounds = await importBundledModule('./src/data/backgrounds.ts');
+const muses = await importBundledModule('./src/data/muses.ts');
+const skills = await importBundledModule('./src/data/skills.ts');
+const rewardApplier = await importBundledModule('./src/game/rewardApplier.ts');
+
+assert.equal(stages.stages.length, 10);
+assert.equal(muses.muses.length, 4);
+assert.equal(skins.museSkins.length, 8);
+assert.equal(backgrounds.backgrounds.length, 6);
+assert.deepEqual(Object.keys(skills.skills), ['clone', 'speed_up', 'giant', 'muse_bumper']);
+assert.equal(skills.memorySlimeSkillNodes.length >= 10, true);
+assert.equal(skills.memorySlimeSkillNodes.length <= 13, true);
+assert.equal(backgrounds.initialBackgroundId, 'bg_default_room');
+assert.equal(muses.getMuseById('vega').unlockCondition.targetId, 'stage-5');
+assert.equal(
+  stages.getStageById('stage-2').rewards.some(
+    (reward) => reward.type === 'skin' && reward.id === 'lumi_pastel',
+  ),
+  true,
+);
+for (const muse of muses.muses) {
+  assert.equal(skins.getSkinById(muse.defaultSkinId)?.museId, muse.id);
+  assert.equal(skills.getSkillById(muse.skillId).id, muse.skillId);
+}
 
 assert.deepEqual(saveSystem.loadGameState(), saveSystem.createNewGameState());
 assert.equal(saveSystem.hasSaveData(), false);
@@ -68,19 +94,19 @@ assert.equal(coreState.upgrades.bounce_boost.level, 2);
 assert.equal(coreState.stats.totalWallHits, legacyCoreSave.totalBounces);
 assert.equal(coreState.stats.totalCornerHits, legacyCoreSave.totalCornerHits);
 assert.equal(coreState.currentStageId, 'stage-1');
-assert.deepEqual(coreState.stageCornerHits, {
-  'stage-1': 0,
-  'stage-2': 0,
-  'stage-3': 0,
-  'stage-4': 0,
-});
+assert.deepEqual(coreState.stageCornerHits, stages.createInitialStageCornerHits());
 assert.deepEqual(coreState.clearedStages, []);
-assert.deepEqual(coreState.unlockedBackgrounds, []);
+assert.deepEqual(coreState.claimedRewardIds, []);
+assert.deepEqual(coreState.claimedStageRewardIds, []);
+assert.deepEqual(coreState.unlockedBackgrounds, ['bg_default_room']);
+assert.equal(coreState.currentBackgroundId, 'bg_default_room');
 assert.deepEqual(coreState.unlockedMuseIds, ['lumi']);
 assert.deepEqual(coreState.activeMuseIds, ['lumi']);
 assert.deepEqual(coreState.unlockedSkinIds, skins.initialUnlockedSkinIds);
 assert.deepEqual(coreState.equippedSkinByMuseId, skins.createInitialEquippedSkinByMuseId());
 assert.equal(coreState.fragments, 0);
+assert.equal(coreState.capsuleCount, 0);
+assert.deepEqual(coreState.characterSkillLevels, skills.createInitialCharacterSkillLevels());
 assert.equal(coreState.rebootCount, 0);
 assert.equal(coreState.pendingOfflineReward, null);
 
@@ -88,21 +114,45 @@ storeJson(storage, saveStorageKey, expandedProgressSave);
 const expandedState = saveSystem.loadGameState();
 assert.equal(expandedState.currentStageId, 'stage-2');
 assert.deepEqual(expandedState.stageCornerHits, {
+  ...stages.createInitialStageCornerHits(),
   'stage-1': 100,
   'stage-2': 28,
-  'stage-3': 0,
-  'stage-4': 0,
 });
 assert.deepEqual(expandedState.clearedStages, ['stage-1']);
+assert.deepEqual(expandedState.claimedRewardIds, []);
+assert.deepEqual(expandedState.claimedStageRewardIds, []);
 assert.deepEqual(expandedState.unlockedBackgrounds, ['bg_default_room', 'bg_cozy_room']);
 assert.equal(expandedState.currentBackgroundId, 'bg_cozy_room');
 assert.deepEqual(expandedState.unlockedMuseIds, ['lumi']);
 assert.deepEqual(expandedState.activeMuseIds, ['lumi']);
 assert.equal(expandedState.fragments, 5);
+assert.equal(expandedState.capsuleCount, 0);
 assert.equal(expandedState.unlockedSkillNodes.bounce_memory_1, 1);
 assert.equal(expandedState.unlockedSkillNodes.passive_cache, 1);
 assert.equal(expandedState.unlockedSkillNodes.removed_skill, undefined);
+assert.deepEqual(expandedState.characterSkillLevels, skills.createInitialCharacterSkillLevels());
 assert.equal(expandedState.rebootCount, 2);
+
+storeJson(storage, saveStorageKey, {
+  ...legacyCoreSave,
+  characterSkillLevels: {
+    memory_slime: {
+      memory_slime_core: 99,
+      memory_slime_gloss: -1,
+      memory_slime_cache_bubble: 'bad-level',
+      removed_skill: 1,
+    },
+    removed_character: {
+      memory_slime_core: 1,
+    },
+  },
+});
+const invalidCharacterSkillState = saveSystem.loadGameState();
+assert.equal(invalidCharacterSkillState.characterSkillLevels.memory_slime.memory_slime_core, 1);
+assert.equal(invalidCharacterSkillState.characterSkillLevels.memory_slime.memory_slime_gloss, 0);
+assert.equal(invalidCharacterSkillState.characterSkillLevels.memory_slime.memory_slime_cache_bubble, 0);
+assert.equal(invalidCharacterSkillState.characterSkillLevels.memory_slime.removed_skill, undefined);
+assert.equal(invalidCharacterSkillState.characterSkillLevels.removed_character, undefined);
 
 storeJson(storage, saveStorageKey, {
   ...legacyCoreSave,
@@ -124,6 +174,8 @@ storeJson(storage, settingsStorageKey, legacySettings);
 assert.deepEqual(settingsSystem.loadSettings(), {
   ...legacySettings,
   motionIntensity: 'medium',
+  windowDisplayMode: 'windowed',
+  showCornerZones: false,
 });
 
 storeJson(storage, settingsStorageKey, incompleteSettings);
@@ -185,7 +237,75 @@ assert.equal(storage.getItem(saveStorageKey), null);
 
 const resetBoundaryState = saveSystem.createNewGameState();
 resetBoundaryState.memory = 999;
+resetBoundaryState.capsuleCount = 3;
+resetBoundaryState.claimedRewardIds = ['stage-2:lumi_pastel', 'stage-2:lumi_pastel'];
+resetBoundaryState.claimedStageRewardIds = ['stage-2', 'stage-2'];
+resetBoundaryState.characterSkillLevels.memory_slime.memory_slime_core = 1;
 saveSystem.saveGameState(resetBoundaryState);
+const capsuleState = saveSystem.loadGameState();
+assert.equal(capsuleState.capsuleCount, 3);
+assert.deepEqual(capsuleState.claimedRewardIds, ['stage-2:lumi_pastel']);
+assert.deepEqual(capsuleState.claimedStageRewardIds, ['stage-2']);
+assert.equal(capsuleState.characterSkillLevels.memory_slime.memory_slime_core, 1);
+
+storeJson(storage, saveStorageKey, {
+  ...legacyCoreSave,
+  currentStageId: 'stage-3',
+  stageCornerHits: {
+    ...stages.createInitialStageCornerHits(),
+    'stage-1': stages.getStageById('stage-1').cornerHitGoal,
+    'stage-2': stages.getStageById('stage-2').cornerHitGoal,
+  },
+  clearedStages: ['stage-1', 'stage-2'],
+  claimedStageRewardIds: ['stage-2'],
+});
+const migratedStageClaimState = saveSystem.loadGameState();
+assert.deepEqual(
+  migratedStageClaimState.claimedRewardIds,
+  ['stage-2:lumi_pastel', 'stage-2:astra'],
+);
+
+storeJson(storage, saveStorageKey, {
+  ...legacyCoreSave,
+  claimedRewardIds: [],
+  claimedStageRewardIds: ['stage-2'],
+});
+assert.deepEqual(saveSystem.loadGameState().claimedRewardIds, []);
+
+let appliedMemory = 0;
+const rewardActions = {
+  addMemory(amount) {
+    appliedMemory += amount;
+  },
+  hasBackground() {
+    return false;
+  },
+  hasMuse() {
+    return false;
+  },
+  hasSkin() {
+    return false;
+  },
+  unlockBackground() {},
+  unlockMuse() {},
+  unlockSkin() {},
+};
+const memoryRewardResult = rewardApplier.applyReward(
+  { type: 'memory', amount: 25 },
+  rewardActions,
+);
+assert.equal(memoryRewardResult.granted, true);
+assert.equal(appliedMemory, 25);
+const unknownSkinResult = rewardApplier.applyReward(
+  { type: 'skin', id: 'removed_skin' },
+  rewardActions,
+);
+assert.equal(unknownSkinResult.unsupported, true);
+const unknownRewardResult = rewardApplier.applyReward(
+  { type: 'removed_reward' },
+  rewardActions,
+);
+assert.equal(unknownRewardResult.unsupported, true);
 storeJson(storage, settingsStorageKey, savedSettings);
 storeJson(storage, wallpaperSettingsStorageKey, {
   ...settingsStorage.defaultWallpaperSettings,
@@ -203,11 +323,37 @@ assert.deepEqual(settingsStorage.loadWallpaperSettings(), {
   bgmEnabled: true,
 });
 
+const desktopMuseCalls = [];
+globalThis.window.desktopMuse = {
+  async quitApp() {
+    desktopMuseCalls.push(['quitApp']);
+  },
+  async getDisplayMode() {
+    desktopMuseCalls.push(['getDisplayMode']);
+    return 'fullscreen';
+  },
+  async setDisplayMode(mode) {
+    desktopMuseCalls.push(['setDisplayMode', mode]);
+    return mode;
+  },
+};
+assert.equal(await electronAdapterModule.electronAdapter.getDisplayMode(), 'fullscreen');
+assert.equal(await electronAdapterModule.electronAdapter.setDisplayMode('fullscreen'), 'fullscreen');
+assert.equal(await electronAdapterModule.electronAdapter.setDisplayMode('windowed'), 'windowed');
+await electronAdapterModule.electronAdapter.quitApp();
+assert.deepEqual(desktopMuseCalls, [
+  ['getDisplayMode'],
+  ['setDisplayMode', 'fullscreen'],
+  ['setDisplayMode', 'windowed'],
+  ['quitApp'],
+]);
+
 saveSystem.saveGameState(saveSystem.createNewGameState());
 const persistedGameSave = storage.getItem(saveStorageKey);
 assert.equal(persistedGameSave.includes('wallpaperMode'), false);
 assert.equal(persistedGameSave.includes('wallpaperSettings'), false);
+assert.equal(persistedGameSave.includes('characterSkillLevels'), true);
 
 console.log(
-  'Save migration verification passed: empty storage, legacy/malformed saves, skin fallback, settings, wallpaper settings, and reset storage separation.',
+  'Save migration verification passed: empty storage, legacy/malformed saves, claimed stage rewards, reward fallback, skin fallback, settings, wallpaper settings, and reset storage separation.',
 );

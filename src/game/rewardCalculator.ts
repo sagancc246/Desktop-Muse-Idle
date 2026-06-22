@@ -1,4 +1,5 @@
 import {
+  backgroundTapWallRewardRate,
   baseCornerReward,
   baseMemoryPerBounce,
   museTapCornerRewardMultiplier,
@@ -8,6 +9,7 @@ import {
   museTapSpeedMultiplierHigh,
   museTapSpeedMultiplierLow,
   museTapSpeedMultiplierMedium,
+  museTapSpeedMultiplierCap,
   offlineBounceFrequencyPerSecond,
   vegaBumperCloneRewardMultiplier,
   vegaBumperRewardMultiplier,
@@ -15,12 +17,14 @@ import {
   visualSpeedMultiplierMaxLow,
   visualSpeedMultiplierMaxMedium,
 } from '../data/balance';
+import { calculateEffectiveMuseTapSpeedPerStack } from '../data/upgrades';
 import { getMuseById } from '../data/muses';
 import {
   calculateSkillTreeAdditiveBonus,
   calculateSkillTreeMultiplier,
 } from '../data/skillTree';
-import type { UpgradeCollection } from '../types/game';
+import { resolveCharacterSkillEffects } from './characterSkillEffects';
+import type { CharacterSkillLevels, UpgradeCollection } from '../types/game';
 import type { MotionIntensity } from '../types/game';
 
 function calculateSkillTreeInternalYieldMultiplier(
@@ -41,16 +45,34 @@ export function getVisualSpeedCap(motionIntensity: MotionIntensity): number {
   return visualSpeedMultiplierMaxMedium;
 }
 
-export function getMuseTapSpeedMultiplier(motionIntensity: MotionIntensity): number {
+export function getMuseTapSpeedMultiplier(
+  motionIntensity: MotionIntensity,
+  tapBoostStack = 1,
+  upgrades?: UpgradeCollection,
+): number {
+  const stack = Math.max(0, Math.floor(tapBoostStack));
+  if (stack <= 0) {
+    return 1;
+  }
+  const effectiveLow = upgrades
+    ? calculateEffectiveMuseTapSpeedPerStack(museTapSpeedMultiplierLow, upgrades)
+    : museTapSpeedMultiplierLow;
+  const effectiveMedium = upgrades
+    ? calculateEffectiveMuseTapSpeedPerStack(museTapSpeedMultiplierMedium, upgrades)
+    : museTapSpeedMultiplierMedium;
+  const effectiveHigh = upgrades
+    ? calculateEffectiveMuseTapSpeedPerStack(museTapSpeedMultiplierHigh, upgrades)
+    : museTapSpeedMultiplierHigh;
+
   if (motionIntensity === 'low') {
-    return museTapSpeedMultiplierLow;
+    return Math.min(museTapSpeedMultiplierCap, Math.pow(effectiveLow, stack));
   }
 
   if (motionIntensity === 'high') {
-    return museTapSpeedMultiplierHigh;
+    return Math.min(museTapSpeedMultiplierCap, Math.pow(effectiveHigh, stack));
   }
 
-  return museTapSpeedMultiplierMedium;
+  return Math.min(museTapSpeedMultiplierCap, Math.pow(effectiveMedium, stack));
 }
 
 export function getSpeedTuneInternalYieldMultiplier(
@@ -78,12 +100,14 @@ export function calculateBounceReward(
   upgrades: UpgradeCollection,
   unlockedSkillNodes: Record<string, number>,
   motionIntensity: MotionIntensity,
+  characterSkillLevels?: CharacterSkillLevels,
 ): number {
   const upgrade = upgrades.bounce_boost;
   return Math.floor(
     baseMemoryPerBounce *
       Math.pow(upgrade.effectValue, upgrade.level) *
       calculateSkillTreeMultiplier(unlockedSkillNodes, 'bounce_reward') *
+      resolveCharacterSkillEffects(characterSkillLevels).bounceRewardMultiplier *
       calculateInternalYieldMultiplier(upgrades, unlockedSkillNodes, motionIntensity),
   );
 }
@@ -92,12 +116,14 @@ export function calculateCornerReward(
   upgrades: UpgradeCollection,
   unlockedSkillNodes: Record<string, number>,
   motionIntensity: MotionIntensity,
+  characterSkillLevels?: CharacterSkillLevels,
 ): number {
   const upgrade = upgrades.corner_sensor;
   return Math.floor(
     baseCornerReward *
       Math.pow(upgrade.effectValue, upgrade.level) *
       calculateSkillTreeMultiplier(unlockedSkillNodes, 'corner_reward') *
+      resolveCharacterSkillEffects(characterSkillLevels).cornerRewardMultiplier *
       calculateInternalYieldMultiplier(upgrades, unlockedSkillNodes, motionIntensity),
   );
 }
@@ -110,15 +136,40 @@ export function calculateSpeedMultiplier(upgrades: UpgradeCollection): number {
 export function calculateVisualSpeedMultiplier(
   upgrades: UpgradeCollection,
   temporarySkillMultiplier: number,
-  isTapBoostActive: boolean,
+  tapBoostStack: number,
   motionIntensity: MotionIntensity,
+  characterSkillLevels?: CharacterSkillLevels,
 ): number {
-  const tapMultiplier = isTapBoostActive ? getMuseTapSpeedMultiplier(motionIntensity) : 1;
+  const tapMultiplier = getMuseTapSpeedMultiplier(motionIntensity, tapBoostStack, upgrades);
+  const characterMultiplier = resolveCharacterSkillEffects(
+    characterSkillLevels,
+  ).visualSpeedMultiplier;
+  const baseCap = getVisualSpeedCap(motionIntensity);
+  const cappedBaseMultiplier = Math.min(
+    baseCap,
+    calculateSpeedMultiplier(upgrades) * temporarySkillMultiplier * characterMultiplier,
+  );
 
   return Math.min(
-    getVisualSpeedCap(motionIntensity),
-    calculateSpeedMultiplier(upgrades) * temporarySkillMultiplier * tapMultiplier,
+    baseCap * museTapSpeedMultiplierCap,
+    cappedBaseMultiplier * tapMultiplier,
   );
+}
+
+export function calculateBackgroundTapReward(
+  upgrades: UpgradeCollection,
+  unlockedSkillNodes: Record<string, number>,
+  motionIntensity: MotionIntensity,
+  characterSkillLevels?: CharacterSkillLevels,
+): number {
+  const wallReward = calculateBounceReward(
+    upgrades,
+    unlockedSkillNodes,
+    motionIntensity,
+    characterSkillLevels,
+  );
+
+  return Math.max(1, Math.floor(wallReward * backgroundTapWallRewardRate));
 }
 
 export function calculateMuseTapCornerRewardMultiplier(
@@ -138,8 +189,15 @@ export function calculateCornerThresholdBonus(unlockedSkillNodes: Record<string,
   return calculateSkillTreeAdditiveBonus(unlockedSkillNodes, 'corner_threshold');
 }
 
-export function calculateNearCornerDistance(unlockedSkillNodes: Record<string, number>): number {
-  return nearCornerDistance + calculateSkillTreeAdditiveBonus(unlockedSkillNodes, 'corner_threshold');
+export function calculateNearCornerDistance(
+  unlockedSkillNodes: Record<string, number>,
+  characterSkillLevels?: CharacterSkillLevels,
+): number {
+  return (
+    nearCornerDistance +
+    calculateSkillTreeAdditiveBonus(unlockedSkillNodes, 'corner_threshold') +
+    resolveCharacterSkillEffects(characterSkillLevels).nearCornerDistanceBonus
+  );
 }
 
 export function calculateNearCornerReward(
@@ -168,8 +226,12 @@ export function calculateVegaBumperReward(bounceReward: number, isClone: boolean
 
 export function calculateOfflineRewardMultiplier(
   unlockedSkillNodes: Record<string, number>,
+  characterSkillLevels?: CharacterSkillLevels,
 ): number {
-  return calculateSkillTreeMultiplier(unlockedSkillNodes, 'offline_reward');
+  return (
+    calculateSkillTreeMultiplier(unlockedSkillNodes, 'offline_reward') *
+    resolveCharacterSkillEffects(characterSkillLevels).offlineRewardMultiplier
+  );
 }
 
 export function calculateOfflineMemoryPerSecond(
@@ -177,11 +239,18 @@ export function calculateOfflineMemoryPerSecond(
   unlockedSkillNodes: Record<string, number>,
   activeMuseIds: string[],
   motionIntensity: MotionIntensity,
+  characterSkillLevels?: CharacterSkillLevels,
 ): number {
-  const bounceReward = calculateBounceReward(upgrades, unlockedSkillNodes, motionIntensity);
+  const bounceReward = calculateBounceReward(
+    upgrades,
+    unlockedSkillNodes,
+    motionIntensity,
+    characterSkillLevels,
+  );
   const speedMultiplier = Math.min(
     getVisualSpeedCap(motionIntensity),
-    calculateSpeedMultiplier(upgrades),
+    calculateSpeedMultiplier(upgrades) *
+      resolveCharacterSkillEffects(characterSkillLevels).visualSpeedMultiplier,
   );
   const perSecond = activeMuseIds.reduce((total, museId) => {
     const muse = getMuseById(museId);

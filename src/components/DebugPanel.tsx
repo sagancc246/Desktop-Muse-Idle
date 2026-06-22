@@ -2,21 +2,30 @@ import { useEffect, useState } from 'react';
 import { rebootMemoryRequirement } from '../data/balance';
 import { muses } from '../data/muses';
 import { getSkinById, museSkins } from '../data/skins';
-import { getStageById } from '../data/stages';
+import { getStageById, getStageClearConditionType, getStageEnemyConfig } from '../data/stages';
+import { useAppStore } from '../store/useAppStore';
 import { useGameStore } from '../store/useGameStore';
 
 interface DebugCollisionStatus {
   activeRuntimeIds: string[];
   cloneCount: number;
+  currentWallpaperFps: number;
   lastEvent: string;
   lastEventAt: number | null;
+  lastUpdateDeltaMs: number;
+  measuredUpdatesPerSecond: number;
+  updateIntervalMs: number;
 }
 
 const defaultCollisionStatus: DebugCollisionStatus = {
   activeRuntimeIds: [],
   cloneCount: 0,
+  currentWallpaperFps: 0,
   lastEvent: 'Waiting for GameCanvas',
   lastEventAt: null,
+  lastUpdateDeltaMs: 0,
+  measuredUpdatesPerSecond: 0,
+  updateIntervalMs: 0,
 };
 
 const formatRemaining = (milliseconds: number) =>
@@ -26,11 +35,16 @@ const dispatchCanvasDebugEvent = (eventName: string, detail?: Record<string, unk
   window.dispatchEvent(new CustomEvent(eventName, { detail }));
 };
 
-export function DebugPanel() {
+interface DebugPanelProps {
+  onClose: () => void;
+}
+
+export function DebugPanel({ onClose }: DebugPanelProps) {
   const memory = useGameStore((state) => state.memory);
   const fragments = useGameStore((state) => state.fragments);
   const currentStageId = useGameStore((state) => state.currentStageId);
   const stageCornerHits = useGameStore((state) => state.stageCornerHits);
+  const stageDefeatCounts = useGameStore((state) => state.stageDefeatCounts);
   const clearedStages = useGameStore((state) => state.clearedStages);
   const activeMuseIds = useGameStore((state) => state.activeMuseIds);
   const unlockedMuseIds = useGameStore((state) => state.unlockedMuseIds);
@@ -40,6 +54,8 @@ export function DebugPanel() {
   const debugAddFragments = useGameStore((state) => state.debugAddFragments);
   const debugTriggerCornerHit = useGameStore((state) => state.debugTriggerCornerHit);
   const debugCompleteCurrentStage = useGameStore((state) => state.debugCompleteCurrentStage);
+  const debugShowBackfillRewards = useGameStore((state) => state.debugShowBackfillRewards);
+  const setDebugPanelOpen = useAppStore((state) => state.setDebugPanelOpen);
   const unlockMuse = useGameStore((state) => state.unlockMuse);
   const setActiveMuses = useGameStore((state) => state.setActiveMuses);
   const unlockSkin = useGameStore((state) => state.unlockSkin);
@@ -47,9 +63,19 @@ export function DebugPanel() {
     useState<DebugCollisionStatus>(defaultCollisionStatus);
   const currentStage = getStageById(currentStageId);
   const debugSkinIds = ['lumi_pastel', 'astra_cyber', 'noir_gothic'];
-  const currentStageHits = currentStage ? stageCornerHits[currentStage.id] ?? 0 : 0;
+  const clearConditionType = currentStage ? getStageClearConditionType(currentStage) : 'corner_hits';
+  const currentStageProgress = currentStage
+    ? clearConditionType === 'enemy_defeats'
+      ? stageDefeatCounts[currentStage.id] ?? 0
+      : stageCornerHits[currentStage.id] ?? 0
+    : 0;
+  const currentStageGoal = currentStage
+    ? clearConditionType === 'enemy_defeats'
+      ? getStageEnemyConfig(currentStage).targetDefeatCount
+      : currentStage.cornerHitGoal
+    : 0;
   const stageProgress = currentStage
-    ? `${currentStageHits.toLocaleString()} / ${currentStage.cornerHitGoal.toLocaleString()}`
+    ? `${currentStageProgress.toLocaleString()} / ${currentStageGoal.toLocaleString()}`
     : 'No stage';
   const vegaSkillState = skillStates.vega;
   const vegaStatus = vegaSkillState?.activeRemainingMs
@@ -109,6 +135,11 @@ export function DebugPanel() {
     dispatchCanvasDebugEvent('desktop-muse-idle:debug-clone-corner');
   };
 
+  const showBackfillRewards = (stageCount: number) => {
+    debugShowBackfillRewards(stageCount);
+    setDebugPanelOpen(false);
+  };
+
   return (
     <aside className="debug-panel panel" aria-label="Development debug panel">
       <div className="debug-heading">
@@ -116,7 +147,12 @@ export function DebugPanel() {
           <p className="eyebrow">DEV ONLY</p>
           <h2>Debug Panel</h2>
         </div>
-        <span>Vite dev</span>
+        <div className="debug-heading-actions">
+          <span>Vite dev</span>
+          <button aria-label="Close Debug Panel" onClick={onClose} type="button">
+            Close
+          </button>
+        </div>
       </div>
 
       <div className="debug-status">
@@ -135,6 +171,15 @@ export function DebugPanel() {
           <span>Active Bodies {collisionStatus.activeRuntimeIds.join(', ') || 'none'}</span>
           <span>Clones {collisionStatus.cloneCount}</span>
           <span>Vega Bumper {vegaStatus}</span>
+          <span>
+            Wallpaper FPS{' '}
+            {collisionStatus.currentWallpaperFps > 0
+              ? collisionStatus.currentWallpaperFps
+              : 'off'}
+          </span>
+          <span>Update interval {collisionStatus.updateIntervalMs.toFixed(1)}ms</span>
+          <span>Last delta {collisionStatus.lastUpdateDeltaMs.toFixed(1)}ms</span>
+          <span>Measured updates {collisionStatus.measuredUpdatesPerSecond.toFixed(1)}/s</span>
           <span>Last {collisionStatus.lastEvent}</span>
           <span>At {lastEventTime}</span>
         </div>
@@ -200,6 +245,21 @@ export function DebugPanel() {
           <button onClick={debugCompleteCurrentStage} type="button">
             Clear Stage
           </button>
+        </div>
+      </div>
+
+      <div className="debug-section">
+        <h3>Backfill Rewards Fixture</h3>
+        <div className="debug-button-grid">
+          {[3, 5, 10].map((stageCount) => (
+            <button
+              key={stageCount}
+              onClick={() => showBackfillRewards(stageCount)}
+              type="button"
+            >
+              Show Backfill Rewards: {stageCount} Stages
+            </button>
+          ))}
         </div>
       </div>
 

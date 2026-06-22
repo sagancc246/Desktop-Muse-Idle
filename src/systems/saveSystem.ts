@@ -1,4 +1,8 @@
-import { backgrounds, getBackgroundById } from '../data/backgrounds';
+import {
+  getBackgroundById,
+  initialBackgroundId,
+  initialUnlockedBackgroundIds,
+} from '../data/backgrounds';
 import {
   createInitialMuseTapStates,
   getMuseById,
@@ -6,10 +10,15 @@ import {
 } from '../data/muses';
 import {
   createInitialStageCornerHits,
+  createInitialStageDefeatCounts,
   getStageById,
+  getStageClearConditionType,
+  getStageEnemyConfig,
   initialStageId,
+  legacyClaimedRewardIdsByStageId,
   stages,
 } from '../data/stages';
+import { migrateLegacyStageRewardClaims } from '../data/rewards';
 import {
   createInitialEquippedSkinByMuseId,
   getDefaultSkinForMuse,
@@ -17,8 +26,9 @@ import {
   initialUnlockedSkinIds,
   museSkins,
 } from '../data/skins';
-import { createInitialUpgrades, upgradeIds } from '../data/upgrades';
+import { clampUpgradeLevel, createInitialUpgrades, upgradeIds } from '../data/upgrades';
 import { createInitialSkillNodes, skillNodes } from '../data/skillTree';
+import { characterSkillNodes, createInitialCharacterSkillLevels } from '../data/skills';
 import { calculateOfflineReward } from '../game/offlineReward';
 import { calculateOfflineMemoryPerSecond } from '../game/rewardCalculator';
 import { createInitialSkillStates } from '../game/skillEffects';
@@ -28,7 +38,7 @@ import {
   getUnlockableMuseIds,
   isKnownMuseId,
 } from '../game/unlockChecker';
-import type { GameState, SaveData, SaveResult, UpgradeCollection, UpgradeId } from '../types/game';
+import type { GameState, SaveData, SaveResult, UpgradeCollection } from '../types/game';
 import type { MotionIntensity } from '../types/game';
 
 export const saveVersion = 1;
@@ -45,7 +55,10 @@ type CompatibleSaveData = Pick<
       SaveData,
       | 'currentStageId'
       | 'stageCornerHits'
+      | 'stageDefeatCounts'
       | 'clearedStages'
+      | 'claimedRewardIds'
+      | 'claimedStageRewardIds'
       | 'unlockedBackgrounds'
       | 'currentBackgroundId'
       | 'unlockedMuseIds'
@@ -53,7 +66,9 @@ type CompatibleSaveData = Pick<
       | 'unlockedSkinIds'
       | 'equippedSkinByMuseId'
       | 'fragments'
+      | 'capsuleCount'
       | 'unlockedSkillNodes'
+      | 'characterSkillLevels'
       | 'rebootCount'
       | 'lastSavedAt'
       | 'stats'
@@ -64,15 +79,14 @@ function isNonNegativeNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }
 
-function isUpgradeLevels(value: unknown): value is Record<UpgradeId, number> {
+function isUpgradeLevels(value: unknown): value is Record<string, number> {
   if (!value || typeof value !== 'object') {
     return false;
   }
 
-  return upgradeIds.every((upgradeId) => {
-    const level = (value as Record<string, unknown>)[upgradeId];
-    return Number.isInteger(level) && isNonNegativeNumber(level);
-  });
+  return Object.values(value as Record<string, unknown>).every(
+    (level) => Number.isInteger(level) && isNonNegativeNumber(level),
+  );
 }
 
 function isSaveData(value: unknown): value is CompatibleSaveData {
@@ -92,9 +106,36 @@ function isSaveData(value: unknown): value is CompatibleSaveData {
   );
 }
 
+function isStageClearedByStoredProgress(
+  stageId: string,
+  progress: {
+    stageCornerHits: Record<string, number>;
+    stageDefeatCounts: Record<string, number>;
+  },
+): boolean {
+  const stage = getStageById(stageId);
+  if (!stage) {
+    return false;
+  }
+
+  if (getStageClearConditionType(stage) === 'enemy_defeats') {
+    return (
+      progress.stageDefeatCounts[stage.id] >= getStageEnemyConfig(stage).targetDefeatCount ||
+      progress.stageCornerHits[stage.id] >= stage.cornerHitGoal
+    );
+  }
+
+  return progress.stageCornerHits[stage.id] >= stage.cornerHitGoal;
+}
+
 function restoreStageState(data: CompatibleSaveData): Pick<
   GameState,
-  'currentStageId' | 'stageCornerHits' | 'clearedStages'
+  | 'currentStageId'
+  | 'stageCornerHits'
+  | 'stageDefeatCounts'
+  | 'clearedStages'
+  | 'claimedRewardIds'
+  | 'claimedStageRewardIds'
 > {
   const defaultStageHits = createInitialStageCornerHits();
   const storedHits =
@@ -112,31 +153,78 @@ function restoreStageState(data: CompatibleSaveData): Pick<
       return [stage.id, hits];
     }),
   );
+  const defaultStageDefeats = createInitialStageDefeatCounts();
+  const storedDefeats =
+    data.stageDefeatCounts && typeof data.stageDefeatCounts === 'object'
+      ? data.stageDefeatCounts
+      : {};
+
+  const stageDefeatCounts = Object.fromEntries(
+    stages.map((stage) => {
+      const value = storedDefeats[stage.id];
+      const targetDefeatCount = getStageEnemyConfig(stage).targetDefeatCount;
+      const defeats = isNonNegativeNumber(value)
+        ? Math.min(Math.floor(value), targetDefeatCount)
+        : defaultStageDefeats[stage.id];
+
+      return [stage.id, defeats];
+    }),
+  );
   const clearedStages = Array.isArray(data.clearedStages)
     ? data.clearedStages.filter(
         (stageId): stageId is string =>
-          typeof stageId === 'string' &&
-          getStageById(stageId) !== undefined &&
-          stageCornerHits[stageId] >= (getStageById(stageId)?.cornerHitGoal ?? Infinity),
+          typeof stageId === 'string' && isStageClearedByStoredProgress(stageId, {
+            stageCornerHits,
+            stageDefeatCounts,
+          }),
       )
     : [];
+  for (const stageId of clearedStages) {
+    const stage = getStageById(stageId);
+    if (stage && getStageClearConditionType(stage) === 'enemy_defeats') {
+      stageDefeatCounts[stage.id] = Math.max(
+        stageDefeatCounts[stage.id] ?? 0,
+        getStageEnemyConfig(stage).targetDefeatCount,
+      );
+    }
+  }
   const currentStageId =
     typeof data.currentStageId === 'string' && getStageById(data.currentStageId)
       ? data.currentStageId
       : initialStageId;
+  const claimedStageRewardIds = Array.isArray(data.claimedStageRewardIds)
+    ? data.claimedStageRewardIds.filter(
+        (stageId): stageId is string =>
+          typeof stageId === 'string' && getStageById(stageId) !== undefined,
+      )
+    : [];
+  const rawClaimedRewardIds = data.claimedRewardIds;
+  const hasStoredClaimedRewardIds = Array.isArray(rawClaimedRewardIds);
+  const storedClaimedRewardIds = hasStoredClaimedRewardIds
+    ? rawClaimedRewardIds.filter(
+        (claimId): claimId is string => typeof claimId === 'string' && claimId.length > 0,
+      )
+    : [];
+  const migratedClaimedRewardIds =
+    hasStoredClaimedRewardIds
+      ? storedClaimedRewardIds
+      : migrateLegacyStageRewardClaims(claimedStageRewardIds, legacyClaimedRewardIdsByStageId);
 
   return {
     currentStageId,
     stageCornerHits,
+    stageDefeatCounts,
     clearedStages: [...new Set(clearedStages)],
+    claimedRewardIds: [...new Set(migratedClaimedRewardIds)],
+    claimedStageRewardIds: [...new Set(claimedStageRewardIds)],
   };
 }
 
-function restoreUpgrades(levels: Record<UpgradeId, number>): UpgradeCollection {
+function restoreUpgrades(levels: Record<string, number>): UpgradeCollection {
   const upgrades = createInitialUpgrades();
 
   for (const upgradeId of upgradeIds) {
-    upgrades[upgradeId].level = levels[upgradeId];
+    upgrades[upgradeId].level = clampUpgradeLevel(upgradeId, levels[upgradeId] ?? 0);
   }
 
   return upgrades;
@@ -148,12 +236,11 @@ function restoreBackgroundState(
 ): Pick<GameState, 'unlockedBackgrounds' | 'currentBackgroundId'> {
   const clearedRewards = stages
     .filter((stage) => clearedStages.includes(stage.id))
-    .flatMap((stage) => [
-      stage.rewardBackgroundId,
-      ...backgrounds
-        .filter((background) => background.unlockStageId === stage.id)
-        .map((background) => background.id),
-    ])
+    .flatMap((stage) =>
+      stage.rewards
+        .filter((reward) => reward.type === 'background')
+        .map((reward) => reward.id),
+    )
     .filter((backgroundId) => getBackgroundById(backgroundId) !== undefined);
   const savedBackgrounds = Array.isArray(data.unlockedBackgrounds)
     ? data.unlockedBackgrounds.filter(
@@ -161,12 +248,14 @@ function restoreBackgroundState(
           typeof backgroundId === 'string' && getBackgroundById(backgroundId) !== undefined,
       )
     : [];
-  const unlockedBackgrounds = [...new Set([...clearedRewards, ...savedBackgrounds])];
+  const unlockedBackgrounds = [
+    ...new Set([...initialUnlockedBackgroundIds, ...clearedRewards, ...savedBackgrounds]),
+  ];
   const currentBackgroundId =
     typeof data.currentBackgroundId === 'string' &&
     unlockedBackgrounds.includes(data.currentBackgroundId)
       ? data.currentBackgroundId
-      : (unlockedBackgrounds[0] ?? null);
+      : (initialBackgroundId ?? unlockedBackgrounds[0] ?? null);
 
   return { unlockedBackgrounds, currentBackgroundId };
 }
@@ -231,6 +320,33 @@ function restoreSkillTreeState(
   };
 }
 
+function restoreCharacterSkillLevels(
+  data: CompatibleSaveData,
+): Pick<GameState, 'characterSkillLevels'> {
+  const storedCharacters =
+    data.characterSkillLevels && typeof data.characterSkillLevels === 'object'
+      ? data.characterSkillLevels
+      : {};
+  const characterSkillLevels = createInitialCharacterSkillLevels();
+
+  for (const skillNode of characterSkillNodes) {
+    const storedLevels = storedCharacters[skillNode.characterId];
+    const level =
+      storedLevels && typeof storedLevels === 'object'
+        ? storedLevels[skillNode.id]
+        : undefined;
+
+    if (Number.isInteger(level) && isNonNegativeNumber(level)) {
+      characterSkillLevels[skillNode.characterId][skillNode.id] = Math.min(
+        Math.floor(level),
+        skillNode.maxLevel,
+      );
+    }
+  }
+
+  return { characterSkillLevels };
+}
+
 function restoreSkinState(
   data: CompatibleSaveData,
 ): Pick<GameState, 'unlockedSkinIds' | 'equippedSkinByMuseId'> {
@@ -272,9 +388,12 @@ export function createNewGameState(motionIntensity: MotionIntensity = 'medium'):
     upgrades: createInitialUpgrades(),
     currentStageId: initialStageId,
     stageCornerHits: createInitialStageCornerHits(),
+    stageDefeatCounts: createInitialStageDefeatCounts(),
     clearedStages: [],
-    unlockedBackgrounds: [],
-    currentBackgroundId: null,
+    claimedRewardIds: [],
+    claimedStageRewardIds: [],
+    unlockedBackgrounds: initialUnlockedBackgroundIds,
+    currentBackgroundId: initialBackgroundId,
     unlockedMuseIds: getInitialUnlockedMuseIds(),
     activeMuseIds: initialActiveMuseIds,
     newlyUnlockedMuseIds: [],
@@ -284,7 +403,9 @@ export function createNewGameState(motionIntensity: MotionIntensity = 'medium'):
     skillStates: createInitialSkillStates(),
     museTapStates: createInitialMuseTapStates(),
     fragments: 0,
+    capsuleCount: 0,
     unlockedSkillNodes: createInitialSkillNodes(),
+    characterSkillLevels: createInitialCharacterSkillLevels(),
     rebootCount: 0,
     saveStatus: 'idle',
     lastSavedAt: null,
@@ -292,6 +413,7 @@ export function createNewGameState(motionIntensity: MotionIntensity = 'medium'):
     lastSaveSource: null,
     pendingOfflineReward: null,
     pendingStageClear: null,
+    pendingBackfillRewards: null,
     lastCornerHitFlash: null,
   };
   state.stats.unlockedBackgroundCount = state.unlockedBackgrounds.length;
@@ -301,6 +423,7 @@ export function createNewGameState(motionIntensity: MotionIntensity = 'medium'):
     state.unlockedSkillNodes,
     state.activeMuseIds,
     motionIntensity,
+    state.characterSkillLevels,
   );
 
   return state;
@@ -378,12 +501,17 @@ export function loadGameState({
       skillStates: createInitialSkillStates(),
       museTapStates: createInitialMuseTapStates(),
       ...restoreSkillTreeState(parsedData),
+      ...restoreCharacterSkillLevels(parsedData),
+      capsuleCount: isNonNegativeNumber(parsedData.capsuleCount)
+        ? Math.floor(parsedData.capsuleCount)
+        : 0,
       saveStatus: 'idle',
       lastSavedAt: isNonNegativeNumber(parsedData.lastSavedAt) ? parsedData.lastSavedAt : null,
       lastSaveError: null,
       lastSaveSource: null,
       pendingOfflineReward: null,
       pendingStageClear: null,
+      pendingBackfillRewards: null,
       lastCornerHitFlash: null,
     };
     restoredState.stats.unlockedBackgroundCount = restoredState.unlockedBackgrounds.length;
@@ -392,6 +520,7 @@ export function loadGameState({
       restoredState.unlockedSkillNodes,
       restoredState.activeMuseIds,
       motionIntensity,
+      restoredState.characterSkillLevels,
     );
 
     if (!applyOfflineReward) {
@@ -405,6 +534,7 @@ export function loadGameState({
       memoryPerSecond: parsedData.memoryPerSecond,
       now,
       unlockedSkillNodes: restoredState.unlockedSkillNodes,
+      characterSkillLevels: restoredState.characterSkillLevels,
     });
 
     return offlineReward
@@ -442,17 +572,19 @@ export function saveGameState(
       state.unlockedSkillNodes,
       state.activeMuseIds,
       motionIntensity,
+      state.characterSkillLevels,
     ),
     totalBounces: state.totalBounces,
     totalCornerHits: state.totalCornerHits,
-    upgrades: {
-      bounce_boost: state.upgrades.bounce_boost.level,
-      speed_tune: state.upgrades.speed_tune.level,
-      corner_sensor: state.upgrades.corner_sensor.level,
-    },
+    upgrades: Object.fromEntries(
+      upgradeIds.map((upgradeId) => [upgradeId, state.upgrades[upgradeId]?.level ?? 0]),
+    ),
     currentStageId: state.currentStageId,
     stageCornerHits: state.stageCornerHits,
+    stageDefeatCounts: state.stageDefeatCounts,
     clearedStages: state.clearedStages,
+    claimedRewardIds: state.claimedRewardIds,
+    claimedStageRewardIds: state.claimedStageRewardIds,
     unlockedBackgrounds: state.unlockedBackgrounds,
     currentBackgroundId: state.currentBackgroundId,
     unlockedMuseIds: state.unlockedMuseIds,
@@ -460,7 +592,9 @@ export function saveGameState(
     unlockedSkinIds: state.unlockedSkinIds,
     equippedSkinByMuseId: state.equippedSkinByMuseId,
     fragments: state.fragments,
+    capsuleCount: state.capsuleCount,
     unlockedSkillNodes: state.unlockedSkillNodes,
+    characterSkillLevels: state.characterSkillLevels,
     rebootCount: state.rebootCount,
     lastSavedAt: savedAt,
     stats: state.stats,

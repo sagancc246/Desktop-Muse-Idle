@@ -174,10 +174,77 @@ npm run dev
 npm run build
 npm run preview
 npm run electron:dev
+npm run build:wallpaper-helper
 npm run electron:build
 ```
 
-`npm run electron:build` は `release/win-unpacked/` に Windows 向けの展開済みアプリを生成します。
+`npm run electron:dev` は Vite 開発サーバーと Electron を同時起動します。透明オーバーレイなど、ブラウザ版では確認できない Electron ウィンドウ動作の開発確認に使用します。
+
+`npm run electron:build` は Web ビルド後に `electron-builder --win --x64 --dir` を実行し、Windows 向けの展開済みアプリを生成します。インストーラーは作成せず、想定される実行ファイルは次です。
+
+```text
+release\win-unpacked\Desktop Muse Idle.exe
+release\win-unpacked\resources\wallpaper-helper\wallpaper-helper.exe
+```
+
+`npm run build:wallpaper-helper` requires the .NET SDK and publishes the Windows helper to `native\wallpaper-helper\bin\publish\win-x64\wallpaper-helper.exe`. `npm run electron:build` runs that helper publish step before `npm run build` and `electron-builder`, then bundles the helper into the packaged app under `resources\wallpaper-helper\wallpaper-helper.exe`. The normal web `npm run build` and `npm run verify:all` do not require .NET.
+
+### Windows Electron 実機確認
+
+開発版で確認する場合:
+
+```powershell
+npm run electron:dev
+```
+
+パッケージ版で確認する場合:
+
+```powershell
+npm run electron:build
+& ".\release\win-unpacked\Desktop Muse Idle.exe"
+```
+
+Windows Computer Use runtime が `windows sandbox failed: spawn setup refresh` などで起動できない場合は、上記のパッケージ版 `.exe` をローカルWindows環境で直接起動して確認します。
+
+1. ゲーム画面を開き、Wallpaper設定またはモード選択から `Muse Overlay` を起動します。
+2. 通常背景と大型UIが消え、Museだけがデスクトップ上の透明ウィンドウに表示されることを確認します。
+3. 起動直後はClick ThroughがOFFで、操作説明HUDが表示されることを確認します。
+4. `clickThroughPreferred` がONの場合も、開始から約3秒間はOFFのままで、その後ONへ切り替わることを確認します。
+5. Muse Overlayが他アプリより前面に維持され、Always on Topが機能することを確認します。
+6. Click ThroughがOFFの状態でMuseをクリックし、Muse Tapが反応することを確認します。
+7. `Ctrl + Shift + M` でClick ThroughをONにし、背後のデスクトップやアプリをクリックできることを確認します。
+8. Click Through ON中はOverlay上のボタンを押せない前提で、Muse Tapが発動しないことを確認します。
+9. `Ctrl + Shift + M` でもう一度OFFへ戻し、Muse TapとHUDボタン操作が再び反応することを確認します。
+10. `Esc` で通常画面へ戻り、透明化・Always on Top・クリック透過が解除されることを確認します。
+11. Muse Overlayへ入り直し、HUDの `Exit` ボタンでも通常画面へ戻れることを確認します。
+12. HUDに `Overlay Active`、`Transparent`、`Always On Top`、`Click Through` が表示され、`Last Error` が出ていないことを確認します。
+
+## v1.0マスタデータと報酬追加
+
+- 共通報酬型は `src/data/rewards.ts` の `Reward` に定義します。
+- Stage報酬は `src/data/stages.ts` の各Stageにある `rewards` 配列へ追加します。
+- 報酬付与は `src/game/rewardApplier.ts` が担当し、StageデータやUIコンポーネントには解放処理を書きません。
+- 解放条件は `src/types/game.ts` の `UnlockCondition` を使用します。
+- Museは `muses.ts` で `defaultSkinId`、`skillId`、`unlockCondition` を参照し、スキル本体は `skills.ts` に定義します。
+- スキンは `skins.ts`、背景は `backgrounds.ts` に定義し、性能値を持たせません。
+- Upgradeのコスト・倍率は `balance.ts` に置き、`upgrades.ts` は表示用マスタとして参照します。
+- Stage報酬の付与済み状態はReward単位の `claimedRewardIds` へ保存され、同じ報酬は再付与されません。
+- Stage報酬には安定した `rewardId` を設定し、claim keyは `${stageId}:${rewardId}` になります。`rewardId`がない場合はStage ID、Reward type、IDまたはamountから生成されます。
+- クリア済みStageへ後から報酬を追加した場合、Continue時に未claimの報酬だけが付与されます。
+- 旧セーブの `claimedStageRewardIds` は移行時点の既存Reward IDだけへ変換されます。今後Stageへ報酬を追加するとき、`legacyClaimedRewardIdsByStageId` は更新しません。
+- `capsule`、`shard`、`conversation` は共通型で予約済みです。未実装アクションの報酬は安全に `unsupported` として処理されます。
+
+Stage報酬追加例:
+
+```ts
+rewards: [
+  { rewardId: 'cozy_room', type: 'background', id: 'bg_cozy_room' },
+  { rewardId: 'lumi_pastel', type: 'skin', id: 'lumi_pastel' },
+  { rewardId: 'memory_1000', type: 'memory', amount: 1_000 },
+]
+```
+
+報酬IDを追加する場合は、対応する `skins.ts`、`backgrounds.ts`、`muses.ts` などのマスタにも同じIDを定義してください。存在しないIDは付与されず、報酬カードでは `Unknown Reward` として表示されます。v1.0ではStage 1〜10、4 Muse、8 Skin、6 Background、4 Skillを定義しています。
 
 ## 現在の実装状態
 
@@ -262,13 +329,13 @@ npm run electron:build
 
 ### ステージクリア機能
 
-- `src/data/stages.ts` に Stage 1 から Stage 3 の Corner Hit 目標を定義
+- `src/data/stages.ts` に v1.0向けStage 1からStage 10のCorner Hit目標と報酬を定義
 - `currentStageId`、`stageCornerHits`、`clearedStages` を Zustand とセーブデータへ追加
 - Corner Hit の累計 `totalCornerHits` は維持しつつ、ステージクリア判定には現在ステージ専用の進捗だけを使用
 - 右側の `StagePanel` に現在ステージ名、進捗、必要 Corner Hit 数、クリア済み数を表示
 - 目標達成時はクリア記録を追加し、次のステージへ自動的に移行
 
-現在はステージ目標による進行確認に加え、`rewardBackgroundId` に対応する背景の解放、Gallery での閲覧、現在背景の選択にも対応しています。追加のスチルカテゴリや大量の背景コンテンツはまだ実装していません。
+現在はステージ目標による進行確認に加え、共通 `rewards` に定義した背景の解放、Gallery での閲覧、現在背景の選択にも対応しています。追加のスチルカテゴリや大量の背景コンテンツはまだ実装していません。
 
 ### ステージクリア演出
 
@@ -536,10 +603,10 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 
 ## Non-Default Skin Unlock Flow
 
-- `Stage` can now define `skinRewardIds`.
+- `Stage` can define skin rewards through the shared `rewards` array.
 - Stage 2 now rewards `lumi_pastel` when cleared.
 - `unlockSkin()` prevents duplicate unlocks, saves the updated skin ownership, and queues a skin unlock notification.
-- Stage rewards and Debug Panel skin unlocks both use the same unlock flow.
+- Stage rewards use the shared reward applier, while Debug Panel skin unlocks continue to use the store unlock action.
 - `SkinUnlockToast` shows `New Skin Unlocked!`, skin name, Muse name, and rarity.
 - The development `DebugPanel` can unlock `lumi_pastel`, `astra_cyber`, `noir_gothic`, or all non-default skins.
 - `DebugPanel` also displays the current `unlockedSkinIds` for quick save/load checks.
@@ -575,19 +642,26 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 
 ## Development Debug Panel
 
-- `src/components/DebugPanel.tsx` is rendered only when `import.meta.env.DEV` is true, so it appears in `npm run dev` and stays hidden in production builds.
+- The Debug Panel is available only while `import.meta.env.DEV` is true and starts closed.
+- On the normal game screen, open or close it with the small `Debug` button or `Ctrl + Shift + D`.
+- Close it with its `Close` button or `Esc`.
+- Entering Focus Mode, Wallpaper Stage Mode, Muse Overlay Mode, or another screen closes the panel. The Debug button and panel are not rendered in production builds.
+
+- `src/components/DebugPanel.tsx` is rendered only when `import.meta.env.DEV` is true, so it can be opened in `npm run dev` and stays hidden in production builds.
 - The panel provides direct test controls for Memory, Fragment, Corner Hit progress, current stage completion/background unlock, Reboot readiness, Muse skill activation, and Muse Tap activation.
 - Debug Corner Hit uses the normal stage-progress/background-unlock path, while adding the current bounce and corner reward to make reward and progression checks fast.
 - The store-side debug actions are guarded by `import.meta.env.DEV` so accidental production calls do nothing.
 
 ### Development Debug Panel Verification
 
-1. Run `npm run dev`, start or continue into the game screen, and confirm the right-side `Debug Panel` appears under the normal Muse panels.
-2. Click `+1K Memory`, `+10K Memory`, and `+1 Fragment` and confirm ResourceBar/Reboot values update.
-3. Click `Trigger Corner` and confirm Memory, Bounce count, Corner Hit count, and Stage progress increase.
-4. Click `Clear Stage` and confirm the current stage reaches its goal, the next stage unlocks when available, and the reward background is added.
-5. Click each Muse `Skill` and `Tap` button and confirm MusePanel state changes to active/cooldown.
-6. Run `npm run build` and confirm the TypeScript and Vite build completes.
+1. Run `npm run dev`, start or continue into the game screen, and confirm the Debug Panel starts closed.
+2. Use the small `Debug` button or `Ctrl + Shift + D` and confirm the right-side overlay opens without changing the normal panel layout.
+3. Use `Esc` or `Close` and confirm the panel closes.
+4. Reopen it, click `+1K Memory`, `+10K Memory`, and `+1 Fragment`, and confirm ResourceBar/Reboot values update.
+5. Click `Trigger Corner` and confirm Memory, Bounce count, Corner Hit count, and Stage progress increase.
+6. Click `Clear Stage` and confirm the current stage reaches its goal, the next stage unlocks when available, and the reward background is added.
+7. Click each Muse `Skill` and `Tap` button and confirm MusePanel state changes to active/cooldown.
+8. Run `npm run build` and confirm the TypeScript and Vite build completes.
 
 ## Hidden Tab Rendering Control
 
@@ -663,7 +737,7 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 
 ### Cozy Room Background Verification
 
-1. Run `npm run dev`, clear Stage 2 or use a save where `bg_cozy_room` is unlocked, then select `Cozy Room` from Gallery.
+1. Run `npm run dev`, clear Stage 1 or use a save where `bg_cozy_room` is unlocked, then select `Cozy Room` from Gallery.
 2. Confirm the warm room appears in GameCanvas and remains readable behind Muse icons and HUD text.
 3. Open the Gallery preview and confirm the image, name, and description render without the fallback placeholder.
 4. Reload the page and confirm the selected background is restored from the save data.
@@ -680,7 +754,7 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 
 ### Pinball Neon Background Verification
 
-1. Run `npm run dev`, clear Stage 3 or use a save where `bg_pinball_neon` is unlocked, then select `Pinball Neon` from Gallery.
+1. Run `npm run dev`, clear Stage 7 or use a save where `bg_pinball_neon` is unlocked, then select `Pinball Neon` from Gallery.
 2. Confirm normal mode shows subtle neon pulse, scanlines, floor reflection, and a readable center area for Muse/HUD.
 3. Press `F` or the `Focus` button and confirm Focus Mode strengthens the glow and scanline motion.
 4. Trigger a Corner Hit, or use the development `Debug Panel` `Trigger Corner` button, and confirm only the relevant corner flashes.
@@ -750,10 +824,10 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 ## Muse Unlocks
 
 - Museデータに `defaultUnlocked` と `unlockCondition` を追加し、初期状態ではLumiだけが解放済みになります。
-- AstraはStage 2クリア、NoirはStage 4クリアで解放されます。Stage 4はPinball Neon背景報酬のステージとして追加しました。
+- AstraはStage 2クリア、NoirはStage 4クリア、VegaはStage 5クリアで解放されます。
 - `unlockedMuseIds` と `activeMuseIds` はセーブ/ロード対象です。旧セーブはLumiのみを初期解放し、既に条件を満たしている場合はロード時に解放状態を補完します。
 - 解放条件達成時は `MuseUnlockModal` で `NEW MUSE UNLOCKED!`、キャラ名、説明、スキル名を表示します。
-- `MusePanel` は解放済みキャラをDeploy/Recallでき、未解放キャラには `Clear Stage 2` / `Clear Stage 4` の条件を表示します。
+- `MusePanel` は解放済みキャラをDeploy/Recallでき、未解放キャラには共通UnlockConditionの条件を表示します。
 
 ### Muse Unlock Verification
 
@@ -884,7 +958,7 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 
 ## Vega Muse Bumper
 
-- Added Vega as a Stage 3 unlockable Muse with the `Muse Bumper` skill.
+- Vega is a Stage 5 unlockable Muse with the `Muse Bumper` skill.
 - Vega's skill state uses the existing Muse skill timer flow, so MusePanel shows Ready, Active, and Cooldown status.
 - While `Muse Bumper` is active, only collisions between Vega and non-Vega active Muses or clones are resolved.
 - Vega acts as a moving bumper: hit Muses are pushed outward from Vega and their velocity is redirected with a capped boost.
@@ -897,7 +971,7 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 
 ### Vega Muse Bumper Verification
 
-1. Run `npm run dev`, unlock Vega by clearing Stage 3 or using development stage tools, and deploy Vega with at least one other Muse.
+1. Run `npm run dev`, unlock Vega by clearing Stage 5 or using development stage tools, and deploy Vega with at least one other Muse.
 2. Trigger Vega's Corner Hit and confirm `Muse Bumper` becomes Active in MusePanel.
 3. Confirm only Muses or clones that touch Vega bounce outward; non-Vega Muses should pass through each other.
 4. Confirm bumper collisions add a small amount of Memory but do not increase Corner Hits or stage progress.
@@ -994,42 +1068,123 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 
 ## Muse Overlay Mode
 
-- `wallpaperMode === "muse_overlay"` now enables a web-only Muse Overlay preview mode.
+- `wallpaperMode === "muse_overlay"` enables a web preview and an Electron transparent Overlay mode.
 - The mode hides the selected background image, CSS background effects, ResourceBar, UpgradePanel, StagePanel, GalleryPanel, MusePanel, DebugPanel, RebootPanel, and large blocking reward/unlock UI.
 - GameCanvas keeps the same Pixi coordinate system, movement, Corner Hit detection, Muse Tap, rewards, and stage progress while presenting only the Muse bodies and reduced effects.
-- The stage uses a dark checker-style placeholder backdrop to suggest future transparent-window behavior without adding Electron-specific code.
+- Web preview uses the normal browser surface; Electron Overlay removes the window/background surface so only Muse/Pixi effects remain visible.
 - Added `MuseOverlayHud`, which stays hidden by default and briefly appears on pointer or keyboard activity.
-- The HUD includes an `Exit` button and a Click Through placeholder label for future Electron work.
+- The HUD includes Exit, backend status, and Click Through state/shortcut guidance.
 - `Esc` also exits Muse Overlay Mode by returning `wallpaperMode` to `off`.
+
+## Current Wallpaper Mode Status
+
+Current implementation status: **`transparent_overlay`** for Muse Overlay in the packaged Electron app, **`electron_window`** for Wallpaper Stage, **`native_desktop_wallpaper` only when the Windows helper reports `attached: true`**, **`fallback_stage`** when helper attach is missing or fails, and **`browser_only`** during web development.
+
+| Capability | Current status | Evidence |
+| --- | --- | --- |
+| Wallpaper Stage Mode | `browser_only` / `electron_window` | Changes React/CSS layout and Pixi rendering inside the existing app window. |
+| Muse Overlay Mode | `browser_only` / `transparent_overlay` | Electron switches the existing transparent-capable window to fullscreen, always-on-top Overlay presentation. |
+| Transparent overlay | Implemented for Electron Muse Overlay | IPC controls fullscreen Overlay entry/exit, always-on-top, taskbar hiding, and click-through. |
+| Native desktop wallpaper | Windows helper MVP | Electron creates a dedicated hidden Wallpaper `BrowserWindow`, passes its HWND to the C# helper, and reports `native_desktop_wallpaper` only when WorkerW `SetParent` attach succeeds. Missing helper or failed attach falls back to Wallpaper Stage. |
+
+The Electron main process creates one transparent-capable `BrowserWindow` at 1280x820. Normal screens remain visually opaque. Entering Muse Overlay uses the preload IPC bridge and `electronAdapter` to make the existing window fullscreen, always-on-top, hidden from the taskbar, and visually transparent. Exiting restores the previous bounds/fullscreen/always-on-top state and always disables click-through.
+
+Click Through uses Electron `setIgnoreMouseEvents`. When it is OFF, Muse Tap and HUD buttons remain available. When it is ON, clicks pass to the desktop/application behind the Overlay, so Overlay buttons should be treated as unavailable. Use `Ctrl + Shift + M` to toggle Click Through; Electron registers this shortcut globally while Overlay is active so it remains usable even when the window ignores mouse events. `Esc` is also registered while Overlay is active and safely restores the normal window.
+
+Muse Overlay always starts with Click Through OFF. If the saved Click Through preference is ON, the app keeps Click Through OFF for the first 3 seconds, shows a safety HUD explaining `Ctrl + Shift + M` and `Esc`, and then applies the saved ON preference.
+
+Native Desktop Wallpaper Mode is exposed from Settings and `WallpaperModePanel` only when the platform adapter reports Windows Electron support. The renderer calls `platformAdapter` only; Electron handles `wallpaper:enter-native`, `wallpaper:exit-native`, and `wallpaper:get-status` in the main process. The current MVP uses the C# helper for WorkerW discovery, `SetParent`, style adjustment, and `SetWindowPos`; helper failure still returns a controlled fallback with the message `Native wallpaper attach failed. Fallback to Wallpaper Stage Mode.`
+
+The selected bridge direction for real `native_desktop_wallpaper` support is a C# self-contained helper exe called only by Electron main process code. This keeps Win32 WorkerW / Progman / SetParent calls out of React and avoids Electron native addon ABI risk. See `docs/WIN32_WALLPAPER_BRIDGE_DECISION.md` and `docs/NATIVE_WALLPAPER.md` for the comparison, implementation plan, and verification checklist.
+
+The helper lives in `native/wallpaper-helper/`. It supports `version`, `status`, `find-desktop`, `attach --hwnd <HWND> --dry-run`, `attach --hwnd <HWND>`, and `detach --hwnd <HWND>`, and always writes JSON to stdout. Electron passes the Wallpaper `BrowserWindow` HWND to `attach`; the helper searches Progman / WorkerW / SHELLDLL_DefView, adjusts window style, calls `SetParent`, then calls `SetWindowPos`. The app reports `backend: native_desktop_wallpaper` and `attached: true` only if helper attach verifies success. Failure remains `fallback_stage`. The HWND and helper path are included only for debug plumbing.
+
+Manual helper checks when the .NET SDK is installed:
+
+```powershell
+dotnet run --project native\wallpaper-helper\WallpaperHelper.csproj -- status
+dotnet run --project native\wallpaper-helper\WallpaperHelper.csproj -- version
+dotnet run --project native\wallpaper-helper\WallpaperHelper.csproj -- find-desktop
+dotnet run --project native\wallpaper-helper\WallpaperHelper.csproj -- attach --hwnd 12345 --dry-run
+dotnet run --project native\wallpaper-helper\WallpaperHelper.csproj -- attach --hwnd <real-electron-wallpaper-hwnd>
+dotnet run --project native\wallpaper-helper\WallpaperHelper.csproj -- detach --hwnd <real-electron-wallpaper-hwnd> --previous-parent <previous-parent-hwnd>
+npm run build:wallpaper-helper
+```
+
+The helper publish output is `native\wallpaper-helper\bin\publish\win-x64\wallpaper-helper.exe`. `electron-builder` bundles it to `resources\wallpaper-helper\wallpaper-helper.exe` in the packaged app. Electron also accepts `DESKTOP_MUSE_WALLPAPER_HELPER=C:\path\to\wallpaper-helper.exe` for local override testing. The normal app build does not require .NET. If the helper exe is missing, Electron reports helper unavailable, shows the missing helper path state in NativeWallpaperStatus, and falls back safely.
+
+Expected behavior from the current code:
+
+- `Win + D`: Muse Overlay remains an always-on-top overlay, not a desktop wallpaper behind icons.
+- `Alt + Tab`: normal mode appears as an app window; Overlay is hidden from the taskbar but is still not a WorkerW desktop wallpaper.
+- Desktop icon layering: the game cannot render behind desktop icons.
+- Other applications: Muse Overlay remains above them while always-on-top is active.
+- Desktop icon/application clicks: work through the Overlay only when Click Through is ON.
+- Taskbar: normal mode appears normally; Muse Overlay uses `skipTaskbar`.
+- Native Wallpaper: attempts a Windows-only dedicated Wallpaper window first, then falls back to the existing Wallpaper Stage presentation unless the future WorkerW bridge reports `nativeAttached: true`.
+
+### Wallpaper Backend Verification
+
+1. Run the packaged Electron build and enter Wallpaper Stage Mode and Muse Overlay Mode.
+2. Confirm Muse Overlay shows Muse/Pixi effects over the desktop without the normal game background or large UI.
+3. Confirm it remains always-on-top and is hidden from the taskbar.
+4. Confirm the safety HUD appears immediately and Click Through starts OFF even when the saved preference is ON.
+5. With Click Through OFF, confirm Muse Tap works.
+6. Press `Ctrl + Shift + M`, then confirm clicks reach the desktop/application behind the Overlay and Muse Tap no longer fires.
+7. Press `Ctrl + Shift + M` again, then confirm Muse Tap and HUD buttons work again.
+8. Press `Esc` or use the Overlay HUD Exit button and confirm the previous normal window bounds and interaction return.
+9. Confirm the HUD shows Overlay Active, Transparent, Always On Top, Click Through, and no Last Error.
+10. Confirm Wallpaper Stage remains a normal Electron window and that no mode renders behind desktop icons.
+
+### Native Desktop Wallpaper MVP Verification
+
+1. Run `npm run electron:dev` or launch `release\win-unpacked\Desktop Muse Idle.exe`, then enter the game screen.
+2. Open Settings or `WallpaperModePanel`.
+3. Confirm `Native Desktop Wallpaper` / `Native` is disabled in web or non-Windows environments.
+4. On Windows Electron, select `Native Desktop Wallpaper`.
+5. Confirm the Native Wallpaper status shows Backend, Native attached, Fallback, Helper, Helper path, and Last Error.
+6. If helper attach succeeds, confirm `Backend: native_desktop_wallpaper` and `Attached: true`.
+7. If helper attach fails or the helper is missing, confirm fallback to Wallpaper Stage with `Attached: false` and a clear helper/attach reason.
+8. Confirm the game remains usable and `Exit` / `Esc` returns to normal mode.
+9. For successful native attach, confirm:
+   - `Win + D` leaves the wallpaper visible.
+   - The wallpaper is behind desktop icons.
+   - Desktop icons remain clickable.
+   - The wallpaper does not appear as a normal Alt + Tab or taskbar window.
+   - Opening other apps leaves the wallpaper behind them.
+   - Exit or `Esc` detaches/closes the Wallpaper window and leaves no ghost window.
+   - Failure environments report `fallback_stage` with a clear Last Error.
 
 ### Muse Overlay Mode Verification
 
-1. Run `npm run dev` and enter the game screen.
+1. Run `npm run electron:dev` or launch `release\win-unpacked\Desktop Muse Idle.exe`, then enter the game screen.
 2. Open Settings or `WallpaperModePanel`, then select `Muse Overlay`.
-3. Confirm the background image and large management UI disappear, leaving only moving Muse bodies on the dark checker placeholder backdrop.
+3. Confirm the background image and large management UI disappear, leaving only moving Muse bodies; Electron should show the desktop behind them.
 4. Move the pointer or press a key and confirm the small Muse Overlay HUD appears briefly.
-5. Confirm Muse movement, Muse Tap, Wall Hits, Corner Hits, Memory gain, and stage progress continue while the mode is active.
-6. Trigger a Corner Hit or Near Corner and confirm the effects are still visible but more subdued than normal.
-7. Press `Esc` or click `Exit` in the overlay HUD and confirm the normal game UI returns.
-8. Run `npm run build` and confirm TypeScript and Vite build successfully.
+5. Confirm Muse movement, Wall Hits, Corner Hits, Memory gain, and stage progress continue while the mode is active.
+6. With Click Through OFF, confirm Muse Tap works. With Click Through ON, confirm Muse Tap does not fire and desktop/application clicks pass through.
+7. Trigger a Corner Hit or Near Corner and confirm the effects are still visible but more subdued than normal.
+8. Press `Esc` or click `Exit` in the overlay HUD and confirm the normal game UI returns.
+9. Run `npm run build` and confirm TypeScript and Vite build successfully.
 
-## Platform Overlay Adapter Stub
+## Platform Overlay Adapter
 
 - Added `src/platform/platformAdapter.ts` as the shared platform boundary for future desktop behavior.
 - Added safe no-op implementations in `localAdapter` and `steamAdapter`.
+- Added `electronAdapter` and a context-isolated Electron preload IPC bridge for real Overlay window control.
 - `platform.ts` exposes overlay-related adapter calls for Always on Top, Click Through, Transparent Window, entering Overlay Mode, and exiting Overlay Mode.
-- `useAppStore` now owns placeholder state for Always on Top, Click Through, and Transparent Window.
+- `useAppStore` owns synchronized state for Always on Top, Click Through, and Transparent Window.
 - Wallpaper Muse Overlay entry/exit now calls the platform adapter boundary instead of leaving React components to know about future Electron APIs.
-- Settings includes web-safe placeholder toggles for `Always on Top`, `Click Through`, and `Transparent Window`.
-- `MuseOverlayHud` displays the current Click Through placeholder state.
-- No Electron main process, native module, or Steam SDK implementation was added in this step.
+- Settings uses the Electron platform adapter when available and remains a web-safe fallback otherwise.
+- `MuseOverlayHud` displays the active backend and current Click Through state.
+- No native desktop wallpaper module or Steam SDK implementation was added in this step.
 
 ### Platform Overlay Adapter Verification
 
 1. Run `npm run dev` and open Settings.
 2. Toggle `Always on Top`, `Click Through`, and `Transparent Window`; confirm the UI state changes without browser errors.
 3. Select `Muse Overlay` and confirm the overlay preview still opens normally.
-4. Move the pointer to reveal `MuseOverlayHud` and confirm the Click Through placeholder reflects the Settings value.
+4. Move the pointer to reveal `MuseOverlayHud` and confirm its backend and Click Through state are accurate.
 5. Press `Esc` or click `Exit` and confirm normal game UI returns.
 6. Run `npm run build` and confirm TypeScript and Vite build successfully.
 
@@ -1055,6 +1210,76 @@ Desktop Muse Idle の最小プロトタイプを作成してください。
 7. Switch FPS back to `60` and Effects to `normal`, then confirm Wallpaper modes become more responsive/bright again.
 8. Reload the page, reopen Settings, and confirm the Wallpaper Settings values persist.
 9. Run `npm run build` and confirm TypeScript and Vite build successfully.
+
+## Stage Clear Rewards
+
+- Clearing a stage now opens a dedicated Stage Clear modal with the cleared stage name and reward cards.
+- Reward cards support skins, backgrounds, Muses, Memory, and Capsules.
+- Stage 2 grants and displays Cozy Room, Lumi Pastel, and Astra.
+- Skin reward cards can Equip immediately, background cards can Set Background or Open Gallery, and Muse cards can Set Active.
+- Rewards are granted once when the stage is newly cleared and are saved before the modal is dismissed.
+- Stage Clear uses a soft flash, small sparkles, a short jingle stub, and a reduced presentation when Motion Intensity is Low.
+- When updates add unclaimed rewards to multiple already-cleared Stages, Continue grants every eligible reward and opens a Backfill Rewards modal grouped by Stage.
+- Backfill reward groups use the same Reward cards and immediate Equip, Set Background, and Open Gallery actions as normal Stage Clear rewards.
+- Closing the Backfill Rewards modal only dismisses the transient summary; granted rewards and `claimedRewardIds` remain saved.
+- The Backfill Rewards modal keeps its header and Continue footer visible while only the Stage reward-group list scrolls.
+- In development, open the Debug Panel and use `Show Backfill Rewards: 3 Stages`, `5 Stages`, or `10 Stages`. These fixtures replace only transient `pendingBackfillRewards`; they do not grant rewards or update `claimedRewardIds`.
+
+### Backfill Rewards Layout Verification
+
+Playwright is not currently installed. The automated viewport checks use the existing Electron renderer regression at 1280x720 and 1920x1080. Real-window visual inspection remains deferred until the Windows runtime startup failure is resolved.
+
+1. Run `npm run dev`, enter the game, and open the Debug Panel with `Ctrl + Shift + D`.
+2. Select `Show Backfill Rewards: 10 Stages`.
+3. At 1920x1080 and 1280x720, confirm the modal remains inside the game viewport and the header and Continue button remain visible.
+4. Scroll the Stage reward-group list and confirm the page/backdrop and header/footer do not scroll.
+5. Confirm Stage groups with multiple rewards wrap into readable cards and long/Unknown/Already Claimed labels do not break the card layout.
+6. Confirm Equip, Set Background, Open Gallery, and Continue remain operable.
+7. Confirm merely opening the fixture does not change the saved `claimedRewardIds`.
+
+## Master Data Validation
+
+- Run `npm run verify:masters` whenever Stage, Reward, Muse, Skin, Background, Skill, Upgrade, or initial-state master data changes.
+- The validator checks duplicate IDs, Reward references, generated claim keys, UnlockCondition references, initial unlock/equipment state, and the legacy Stage-claim migration snapshot.
+- Missing image assets and not-yet-implemented Capsule, Conversation, or DLC masters are reported as warnings without failing validation.
+- `npm run verify:all` runs `verify:masters` once after save migration verification.
+- See `docs/MASTER_VALIDATION.md` for the full validation scope and snapshot policy.
+
+### Stage Clear Reward Verification
+
+1. Run `npm run dev` and start a new game.
+2. In the development Debug Panel, use `Clear Stage` to complete Stage 1.
+3. Confirm the Stage Clear modal shows Default Room and that `Open Gallery` opens the Gallery.
+4. Complete Stage 2 and confirm Cozy Room, Lumi Pastel, and Astra appear as reward cards.
+5. Use `Set Background` and `Equip`, then press `Continue`.
+6. Save and reload, then confirm Cozy Room remains selected, Lumi Pastel remains equipped, and Astra remains unlocked.
+7. Confirm clearing or reloading does not duplicate owned rewards.
+
+## Bundle Splitting And Wallpaper FPS Verification
+
+- Non-initial UI panels use `React.lazy` and `Suspense` so the title screen does not load every heavy panel up front.
+- Lazy-loaded panels include Settings, Gallery, Credits, Stats, Debug Panel, Skill Tree, Skin Selector, and GameCanvas.
+- Vite manual chunks split React, Zustand, and other vendor code without raising `build.chunkSizeWarningLimit`.
+- PixiJS stays on Vite/Rollup automatic splitting because aggressive manual Pixi chunking produced circular chunk warnings.
+- Current `npm run build` output has no 500 kB chunk warning. The largest chunks are GameCanvas/Pixi runtime code, React vendor code, and the small main index chunk.
+- If the bundle grows again, consider adding `rollup-plugin-visualizer` as a dev-only dependency to inspect exact module weight before changing chunk strategy.
+- Wallpaper FPS limits the Pixi ticker in Wallpaper Stage and Muse Overlay modes. This reduces both GameCanvas update callbacks and Pixi render cadence while preserving delta-time-based game speed.
+- Normal gameplay keeps the existing unrestricted ticker behavior.
+- The development Debug Panel shows `Wallpaper FPS`, `Update interval`, `Last delta`, and measured updates per second from GameCanvas while `import.meta.env.DEV` is true.
+- Cadence must be checked in a visible window. The existing hidden-tab control stops the Pixi ticker, so a hidden Electron regression window cannot provide a meaningful 30/60fps measurement.
+
+### Bundle And Wallpaper FPS Verification
+
+1. Run `npm run dev` and enter the game screen.
+2. Open Skill Tree and confirm it appears after the lightweight loading fallback.
+3. Open Change Skin, equip an unlocked skin, and confirm the selected skin appears in the Muse panel.
+4. Open Settings, Gallery, Stats, and Credits and confirm each opens and closes normally.
+5. In Settings, set Wallpaper FPS to `30`.
+6. Enter Wallpaper Stage Mode and confirm the Debug Panel reports `Wallpaper FPS 30`, an update interval near `33.3ms`, and measured updates near `30/s`.
+7. Set Wallpaper FPS to `60` and confirm measured updates return near `60/s`.
+8. Repeat the FPS check in Muse Overlay Mode.
+9. Confirm Wall Hits, strict Corner Hits, Near Corners, Muse Tap, Memory gain, and stage progress still behave normally.
+10. Run `npm run build` and confirm no 500 kB chunk warning appears.
 
 ## Wallpaper Mode Settings Persistence
 

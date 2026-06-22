@@ -1,28 +1,33 @@
 import { getMuseById, initialUnlockedMuseIds, muses } from '../data/muses';
 import { getStageById } from '../data/stages';
-import type { GameState, Muse, MuseUnlockCondition } from '../types/game';
+import type { Muse, UnlockCondition } from '../types/game';
 
-type UnlockState = Pick<
-  GameState,
-  'clearedStages' | 'rebootCount' | 'totalCornerHits' | 'unlockedMuseIds'
->;
+interface UnlockState {
+  clearedStages: string[];
+  rebootCount: number;
+  totalCornerHits: number;
+  totalJackpots?: number;
+  unlockedMuseIds: string[];
+}
 
-export function isMuseUnlockConditionMet(
-  condition: MuseUnlockCondition,
+export function isUnlockConditionMet(
+  condition: UnlockCondition,
   state: UnlockState,
 ): boolean {
   switch (condition.type) {
     case 'initial':
       return true;
     case 'stage_clear':
-      return typeof condition.targetId === 'string' && state.clearedStages.includes(condition.targetId);
+      return state.clearedStages.includes(condition.targetId);
     case 'total_corner_hits':
-      return state.totalCornerHits >= (condition.value ?? Infinity);
+      return state.totalCornerHits >= condition.value;
     case 'reboot_count':
-      return state.rebootCount >= (condition.value ?? Infinity);
+      return state.rebootCount >= condition.value;
     case 'jackpot_count':
+      return (state.totalJackpots ?? 0) >= condition.value;
     case 'capsule':
     case 'shard_exchange':
+    case 'dlc':
       return false;
     default:
       return false;
@@ -34,7 +39,7 @@ export function getUnlockableMuseIds(state: UnlockState): string[] {
     .filter(
       (muse) =>
         !state.unlockedMuseIds.includes(muse.id) &&
-        isMuseUnlockConditionMet(muse.unlockCondition, state),
+        isUnlockConditionMet(muse.unlockCondition, state),
     )
     .map((muse) => muse.id);
 }
@@ -44,37 +49,30 @@ export function getInitialUnlockedMuseIds(): string[] {
 }
 
 export function getMuseUnlockConditionLabel(muse: Muse): string {
-  const { unlockCondition } = muse;
+  return getUnlockConditionLabel(muse.unlockCondition);
+}
 
-  if (unlockCondition.type === 'initial') {
-    return 'Initially unlocked';
+export function getUnlockConditionLabel(condition: UnlockCondition): string {
+  switch (condition.type) {
+    case 'initial':
+      return 'Initially unlocked';
+    case 'stage_clear':
+      return `Clear ${getStageById(condition.targetId)?.name ?? condition.targetId}`;
+    case 'total_corner_hits':
+      return `Reach ${condition.value.toLocaleString()} total Corner Hits`;
+    case 'reboot_count':
+      return `Reboot ${condition.value.toLocaleString()} times`;
+    case 'jackpot_count':
+      return `Hit ${condition.value.toLocaleString()} Jackpot Corners`;
+    case 'capsule':
+      return 'Unlock from Muse Capsule';
+    case 'shard_exchange':
+      return 'Exchange Shards';
+    case 'dlc':
+      return 'DLC';
+    default:
+      return 'Locked';
   }
-
-  if (unlockCondition.type === 'stage_clear' && unlockCondition.targetId) {
-    return `Clear ${getStageById(unlockCondition.targetId)?.name ?? unlockCondition.targetId}`;
-  }
-
-  if (unlockCondition.type === 'total_corner_hits') {
-    return `Reach ${(unlockCondition.value ?? 0).toLocaleString()} total Corner Hits`;
-  }
-
-  if (unlockCondition.type === 'reboot_count') {
-    return `Reboot ${(unlockCondition.value ?? 0).toLocaleString()} times`;
-  }
-
-  if (unlockCondition.type === 'jackpot_count') {
-    return 'Hit a Jackpot Corner';
-  }
-
-  if (unlockCondition.type === 'capsule') {
-    return 'Unlock from Muse Capsule';
-  }
-
-  if (unlockCondition.type === 'shard_exchange') {
-    return 'Exchange Shards';
-  }
-
-  return 'Locked';
 }
 
 export function isKnownMuseId(museId: string): boolean {

@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import { NativeWallpaperStatus } from './NativeWallpaperStatus';
 import { useAppStore } from '../store/useAppStore';
 import { useGameStore } from '../store/useGameStore';
 import { localize } from '../systems/localization';
+import { isElectronDisplayModeAvailable, isElectronOverlayAvailable } from '../platform/platform';
 import type {
   EffectsQuality,
   Language,
@@ -19,6 +21,7 @@ interface SettingsModalProps {
 export function SettingsModal({ onBack, onStats }: SettingsModalProps) {
   const settings = useAppStore((state) => state.settings);
   const wallpaperMode = useAppStore((state) => state.wallpaperMode);
+  const nativeWallpaperStatus = useAppStore((state) => state.nativeWallpaperStatus);
   const wallpaperSettings = useAppStore((state) => state.wallpaperSettings);
   const isAlwaysOnTopEnabled = useAppStore((state) => state.isAlwaysOnTopEnabled);
   const isClickThroughEnabled = useAppStore((state) => state.isClickThroughEnabled);
@@ -33,6 +36,7 @@ export function SettingsModal({ onBack, onStats }: SettingsModalProps) {
     (state) => state.setTransparentWindowEnabled,
   );
   const updateSettings = useAppStore((state) => state.updateSettings);
+  const setWindowDisplayMode = useAppStore((state) => state.setWindowDisplayMode);
   const replayTutorial = useAppStore((state) => state.replayTutorial);
   const resetSaveData = useGameStore((state) => state.resetSaveData);
   const manualSave = useGameStore((state) => state.manualSave);
@@ -57,6 +61,11 @@ export function SettingsModal({ onBack, onStats }: SettingsModalProps) {
         minute: '2-digit',
       }).format(new Date(lastSavedAt))
     : 'Not saved yet';
+  const displayModeLocked =
+    wallpaperMode === 'native_wallpaper' ||
+    nativeWallpaperStatus.active === true ||
+    nativeWallpaperStatus.probeAttached === true ||
+    nativeWallpaperStatus.nativeProbeActive === true;
 
   useFocusTrap(settingsPanelRef, !showResetConfirm);
   useFocusTrap(resetDialogRef, showResetConfirm);
@@ -173,6 +182,37 @@ export function SettingsModal({ onBack, onStats }: SettingsModalProps) {
             </select>
           </label>
           <div className="setting-row toggle-row">
+            <span>Corner Hit 範囲表示</span>
+            <button
+              aria-label="Corner Hit Range"
+              aria-pressed={settings.showCornerZones}
+              className={`setting-toggle${settings.showCornerZones ? ' enabled' : ''}`}
+              onClick={() => updateSettings({ showCornerZones: !settings.showCornerZones })}
+              type="button"
+            >
+              {settings.showCornerZones ? 'ON' : 'OFF'}
+            </button>
+          </div>
+          <label className="setting-row">
+            <span>Display Mode</span>
+            <select
+              aria-label="Display Mode"
+              disabled={displayModeLocked}
+              onChange={(event) =>
+                setWindowDisplayMode(event.target.value as typeof settings.windowDisplayMode)
+              }
+              value={settings.windowDisplayMode}
+            >
+              <option value="windowed">ウィンドウ</option>
+              <option value="fullscreen">フルスクリーン</option>
+            </select>
+          </label>
+          {displayModeLocked && (
+            <p className="settings-help">
+              Native Wallpaper Mode is active, so display mode changes are locked.
+            </p>
+          )}
+          <div className="setting-row toggle-row">
             <span>Auto Save</span>
             <button
               aria-label="Auto Save"
@@ -193,9 +233,13 @@ export function SettingsModal({ onBack, onStats }: SettingsModalProps) {
             >
               <option value="off">Off</option>
               <option value="stage">Wallpaper Stage</option>
+              <option disabled={!nativeWallpaperStatus.supported} value="native_wallpaper">
+                Native Desktop Wallpaper
+              </option>
               <option value="muse_overlay">Muse Overlay</option>
             </select>
           </label>
+          <NativeWallpaperStatus />
           <div className="wallpaper-settings-group">
             <div className="wallpaper-settings-heading">
               <span>Wallpaper Settings</span>
@@ -327,6 +371,7 @@ export function SettingsModal({ onBack, onStats }: SettingsModalProps) {
               aria-label="Transparent Window"
               aria-pressed={isTransparentWindowEnabled}
               className={`setting-toggle${isTransparentWindowEnabled ? ' enabled' : ''}`}
+              disabled
               onClick={() => setTransparentWindowEnabled(!isTransparentWindowEnabled)}
               type="button"
             >
@@ -334,7 +379,9 @@ export function SettingsModal({ onBack, onStats }: SettingsModalProps) {
             </button>
           </div>
           <p className="settings-help">
-            Overlay window controls are web-safe stubs for the future Electron build.
+            {isElectronOverlayAvailable()
+              ? `Electron Overlay: transparency is automatic in Muse Overlay. Display Mode is ${isElectronDisplayModeAvailable() ? 'available' : 'not available in this bridge'}. Click Through can also be toggled with Ctrl + Shift + M.`
+              : 'Web Preview: Electron window controls are unavailable and remain safe no-ops.'}
           </p>
           <div className="setting-row toggle-row">
             <span>{localize(settings.language, 'showTutorial')}</span>

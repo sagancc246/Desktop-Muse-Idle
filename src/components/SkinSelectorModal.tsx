@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getMuseById } from '../data/muses';
-import { getSkinUnlockMethodLabel, getSkinsByMuseId } from '../data/skins';
+import { getSkinsByMuseId } from '../data/skins';
+import { getUnlockConditionLabel } from '../game/unlockChecker';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { useGameStore } from '../store/useGameStore';
 import { FallbackImage } from './FallbackImage';
@@ -13,6 +14,7 @@ interface SkinSelectorModalProps {
 export function SkinSelectorModal({ museId, onClose }: SkinSelectorModalProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const modalRef = useRef<HTMLElement>(null);
+  const [equipConfirmation, setEquipConfirmation] = useState<string | null>(null);
   const muse = getMuseById(museId);
   const skins = getSkinsByMuseId(museId);
   const unlockedMuseIds = useGameStore((state) => state.unlockedMuseIds);
@@ -44,6 +46,11 @@ export function SkinSelectorModal({ museId, onClose }: SkinSelectorModalProps) {
     return null;
   }
 
+  const handleEquip = (skinId: string, skinName: string) => {
+    equipSkin(museId, skinId);
+    setEquipConfirmation(`${skinName} is now equipped.`);
+  };
+
   return (
     <div className="skin-selector-backdrop" onClick={onClose}>
       <section
@@ -74,6 +81,13 @@ export function SkinSelectorModal({ museId, onClose }: SkinSelectorModalProps) {
             Close
           </button>
         </header>
+        <div
+          aria-live="polite"
+          className={`skin-equip-status${equipConfirmation ? ' confirmed' : ''}`}
+          role="status"
+        >
+          {equipConfirmation ?? 'Select an owned skin to update this Muse immediately.'}
+        </div>
         <div className="skin-grid">
           {skins.map((skin) => {
             const isUnlocked = unlockedSkinIds.includes(skin.id);
@@ -81,7 +95,11 @@ export function SkinSelectorModal({ museId, onClose }: SkinSelectorModalProps) {
             const canEquip = isMuseUnlocked && isUnlocked && !isEquipped;
 
             return (
-              <article className={`skin-card rarity-${skin.rarity}`} key={skin.id}>
+              <article
+                aria-current={isEquipped ? 'true' : undefined}
+                className={`skin-card rarity-${skin.rarity}${isEquipped ? ' equipped' : ''}`}
+                key={skin.id}
+              >
                 <FallbackImage
                   alt={`${skin.name} thumbnail`}
                   assetLabel={`${skin.id} thumbnail`}
@@ -94,15 +112,15 @@ export function SkinSelectorModal({ museId, onClose }: SkinSelectorModalProps) {
                     <span>{skin.rarity}</span>
                   </div>
                   <p>{skin.description}</p>
-                  <small>{getSkinUnlockMethodLabel(skin.unlockMethod)}</small>
+                  <small>{getUnlockConditionLabel(skin.unlockCondition)}</small>
                 </div>
                 <div className="skin-card-footer">
                   <strong className={isUnlocked ? 'owned' : 'locked'}>
-                    {isUnlocked ? 'Owned' : 'Locked'}
+                    {isEquipped ? 'Currently equipped' : isUnlocked ? 'Owned' : 'Locked'}
                   </strong>
                   <button
                     disabled={!canEquip}
-                    onClick={() => equipSkin(museId, skin.id)}
+                    onClick={() => handleEquip(skin.id, skin.name)}
                     type="button"
                   >
                     {isEquipped ? 'Equipped' : isUnlocked ? 'Equip' : 'Locked'}

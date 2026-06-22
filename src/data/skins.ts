@@ -1,3 +1,4 @@
+import { getMuseById } from './muses';
 import type { MuseSkin, SkinUnlockMethod } from '../types/game';
 
 export const museSkins: MuseSkin[] = [
@@ -8,9 +9,10 @@ export const museSkins: MuseSkin[] = [
     description: 'Lumi in her soft orchid starter look.',
     rarity: 'common',
     iconAsset: 'lumi-orchid',
-    thumbnailAsset: '/assets/muses/lumi/lumi_default.png',
+    thumbnailAsset: './assets/muses/lumi/lumi_default.svg',
     defaultUnlocked: true,
     unlockMethod: 'default',
+    unlockCondition: { type: 'initial' },
   },
   {
     id: 'astra_default',
@@ -19,9 +21,10 @@ export const museSkins: MuseSkin[] = [
     description: 'Astra with her clear cyan field palette.',
     rarity: 'common',
     iconAsset: 'astra-cyan',
-    thumbnailAsset: '/assets/muses/astra/astra_default.png',
+    thumbnailAsset: './assets/muses/astra/astra_default.svg',
     defaultUnlocked: true,
     unlockMethod: 'default',
+    unlockCondition: { type: 'initial' },
   },
   {
     id: 'noir_default',
@@ -30,9 +33,10 @@ export const museSkins: MuseSkin[] = [
     description: 'Noir in her rose-tinted night palette.',
     rarity: 'common',
     iconAsset: 'noir-rose',
-    thumbnailAsset: '/assets/muses/noir/noir_default.png',
+    thumbnailAsset: './assets/muses/noir/noir_default.svg',
     defaultUnlocked: true,
     unlockMethod: 'default',
+    unlockCondition: { type: 'initial' },
   },
   {
     id: 'vega_default',
@@ -41,9 +45,10 @@ export const museSkins: MuseSkin[] = [
     description: 'Vega with a warm gold bumper-ready palette.',
     rarity: 'common',
     iconAsset: 'vega-gold',
-    thumbnailAsset: '/assets/muses/vega/vega_default.png',
+    thumbnailAsset: './assets/muses/vega/vega_default.svg',
     defaultUnlocked: true,
     unlockMethod: 'default',
+    unlockCondition: { type: 'initial' },
   },
   {
     id: 'lumi_pastel',
@@ -52,20 +57,22 @@ export const museSkins: MuseSkin[] = [
     description: 'A lighter pastel outfit planned for stage rewards.',
     rarity: 'rare',
     iconAsset: 'lumi-pastel',
-    thumbnailAsset: '/assets/muses/lumi/lumi_pastel.png',
+    thumbnailAsset: './assets/muses/lumi/lumi_pastel.svg',
     defaultUnlocked: false,
     unlockMethod: 'stage',
+    unlockCondition: { type: 'stage_clear', targetId: 'stage-2' },
   },
   {
     id: 'astra_cyber',
     museId: 'astra',
     name: 'Astra Cyber',
-    description: 'A sharper neon-blue style reserved for capsules.',
+    description: 'A sharper neon-blue style earned from Stage 7.',
     rarity: 'rare',
     iconAsset: 'astra-cyber',
-    thumbnailAsset: '/assets/muses/astra/astra_cyber.png',
+    thumbnailAsset: './assets/muses/astra/astra_cyber.svg',
     defaultUnlocked: false,
-    unlockMethod: 'capsule',
+    unlockMethod: 'stage',
+    unlockCondition: { type: 'stage_clear', targetId: 'stage-7' },
   },
   {
     id: 'noir_gothic',
@@ -74,9 +81,22 @@ export const museSkins: MuseSkin[] = [
     description: 'A deep gothic palette reserved for capsules.',
     rarity: 'rare',
     iconAsset: 'noir-gothic',
-    thumbnailAsset: '/assets/muses/noir/noir_gothic.png',
+    thumbnailAsset: './assets/muses/noir/noir_gothic.svg',
     defaultUnlocked: false,
     unlockMethod: 'capsule',
+    unlockCondition: { type: 'capsule', targetId: 'noir_gothic' },
+  },
+  {
+    id: 'vega_bumper',
+    museId: 'vega',
+    name: 'Vega Bumper',
+    description: 'A bold bumper-focused look for Vega.',
+    rarity: 'rare',
+    iconAsset: 'vega-bumper',
+    thumbnailAsset: './assets/muses/vega/vega_bumper.svg',
+    defaultUnlocked: false,
+    unlockMethod: 'capsule',
+    unlockCondition: { type: 'capsule', targetId: 'vega_bumper' },
   },
 ];
 
@@ -93,7 +113,8 @@ export function getSkinsByMuseId(museId: string): MuseSkin[] {
 }
 
 export function getDefaultSkinForMuse(museId: string): MuseSkin | undefined {
-  return museSkins.find((skin) => skin.museId === museId && skin.defaultUnlocked);
+  const defaultSkinId = getMuseById(museId)?.defaultSkinId;
+  return museSkins.find((skin) => skin.id === defaultSkinId && skin.museId === museId);
 }
 
 export function createInitialEquippedSkinByMuseId(): Record<string, string> {

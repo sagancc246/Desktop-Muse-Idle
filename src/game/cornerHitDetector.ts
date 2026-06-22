@@ -1,4 +1,10 @@
-import { cornerHitGracePx, nearCornerDistance } from '../data/balance';
+import {
+  assistedCornerHitEnabled,
+  cornerHitAssistZonePx,
+  cornerHitGracePx,
+  nearCornerDistance,
+  strictCornerHitEnabled,
+} from '../data/balance';
 import type { CornerHitPosition } from '../types/game';
 import type { ArenaBounds, BounceBody } from './bouncePhysics';
 
@@ -22,6 +28,7 @@ export interface WallCollisionResult extends StageCollisionLimits {
 }
 
 export interface CornerCollisionResult extends WallCollisionResult {
+  isAssistedCornerHit: boolean;
   isCornerHit: boolean;
   isNearCorner: boolean;
   nearCornerId: CornerHitPosition | null;
@@ -29,6 +36,7 @@ export interface CornerCollisionResult extends WallCollisionResult {
 
 interface DetectWallCollisionParams {
   bounds: ArenaBounds;
+  cornerZonePx?: number;
   gracePx?: number;
   nearDistance?: number;
   nextX: number;
@@ -116,11 +124,29 @@ export function detectWallCollision({
   };
 }
 
-export function detectCornerHit(collision: WallCollisionResult) {
-  const isCornerHit = collision.hitXWall && collision.hitYWall;
+export function detectCornerHit(collision: WallCollisionResult, cornerZonePx = cornerHitAssistZonePx) {
+  const strictCornerHit = strictCornerHitEnabled && collision.hitXWall && collision.hitYWall;
+  const safeCornerZonePx = Math.max(0, cornerZonePx);
+  const nearTop = collision.nextY <= collision.minY + safeCornerZonePx;
+  const nearBottom = collision.nextY >= collision.maxY - safeCornerZonePx;
+  const nearLeft = collision.nextX <= collision.minX + safeCornerZonePx;
+  const nearRight = collision.nextX >= collision.maxX - safeCornerZonePx;
+  const assistedCornerHit =
+    assistedCornerHitEnabled &&
+    ((collision.hitXWall && (nearTop || nearBottom)) ||
+      (collision.hitYWall && (nearLeft || nearRight)));
+  const isCornerHit = strictCornerHit || assistedCornerHit;
 
   return {
-    cornerId: isCornerHit ? collision.cornerId : null,
+    cornerId: isCornerHit
+      ? getCornerId(
+          collision.hitLeft || nearLeft,
+          collision.hitRight || nearRight,
+          collision.hitTop || nearTop,
+          collision.hitBottom || nearBottom,
+        )
+      : null,
+    isAssistedCornerHit: !strictCornerHit && assistedCornerHit,
     isCornerHit,
   };
 }
@@ -157,7 +183,15 @@ export function detectNearCorner({
 
 export function detectBounceCollision(params: DetectWallCollisionParams): CornerCollisionResult {
   const collision = detectWallCollision(params);
-  const cornerHit = detectCornerHit(collision);
+  const cornerHit = detectCornerHit(collision, params.cornerZonePx);
+  if (cornerHit.isCornerHit) {
+    return {
+      ...collision,
+      ...cornerHit,
+      isNearCorner: false,
+      nearCornerId: null,
+    };
+  }
   const nearCorner = detectNearCorner({
     collision,
     nearDistance: params.nearDistance,

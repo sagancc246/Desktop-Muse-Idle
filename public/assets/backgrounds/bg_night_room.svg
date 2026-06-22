@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs><radialGradient id="sky" cx="50%" cy="35%" r="70%"><stop offset="0" stop-color="#273667"/><stop offset=".62" stop-color="#121933"/><stop offset="1" stop-color="#070914"/></radialGradient></defs>
+  <rect width="1920" height="1080" fill="url(#sky)"/>
+  <rect y="680" width="1920" height="400" fill="#151024"/>
+  <rect x="270" y="190" width="520" height="360" rx="24" fill="#0d142c" stroke="#45548f" stroke-width="8"/>
+  <path d="M330 260h400M330 360h400M330 460h400M530 210v320" stroke="#6576bd" stroke-width="5" opacity=".4"/>
+  <circle cx="1330" cy="230" r="70" fill="#ffe9a6" opacity=".82"/>
+  <text x="960" y="875" fill="#9aa8ff" font-family="Arial,sans-serif" font-size="42" text-anchor="middle">Night Room Placeholder</text>
+</svg>

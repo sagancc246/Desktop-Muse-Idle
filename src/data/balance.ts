@@ -1,26 +1,61 @@
+import { balanceConfig } from '../masters/balance';
+
 export const baseMemoryPerBounce = 1;
 export const cornerThreshold = 32;
 export const nearCornerDistance = 48;
 export const nearCornerDistancePerSensorLevel = 8;
 export const nearCornerRewardRate = 0.15;
 export const cornerHitGracePx = 4;
+export const cornerHitAssistZonePx = balanceConfig.cornerSensor.cornerZonePx;
+export const cornerHitCooldownMs = balanceConfig.cornerSensor.cornerHitCooldownMs;
+export const strictCornerHitEnabled = balanceConfig.cornerSensor.strictCornerEnabled;
+export const assistedCornerHitEnabled = balanceConfig.cornerSensor.assistedCornerEnabled;
 export const baseCornerReward = 100;
-export const rebootMemoryRequirement = 100_000;
-export const museTapDurationMs = 3_000;
-export const museTapCooldownMs = 8_000;
+export const rebootMemoryRequirement = balanceConfig.reboot.baseRequirement;
+export const rebootRequirementGrowth = balanceConfig.reboot.requirementGrowth;
+export const rebootBasePermanentMultiplier = balanceConfig.reboot.basePermanentMultiplier;
+export const rebootMultiplierPerReboot = balanceConfig.reboot.multiplierPerReboot;
+export const rebootMemoryCarryOverRate = balanceConfig.reboot.memoryCarryOverRate;
+export const museTapDurationMs = balanceConfig.bounceBoost.decayDurationMs;
+export const museTapCooldownMs = 50;
+export const museTapDecayStepMs = balanceConfig.bounceBoost.decayStepMs;
+export const museTapMaxStacks = 8;
+export const museTapSpeedPerStack = 1 + balanceConfig.bounceBoost.tapBoostAdd;
+export const museTapSpeedMultiplierCap = 1 + balanceConfig.bounceBoost.maxTemporaryBoost;
+export const museTapVisualPulseScale = balanceConfig.bounceBoost.visualPulseScale;
 export const museTapCornerRewardMultiplier = 1.5;
 export const museTapCornerRewardMultiplierHigh = 1.75;
-export const museTapSpeedMultiplierLow = 1.1;
-export const museTapSpeedMultiplierMedium = 1.25;
-export const museTapSpeedMultiplierHigh = 1.4;
+export const museTapSpeedMultiplierLow = museTapSpeedPerStack;
+export const museTapSpeedMultiplierMedium = museTapSpeedPerStack;
+export const museTapSpeedMultiplierHigh = museTapSpeedPerStack;
 export const museTapDirectionChangeDegreeLow = 8;
 export const museTapDirectionChangeDegreeMedium = 15;
 export const museTapDirectionChangeDegreeHigh = 20;
 export const museTapEffectDurationMs = 800;
-export const visualSpeedMultiplierMax = 3;
-export const visualSpeedMultiplierMaxLow = 1.6;
-export const visualSpeedMultiplierMaxMedium = 2.2;
-export const visualSpeedMultiplierMaxHigh = 3;
+export const backgroundTapCooldownMs = 60;
+export const backgroundTapWallRewardRate = 0.25;
+export const memoryBugDropCollectArrivalRadius = 12;
+export const memoryBugDropCollectDisableMs = 400;
+export const memoryBugDropCollectMouseSpeedMultiplier = 1.35;
+export const memoryBugDropCollectSpeed = 720;
+export const memoryBugDropCollectTouchRadius = 18;
+export const memoryBugDropMuseCollectPadding = 6;
+export const memoryBugHitCooldownMs = 250;
+export const memoryBugDropCountMax = 16;
+export const memoryBugDropCountMin = 8;
+export const memoryBugDropMaxVisible = 80;
+export const memoryBugDropValue = 1;
+export const memoryBugMaxHp = 10;
+export const memoryBugRadius = 32;
+export const memoryBugRespawnMs = 2_600;
+export const speedTuneBaseSpeed = balanceConfig.speedTune.baseSpeed;
+export const speedTuneMinSpeed = balanceConfig.speedTune.minSpeed;
+export const speedTuneMaxSpeed = balanceConfig.speedTune.maxSpeed;
+export const speedTuneTapBoostMaxSpeed = balanceConfig.speedTune.tapBoostMaxSpeed;
+export const visualSpeedMultiplierMax = balanceConfig.speedTune.visualSpeedMultiplierMaxHigh;
+export const visualSpeedMultiplierMaxLow = balanceConfig.speedTune.visualSpeedMultiplierMaxLow;
+export const visualSpeedMultiplierMaxMedium = balanceConfig.speedTune.visualSpeedMultiplierMaxMedium;
+export const visualSpeedMultiplierMaxHigh = balanceConfig.speedTune.visualSpeedMultiplierMaxHigh;
 export const cloneSpawnMinDistance = 80;
 export const cloneSpawnWallPadding = 48;
 export const cloneSpawnMaxAttempts = 20;
@@ -55,11 +90,29 @@ export const wallpaperLowEffectParticleMultiplier = 0.45;
 export const wallpaperLowEffectFlashAlphaMultiplier = 0.5;
 export const wallpaperLowEffectLayerAlphaMultiplier = 0.65;
 export const wallpaperModeDefaultFps = 30;
+export const bounceBoostBaseCost = 15;
+export const bounceBoostCostRate = 1.8;
+export const bounceBoostRewardMultiplier = 2;
+export const speedTuneBaseCost = 30;
+export const speedTuneCostRate = 1.8;
+export const speedTuneMultiplier = balanceConfig.speedTune.upgradeMultiplier;
+export const cornerSensorBaseCost = 50;
+export const cornerSensorCostRate = 1.8;
+export const cornerSensorRewardMultiplier = 1.5;
+export const cloneSkillDurationMs = 6_000;
+export const cloneSkillCooldownMs = 14_000;
+export const speedUpSkillDurationMs = 5_500;
+export const speedUpSkillCooldownMs = 13_000;
+export const giantSkillDurationMs = 6_500;
+export const giantSkillCooldownMs = 14_000;
 
-export function calculateRebootFragments(memory: number): number {
+export function calculateRebootFragments(memory: number, fragmentMultiplier = 1): number {
   if (memory < rebootMemoryRequirement) {
     return 0;
   }
 
-  return Math.max(1, Math.floor(Math.sqrt(memory / rebootMemoryRequirement)));
+  const baseFragments = Math.max(1, Math.floor(Math.sqrt(memory / rebootMemoryRequirement)));
+  const safeMultiplier =
+    Number.isFinite(fragmentMultiplier) && fragmentMultiplier > 0 ? fragmentMultiplier : 1;
+  return Math.max(1, Math.floor(baseFragments * safeMultiplier));
 }

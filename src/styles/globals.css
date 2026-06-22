@@ -33,8 +33,128 @@ body {
     var(--background);
 }
 
+body:has(.muse-overlay-viewport) {
+  background: transparent;
+}
+
 button {
   font: inherit;
+}
+
+.electron-window-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  width: 100%;
+}
+
+.electron-window-root.has-titlebar .appViewport {
+  flex: 1 1 auto;
+  height: calc(100vh - 36px);
+  min-height: 0;
+}
+
+.electron-window-root.has-titlebar.fullscreen .appViewport {
+  height: 100vh;
+}
+
+.window-titlebar {
+  -webkit-app-region: drag;
+  app-region: drag;
+  align-items: center;
+  background:
+    linear-gradient(90deg, rgba(13, 16, 36, 0.96), rgba(20, 18, 45, 0.96)),
+    #0d1024;
+  border-bottom: 1px solid rgba(145, 132, 221, 0.24);
+  color: #ebe8fa;
+  display: flex;
+  flex: 0 0 36px;
+  height: 36px;
+  justify-content: space-between;
+  min-height: 36px;
+  padding: 0 6px 0 14px;
+  position: relative;
+  user-select: none;
+  width: 100%;
+  z-index: 100;
+}
+
+.electron-window-root.fullscreen .window-titlebar {
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+  transform: translateY(0);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+  z-index: 140;
+}
+
+.electron-window-root.fullscreen.titlebar-hidden .window-titlebar {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-36px);
+}
+
+.fullscreen-titlebar-reveal-zone {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+  display: none;
+}
+
+.electron-window-root.fullscreen.has-titlebar .fullscreen-titlebar-reveal-zone {
+  display: block;
+  height: 64px;
+  left: 0;
+  pointer-events: auto;
+  position: absolute;
+  right: 0;
+  top: 0;
+  z-index: 130;
+}
+
+.window-titlebar-title {
+  color: #cfc9ea;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.window-titlebar-actions {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+  align-items: center;
+  display: flex;
+  gap: 4px;
+  height: 100%;
+}
+
+.window-titlebar-actions button {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: #d9d5ef;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 15px;
+  height: 30px;
+  justify-content: center;
+  padding: 0;
+  width: 42px;
+}
+
+.window-titlebar-actions button:hover {
+  background: rgba(140, 220, 255, 0.14);
+  color: #ffffff;
+}
+
+.window-titlebar-actions .window-titlebar-close:hover {
+  background: rgba(218, 65, 107, 0.78);
 }
 
 button:focus-visible,
@@ -55,6 +175,10 @@ select:focus-visible,
   justify-content: center;
   overflow: hidden;
   width: 100%;
+}
+
+.appViewport.muse-overlay-viewport {
+  background: transparent;
 }
 
 .gameStage {
@@ -89,25 +213,7 @@ select:focus-visible,
 }
 
 .app-shell.muse-overlay-mode {
-  background-color: #060815;
-  background-image:
-    linear-gradient(45deg, rgba(255, 255, 255, 0.055) 25%, transparent 25%),
-    linear-gradient(-45deg, rgba(255, 255, 255, 0.055) 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.055) 75%),
-    linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.055) 75%),
-    radial-gradient(circle at 50% 50%, rgba(140, 220, 255, 0.07), transparent 42%);
-  background-position:
-    0 0,
-    0 16px,
-    16px -16px,
-    -16px 0,
-    center;
-  background-size:
-    32px 32px,
-    32px 32px,
-    32px 32px,
-    32px 32px,
-    100% 100%;
+  background: transparent;
   gap: 0;
   padding: 0;
   position: relative;
@@ -151,13 +257,17 @@ select:focus-visible,
 
 .metrics {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
+  justify-content: flex-end;
 }
 
 .resource-actions {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
+  justify-content: flex-end;
 }
 
 .resource-settings {
@@ -213,6 +323,27 @@ select:focus-visible,
   color: #ffd681;
 }
 
+.metric.memory-drop-pulse {
+  animation: metricMemoryDropPulse 360ms ease-out;
+  border-color: rgba(140, 220, 255, 0.82);
+  box-shadow: 0 0 24px rgba(51, 236, 255, 0.28);
+}
+
+.metric.memory-drop-pulse strong {
+  color: #e7ffff;
+  text-shadow: 0 0 14px rgba(51, 236, 255, 0.58);
+}
+
+.metric.stage-progress-metric {
+  border-color: rgba(255, 214, 129, 0.34);
+  min-width: 164px;
+}
+
+.metric.stage-progress-metric strong {
+  color: #ffd681;
+  font-size: 21px;
+}
+
 @keyframes metricCornerPulse {
   0% {
     transform: scale(1);
@@ -227,12 +358,238 @@ select:focus-visible,
   }
 }
 
+@keyframes metricMemoryDropPulse {
+  0% {
+    transform: scale(1);
+  }
+
+  36% {
+    transform: scale(1.055);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
 .workspace {
   display: grid;
   flex: 1;
   gap: 18px;
   grid-template-columns: 280px minmax(470px, 1fr) 268px;
   min-height: 0;
+}
+
+.native-probe-control-mode {
+  background: rgba(7, 8, 16, 0.92);
+  gap: 0;
+  height: 100vh;
+  padding: 0;
+  width: 100vw;
+}
+
+.native-probe-workspace {
+  align-items: start;
+  display: flex;
+  justify-content: end;
+  min-height: 100%;
+  padding: 0;
+}
+
+.native-probe-panel-stack {
+  max-height: calc(100vh - 150px);
+  min-width: min(720px, 100%);
+}
+
+.native-wallpaper-control-view {
+  -webkit-app-region: drag;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  padding: 14px;
+  width: 100%;
+}
+
+.native-control-titlebar {
+  -webkit-app-region: drag;
+  align-items: center;
+  background: rgba(15, 18, 42, 0.92);
+  border: 1px solid rgba(145, 132, 221, 0.24);
+  border-radius: 10px;
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: space-between;
+  min-height: 58px;
+  padding: 9px 10px 9px 13px;
+}
+
+.native-control-titlebar h1 {
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: 0;
+  margin: 0;
+}
+
+.native-control-window-actions,
+.native-control-primary-actions {
+  -webkit-app-region: no-drag;
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.native-control-window-actions button,
+.native-control-primary-actions button {
+  background: rgba(42, 43, 76, 0.72);
+  border: 1px solid rgba(131, 128, 191, 0.34);
+  border-radius: 10px;
+  color: #f6f3ff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  min-height: 32px;
+  padding: 7px 11px;
+}
+
+.native-control-window-actions button:hover,
+.native-control-primary-actions button:hover {
+  border-color: rgba(140, 220, 255, 0.62);
+}
+
+.native-control-window-actions .native-control-close {
+  background: rgba(116, 33, 69, 0.68);
+  border-color: rgba(255, 135, 174, 0.42);
+  font-size: 16px;
+  min-width: 30px;
+  padding: 4px 8px;
+}
+
+.native-control-summary {
+  -webkit-app-region: drag;
+  background: rgba(11, 13, 31, 0.78);
+  border: 1px solid rgba(145, 132, 221, 0.18);
+  border-radius: 12px;
+  color: var(--text-soft);
+  display: grid;
+  gap: 5px;
+  font-size: 13px;
+  line-height: 1.4;
+  padding: 10px 12px;
+}
+
+.native-control-summary strong {
+  color: #8cdcff;
+}
+
+.native-control-primary-actions {
+  flex: 0 0 auto;
+}
+
+.native-control-mode-row {
+  -webkit-app-region: no-drag;
+  align-items: center;
+  background: rgba(11, 13, 31, 0.62);
+  border: 1px solid rgba(145, 132, 221, 0.16);
+  border-radius: 10px;
+  color: var(--text-soft);
+  display: flex;
+  flex: 0 0 auto;
+  gap: 7px;
+  font-size: 11px;
+  padding: 6px 8px;
+}
+
+.native-control-mode-row span {
+  font-weight: 700;
+  margin-right: auto;
+}
+
+.native-control-mode-row button {
+  background: rgba(42, 43, 76, 0.72);
+  border: 1px solid rgba(131, 128, 191, 0.34);
+  border-radius: 9px;
+  color: #f6f3ff;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  min-height: 28px;
+  padding: 5px 9px;
+}
+
+.native-control-mode-row button.active {
+  border-color: rgba(140, 220, 255, 0.66);
+  color: #8cdcff;
+}
+
+.native-wallpaper-control-diagnostics {
+  -webkit-app-region: no-drag;
+  background: rgba(11, 13, 31, 0.68);
+  border: 1px solid rgba(145, 132, 221, 0.18);
+  border-radius: 10px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 7px 9px;
+}
+
+.native-wallpaper-control-diagnostics summary {
+  color: #f1dcff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.native-wallpaper-control-diagnostics .native-wallpaper-diagnostics {
+  grid-template-columns: 1fr;
+  max-height: 170px;
+  overflow: auto;
+}
+
+.native-wallpaper-control-diagnostics .native-wallpaper-actions {
+  margin-top: 6px;
+}
+
+.native-wallpaper-control-view .wallpaper-mode-panel {
+  -webkit-app-region: no-drag;
+  flex: 0 0 auto;
+  padding: 14px;
+}
+
+.native-wallpaper-control-view .panel-heading {
+  margin-bottom: 12px;
+}
+
+.native-wallpaper-control-view .wallpaper-mode-copy {
+  -webkit-app-region: no-drag;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.native-wallpaper-control-view button,
+.native-wallpaper-control-view input,
+.native-wallpaper-control-view select,
+.native-wallpaper-control-view textarea,
+.native-wallpaper-control-view a,
+.native-wallpaper-control-view details,
+.native-wallpaper-control-view summary,
+.native-wallpaper-control-view .native-wallpaper-diagnostics,
+.native-wallpaper-control-view .native-wallpaper-diagnostic,
+.native-wallpaper-control-view .native-wallpaper-actions,
+.native-wallpaper-control-view .no-drag {
+  -webkit-app-region: no-drag;
+}
+
+.native-wallpaper-surface-mode button,
+.native-wallpaper-surface-mode input,
+.native-wallpaper-surface-mode select,
+.native-wallpaper-surface-mode textarea,
+.native-wallpaper-surface-mode .native-wallpaper-actions,
+.native-wallpaper-surface-mode .wallpaper-stage-exit {
+  display: none !important;
 }
 
 .upgrade-panel,
@@ -747,6 +1104,12 @@ select:focus-visible,
 .muse-overlay-hud span {
   color: var(--text-soft);
   font-size: 10px;
+}
+
+.muse-overlay-hud .overlay-safety-guide {
+  color: #ffd681;
+  font-size: 11px;
+  max-width: 360px;
 }
 
 .muse-overlay-hud button {
