@@ -23,4 +23,6 @@ jobs:
         run: npm ci
 
       - name: Build and run verification suites
+        env:
+          ELECTRON_DISABLE_SANDBOX: 1
         run: xvfb-run --auto-servernum npm run verify:all
